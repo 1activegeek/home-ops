@@ -1,0 +1,16 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: crapi
+  namespace: flux-system
+spec:
+  interval: 1h
+  ref:
+    branch: develop
+  url: "https://github.com/OWASP/crAPI.git"
+  ignore: |
+    # exclude all
+    /*
+    # include helm directory
+    !/deploy/helm/
