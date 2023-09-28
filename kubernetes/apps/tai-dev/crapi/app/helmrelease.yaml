@@ -342,9 +342,13 @@ spec:
     #     tls:
     #       - hosts:
     #           - *host
-    # resources:
-    #   requests:
-    #     cpu: 5m
-    #     memory: 10Mi
-    #   limits:
-    #     memory: 50Mi
+    resources:
+      requests:
+        cpu: 5m
+        memory: 10Mi
+      limits:
+        memory: 50Mi
+
+  valuesOverrides:
+    - path: spec.storageClassName
+      value: local-path
