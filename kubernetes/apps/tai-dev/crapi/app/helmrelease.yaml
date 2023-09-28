@@ -242,7 +242,6 @@ spec:
         resources:
           requests:
             storage: 1Gi
-        storageClassName: local-path
       serviceSelectorLabels:
         app: mongodb
       podLabels:
@@ -277,7 +276,6 @@ spec:
         resources:
           requests:
             storage: 1Gi
-        storageClassName: local-path
       serviceSelectorLabels:
         app: postgresdb
       podLabels:
@@ -350,3 +348,6 @@ spec:
         memory: 10Mi
       limits:
         memory: 50Mi
+
+    persistence:
+      storageClass: local-path
