@@ -219,7 +219,7 @@ spec:
     mongodb:
       name: mongodb
       image: mongo
-      version: 4.4
+      version: 4.4.18
       imagePullPolicy: IfNotPresent
       port: 27017
       replicaCount: 1
