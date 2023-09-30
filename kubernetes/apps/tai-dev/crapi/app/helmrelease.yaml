@@ -348,6 +348,3 @@ spec:
         memory: 10Mi
       limits:
         memory: 50Mi
-
-    persistence:
-      storageClass: local-path
