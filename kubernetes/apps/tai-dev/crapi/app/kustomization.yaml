@@ -4,3 +4,4 @@ kind: Kustomization
 namespace: tai-dev
 resources:
   - ./helmrelease.yaml
+  - ./rbac.yaml
