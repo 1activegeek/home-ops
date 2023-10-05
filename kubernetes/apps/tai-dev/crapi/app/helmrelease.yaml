@@ -47,11 +47,11 @@ spec:
       sslPort: &crapihttps 443
       service:
         enabled: false
-      #   name: crapi-web
-      #   labels:
-      #     app: crapi-web
-      #   nodePort: 30080
-      #   sslNodePort: 30443
+        name: crapi-web
+        labels:
+          app: crapi-web
+        nodePort: 30080
+        sslNodePort: 30443
       config:
         name: crapi-web-configmap
         labels:
@@ -187,15 +187,15 @@ spec:
       namespace: tai-dev
       smtpService:
         enabled: false
-      #   name: mailhog
-      #   labels:
-      #     app: mailhog
+        name: mailhog
+        labels:
+          app: mailhog
       webService:
         enabled: false
-      #   name: mailhog-web
-      #   labels:
-      #     app: mailhog
-      #   nodePort: 30025
+        name: mailhog-web
+        labels:
+          app: mailhog
+        nodePort: 30025
       config:
         name: mailhog-configmap
         labels:
