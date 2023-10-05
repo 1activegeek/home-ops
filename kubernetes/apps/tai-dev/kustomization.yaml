@@ -8,8 +8,7 @@ resources:
 patches:
   - target:
       kind: Service
-      name: {{ .Values.mailhog.webService.name }}
-      namespace: {{ .Values.mailhog.namespace }}
+      name: mailhog-web
     patch: |-
       - op: replace
         path: /spec/type
