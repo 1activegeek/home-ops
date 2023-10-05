@@ -356,7 +356,7 @@ spec:
         annotations:
           hajimari.io/enable: "false"
         hosts:
-          - host: "crapi.${SECRET_DOMAIN}"
+          - host: &crapi-web-host "crapi.${SECRET_DOMAIN}"
             paths:
               - path: /
                 pathType: Prefix
@@ -365,7 +365,7 @@ spec:
                     name: crapi-web
                     port:
                       number: *crapihttp
-          - host: "mailhog.${SECRET_DOMAIN}"
+          - host: &mailhog-host "mailhog.${SECRET_DOMAIN}"
             paths:
               - path: /
                 pathType: Prefix
@@ -374,3 +374,7 @@ spec:
                     name: mailhog
                     port:
                       number: *mailhoghttp
+        tls:
+          - hosts:
+              - *crapi-web-host
+              - *mailhog-host
