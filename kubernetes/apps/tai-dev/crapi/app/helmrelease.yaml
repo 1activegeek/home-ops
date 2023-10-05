@@ -43,8 +43,8 @@ spec:
       name: crapi-web
       image: crapi/crapi-web
       replicaCount: 1
-      port: 80
-      sslPort: 443
+      port: &crapihttp 80
+      sslPort: &crapihttps 443
       service:
         name: crapi-web
         labels:
@@ -178,7 +178,7 @@ spec:
     mailhog:
       name: mailhog
       image: crapi/mailhog
-      webPort: 8025
+      webPort: &mailhoghttp 8025
       smtpPort: 1025
       replicaCount: 1
       minReadySeconds: 10
@@ -354,9 +354,9 @@ spec:
         enabled: true
         ingressClassName: internal
         annotations:
-          hajimari.io/enable: "true"
+          hajimari.io/enable: "false"
         hosts:
-          - host: &host "crapi.${SECRET_DOMAIN}"
+          - host: "crapi.${SECRET_DOMAIN}"
             paths:
               - path: /
                 pathType: Prefix
@@ -364,8 +364,8 @@ spec:
                   service:
                     name: crapi-web
                     port:
-                      number: 80
-          - host: &host "mailhog.${SECRET_DOMAIN}"
+                      number: *crapihttp
+          - host: "mailhog.${SECRET_DOMAIN}"
             paths:
               - path: /
                 pathType: Prefix
@@ -373,4 +373,4 @@ spec:
                   service:
                     name: mailhog
                     port:
-                      number: 8025
+                      number: *mailhoghttp
