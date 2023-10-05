@@ -45,12 +45,12 @@ spec:
       replicaCount: 1
       port: &crapihttp 80
       sslPort: &crapihttps 443
-      service:
-        name: crapi-web
-        labels:
-          app: crapi-web
-        nodePort: 30080
-        sslNodePort: 30443
+      # service:
+      #   name: crapi-web
+      #   labels:
+      #     app: crapi-web
+      #   nodePort: 30080
+      #   sslNodePort: 30443
       config:
         name: crapi-web-configmap
         labels:
@@ -184,15 +184,15 @@ spec:
       minReadySeconds: 10
       progressDeadlineSeconds: 600
       namespace: tai-dev
-      smtpService:
-        name: mailhog
-        labels:
-          app: mailhog
-      webService:
-        name: mailhog-web
-        labels:
-          app: mailhog
-        nodePort: 30025
+      # smtpService:
+      #   name: mailhog
+      #   labels:
+      #     app: mailhog
+      # webService:
+      #   name: mailhog-web
+      #   labels:
+      #     app: mailhog
+      #   nodePort: 30025
       config:
         name: mailhog-configmap
         labels:
