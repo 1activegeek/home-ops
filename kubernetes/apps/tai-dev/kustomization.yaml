@@ -4,3 +4,16 @@ kind: Kustomization
 resources:
   - ./namespace.yaml
   - ./crapi/ks.yaml
+
+patches:
+  - target:
+      kind: Service
+      name: {{ .Values.mailhog.webService.name }}
+      namespace: {{ .Values.mailhog.namespace }}
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: ClusterIP
+
+      - op: remove
+        path: /spec/ports/0/nodePort
