@@ -45,7 +45,8 @@ spec:
       replicaCount: 1
       port: &crapihttp 80
       sslPort: &crapihttps 443
-      # service:
+      service:
+        enabled: false
       #   name: crapi-web
       #   labels:
       #     app: crapi-web
@@ -184,11 +185,13 @@ spec:
       minReadySeconds: 10
       progressDeadlineSeconds: 600
       namespace: tai-dev
-      # smtpService:
+      smtpService:
+        enabled: false
       #   name: mailhog
       #   labels:
       #     app: mailhog
-      # webService:
+      webService:
+        enabled: false
       #   name: mailhog-web
       #   labels:
       #     app: mailhog
