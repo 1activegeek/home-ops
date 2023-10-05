@@ -348,3 +348,29 @@ spec:
         memory: 10Mi
       limits:
         memory: 50Mi
+
+    ingress:
+      main:
+        enabled: true
+        ingressClassName: internal
+        annotations:
+          hajimari.io/enable: "true"
+        hosts:
+          - host: &host "crapi.${SECRET_DOMAIN}"
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: crapi-web
+                    port:
+                      number: 80
+          - host: &host "mailhog.${SECRET_DOMAIN}"
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: mailhog
+                    port:
+                      number: 8025
