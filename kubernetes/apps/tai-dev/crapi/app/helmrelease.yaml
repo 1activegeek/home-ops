@@ -49,8 +49,8 @@ spec:
         name: crapi-web
         labels:
           app: crapi-web
-        nodePort: 30080
-        sslNodePort: 30443
+        # nodePort: 30080
+        # sslNodePort: 30443
       config:
         name: crapi-web-configmap
         labels:
@@ -192,7 +192,7 @@ spec:
         name: mailhog-web
         labels:
           app: mailhog
-        nodePort: 30025
+        # nodePort: 30025
       config:
         name: mailhog-configmap
         labels:
@@ -348,7 +348,13 @@ spec:
         memory: 10Mi
       limits:
         memory: 50Mi
-
+    service:
+      mailhog-web:
+        ports:
+          type: ClusterIP
+      crapi-web:
+        ports:
+          type: ClusterIP
     ingress:
       main:
         enabled: true
@@ -363,18 +369,14 @@ spec:
                 backend:
                   service:
                     name: crapi-web
-                    port:
-                      number: *crapihttp
-          - host: &mailhog-host "mailhog.${SECRET_DOMAIN}"
+          - host: &mailhog-web-host "mailhog.${SECRET_DOMAIN}"
             paths:
               - path: /
                 pathType: Prefix
                 backend:
                   service:
-                    name: mailhog
-                    port:
-                      number: *mailhoghttp
+                    name: mailhog-web
         tls:
           - hosts:
               - *crapi-web-host
-              - *mailhog-host
+              - *mailhog-web-host
