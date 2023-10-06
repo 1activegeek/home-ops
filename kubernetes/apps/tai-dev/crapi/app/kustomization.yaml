@@ -8,12 +8,10 @@ resources:
 
 patchesJson6902:
   - target:
-      kind: Service
-      name: mailhog-web
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: ClusterIP
-
+      kind: HelmRelease
+      name: crapi
+  - patch: |-
       - op: remove
-        path: /spec/ports/0/nodePort
+        path: /spec/values/web/service/nodePort
+      - op: remove
+        path: /spec/values/web/service/type
