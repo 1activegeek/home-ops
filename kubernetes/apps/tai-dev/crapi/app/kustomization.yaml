@@ -5,3 +5,15 @@ namespace: tai-dev
 resources:
   - ./helmrelease.yaml
   - ./rbac.yaml
+
+patchesJson6902:
+  - target:
+      kind: Service
+      name: mailhog-web
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: ClusterIP
+
+      - op: remove
+        path: /spec/ports/0/nodePort
