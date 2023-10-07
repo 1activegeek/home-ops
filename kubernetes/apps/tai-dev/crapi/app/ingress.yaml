@@ -1,0 +1,24 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: crapi-web
+  namespace: tai-dev
+  annotations:
+    hajimari.io/enable: "true"
+spec:
+  ingressClassName: internal
+  rules:
+    - host: &host "mailhog.${SECRET_DOMAIN}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mailhog-web
+                port:
+                  number: 8025
+  tls:
+    - hosts:
+        - *host

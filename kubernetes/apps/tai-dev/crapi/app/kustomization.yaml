@@ -5,6 +5,7 @@ namespace: tai-dev
 resources:
   - ./helmrelease.yaml
   - ./rbac.yaml
+  - ./ingress.yaml
 
 # patchesJson6902:
 #   - target:

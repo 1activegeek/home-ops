@@ -43,8 +43,8 @@ spec:
       name: crapi-web
       image: crapi/crapi-web
       replicaCount: 1
-      port: &crapihttp 80
-      sslPort: &crapihttps 443
+      port: 80
+      sslPort: 443
       service:
         name: crapi-web
         labels:
@@ -178,7 +178,7 @@ spec:
     mailhog:
       name: mailhog
       image: crapi/mailhog
-      webPort: &mailhoghttp 8025
+      webPort: 8025
       smtpPort: 1025
       replicaCount: 1
       minReadySeconds: 10
@@ -312,71 +312,35 @@ spec:
       serviceSelectorLabels:
         app: gateway-service
 
-    # probes:
-    #   liveness: &probes
-    #     enabled: true
-    #     custom: true
-    #     spec:
-    #       httpGet:
-    #         path: /health
-    #         port: *port
-    #       initialDelaySeconds: 0
-    #       periodSeconds: 10
-    #       timeoutSeconds: 1
-    #       failureThreshold: 3
-    #   readiness: *probes
-    #   startup:
-    #     enabled: false
+    # service:
+    #   mailhog-web:
+    #     ports:
+    #       type: ClusterIP
+    #   crapi-web:
+    #     ports:
+    #       type: ClusterIP
     # ingress:
     #   main:
     #     enabled: true
-    #     ingressClassName: nginx
+    #     ingressClassName: internal
     #     annotations:
-    #       external-dns.alpha.kubernetes.io/target: "ingress.${SECRET_DOMAIN}"
-    #       hajimari.io/icon: video-input-antenna
+    #       hajimari.io/enable: "false"
     #     hosts:
-    #       - host: &host "{{ .Release.Name }}.${SECRET_DOMAIN}"
+    #       - host: &crapi-web-host "crapi.${SECRET_DOMAIN}"
     #         paths:
     #           - path: /
     #             pathType: Prefix
+    #             backend:
+    #               service:
+    #                 name: crapi-web
+    #       - host: &mailhog-web-host "mailhog.${SECRET_DOMAIN}"
+    #         paths:
+    #           - path: /
+    #             pathType: Prefix
+    #             backend:
+    #               service:
+    #                 name: mailhog-web
     #     tls:
     #       - hosts:
-    #           - *host
-    resources:
-      requests:
-        cpu: 5m
-        memory: 10Mi
-      limits:
-        memory: 50Mi
-    service:
-      mailhog-web:
-        ports:
-          type: ClusterIP
-      crapi-web:
-        ports:
-          type: ClusterIP
-    ingress:
-      main:
-        enabled: true
-        ingressClassName: internal
-        annotations:
-          hajimari.io/enable: "false"
-        hosts:
-          - host: &crapi-web-host "crapi.${SECRET_DOMAIN}"
-            paths:
-              - path: /
-                pathType: Prefix
-                backend:
-                  service:
-                    name: crapi-web
-          - host: &mailhog-web-host "mailhog.${SECRET_DOMAIN}"
-            paths:
-              - path: /
-                pathType: Prefix
-                backend:
-                  service:
-                    name: mailhog-web
-        tls:
-          - hosts:
-              - *crapi-web-host
-              - *mailhog-web-host
+    #           - *crapi-web-host
+    #           - *mailhog-web-host
