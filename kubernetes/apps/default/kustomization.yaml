@@ -4,5 +4,5 @@ kind: Kustomization
 resources:
   - ./namespace.yaml
   - ./media-pvc.yaml
-  - ./discord-template-notifier/ks.yaml
+  # - ./discord-template-notifier/ks.yaml
   - ./hajimari/ks.yaml
