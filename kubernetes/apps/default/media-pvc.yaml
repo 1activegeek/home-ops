@@ -19,7 +19,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   nfs:
     server: ${SECRET_SYNO_ADDR}
-    share: ${SECRET_NFS_MEDIA}
+    path: ${SECRET_NFS_MEDIA}
   mountOptions:
     - hard
     - noatime
