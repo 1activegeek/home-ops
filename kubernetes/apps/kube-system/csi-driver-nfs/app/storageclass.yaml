@@ -1,0 +1,16 @@
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-slow
+  labels:
+    disk.home.arpa/fs: zfs
+    disk.home.arpa/type: hdd
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: ${SECRET_SYNO_ADDR}
+  share: ${SECRET_NFS_SHARE}
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+# Note: The first two options are strictly for NFSv4.2
+mountOptions: ["hard", "noatime"]
