@@ -2,14 +2,11 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: nfs-syno-ssd
-  labels:
-    disk.home.arpa/fs: zfs
-    disk.home.arpa/type: hdd
+  name: syno-nfs-ssd
 provisioner: nfs.csi.k8s.io
 parameters:
   server: ${SECRET_SYNO_ADDR}
-  share: ${SECRET_NFS_SHARE}
+  share: ${SECRET_NFS_KUBES}
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
 # Note: The first two options are strictly for NFSv4.2
