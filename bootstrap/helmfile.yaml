@@ -43,7 +43,7 @@ releases:
     needs: ['kube-system/spegel']
 
   - name: external-secrets
-    namespace: external-secrets
+    namespace: security
     chart: oci://ghcr.io/external-secrets/charts/external-secrets
     version: 0.18.0
     values: ['../kubernetes/apps/external-secrets/external-secrets/app/helm/values.yaml']
@@ -53,7 +53,7 @@ releases:
         command: kubectl
         args:
           - apply
-          - --namespace=external-secrets
+          - --namespace=security
           - --server-side
           - --field-manager=kustomize-controller
           - --filename
