@@ -46,7 +46,7 @@ releases:
     namespace: security
     chart: oci://ghcr.io/external-secrets/charts/external-secrets
     version: 0.18.0
-    values: ['../kubernetes/apps/external-secrets/external-secrets/app/helm/values.yaml']
+    values: ['../kubernetes/apps/security/external-secrets/app/helm/values.yaml']
     hooks:
       - # Apply cluster secret store
         events: ['postsync']
@@ -57,7 +57,7 @@ releases:
           - --server-side
           - --field-manager=kustomize-controller
           - --filename
-          - ../kubernetes/apps/external-secrets/external-secrets/app/clustersecretstore.yaml
+          - ../kubernetes/apps/security/external-secrets/app/clustersecretstore.yaml
           - --wait=true
         showlogs: true
     needs: ['cert-manager/cert-manager']
