@@ -3,7 +3,7 @@ apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: secret-printer
-  namespace: flux-system
+  namespace: default
 spec:
   interval: 10m
   path: ./kubernetes/apps/default/secret-printer
@@ -11,3 +11,5 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+    namespace: flux-system
+  targetNamespace: default
