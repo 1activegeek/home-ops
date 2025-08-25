@@ -1,0 +1,23 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secret-printer-pod
+spec:
+  containers:
+    - name: secret-printer
+      image: alpine:latest
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          echo "I have a secret!"
+          echo "The secret value is: $(MY_SECRET)"
+          echo "I will now sleep for an hour. You can 'kubectl logs' me or 'kubectl exec' into me."
+          sleep 3600
+      env:
+        - name: MY_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: my-test-secret-from-1p # The k8s secret created by ExternalSecret
+              key: a-secret-value # The key within that k8s secret
+  restartPolicy: Never
