@@ -10,9 +10,13 @@ spec:
       command: ["/bin/sh", "-c"]
       args:
         - |
-          echo "I have a secret!"
-          echo "The secret value is: $(MY_SECRET)"
-          echo "I will now sleep for an hour. You can 'kubectl logs' me or 'kubectl exec' into me."
+          echo "Pod is running. Checking for secret..."
+          if [ -n "$(MY_SECRET)" ]; then
+            echo "Success! The secret value is: $(MY_SECRET)"
+          else
+            echo "Warning: The secret MY_SECRET is not available. Check the 'secret-printer-secret' ExternalSecret for errors."
+          fi
+          echo "Pod will now sleep for an hour."
           sleep 3600
       env:
         - name: MY_SECRET
@@ -20,4 +24,5 @@ spec:
             secretKeyRef:
               name: my-test-secret-from-1p # The k8s secret created by ExternalSecret
               key: a-secret-value # The key within that k8s secret
+              optional: true # Allows the Pod to start even if the Secret doesn't exist
   restartPolicy: Never
