@@ -10,7 +10,7 @@ spec:
     labels:
       app.kubernetes.io/name: *app
   interval: 1h
-  path: ./kubernetes/apps/kube-system/csi-driver-nfs/app
+  path: ./kubernetes/apps/storage/csi-driver-nfs/app
   prune: true
   retryInterval: 2m
   sourceRef:
