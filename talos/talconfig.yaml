@@ -80,6 +80,21 @@ nodes:
   - hostname: "asgard-mpc-01"
     ipAddress: "10.0.13.24"
     installDisk: "/dev/nvme0n1"
+    volumes:
+      - name: EPHEMERAL
+        provisioning:
+          diskSelector:
+            match: "system_disk"  # Keep it on the system disk
+          minSize: 20GiB
+          maxSize: 50GiB        # Limit EPHEMERAL to 50GB
+          grow: false           # Don't auto-grow
+    userVolumes:
+      - name: secondary
+        provisioning:
+          diskSelector:
+            match: "system_disk"  # Use the same system disk
+          minSize: 500GiB
+          # maxSize not specified = uses remaining available space
     machineSpec:
       secureboot: false
     talosImageURL: factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
@@ -97,6 +112,21 @@ nodes:
   - hostname: "asgard-mpc-02"
     ipAddress: "10.0.13.25"
     installDisk: "/dev/nvme0n1"
+    volumes:
+      - name: EPHEMERAL
+        provisioning:
+          diskSelector:
+            match: "system_disk"  # Keep it on the system disk
+          minSize: 20GiB
+          maxSize: 50GiB        # Limit EPHEMERAL to 50GB
+          grow: false           # Don't auto-grow
+    userVolumes:
+      - name: secondary
+        provisioning:
+          diskSelector:
+            match: "system_disk"  # Use the same system disk
+          minSize: 500GiB
+          # maxSize not specified = uses remaining available space
     machineSpec:
       secureboot: false
     talosImageURL: factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
@@ -114,6 +144,21 @@ nodes:
   - hostname: "asgard-mpc-03"
     ipAddress: "10.0.13.26"
     installDisk: "/dev/nvme0n1"
+    volumes:
+      - name: EPHEMERAL
+        provisioning:
+          diskSelector:
+            match: "system_disk"  # Keep it on the system disk
+          minSize: 20GiB
+          maxSize: 50GiB        # Limit EPHEMERAL to 50GB
+          grow: false           # Don't auto-grow
+    userVolumes:
+      - name: secondary
+        provisioning:
+          diskSelector:
+            match: "system_disk"  # Use the same system disk
+          minSize: 500GiB
+          # maxSize not specified = uses remaining available space
     machineSpec:
       secureboot: false
     talosImageURL: factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
