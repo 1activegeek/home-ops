@@ -96,7 +96,7 @@ function apply_crds() {
         # renovate: datasource=github-releases depName=kubernetes-csi/external-snapshotter
         https://github.com/kubernetes-csi/external-snapshotter/releases/download/v8.3.0/crd-list.yaml
         # renovate: datasource=github-releases depName=kubernetes-sigs/external-dns
-        https://raw.githubusercontent.com/kubernetes-sigs/external-dns/refs/tags/v0.18.0/docs/sources/crd/crd-manifest.yaml
+        https://raw.githubusercontent.com/kubernetes-sigs/external-dns/refs/tags/v0.19.0/docs/sources/crd/crd-manifest.yaml
     )
 
     for crd in "${crds[@]}"; do
