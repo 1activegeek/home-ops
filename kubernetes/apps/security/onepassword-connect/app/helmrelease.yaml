@@ -74,7 +74,7 @@ spec:
           sync:
             image:
               repository: ghcr.io/haraldkoch/onepassword-sync
-              tag: 1.7.4@sha256:dfa61a6888ba5863c6cc65bdaa6405b71dff20bd837f46983ff9e88165967490
+              tag: 1.8.1@sha256:48974a6763dc02c75ad1b0464e050a320e4510ee9cbd1f4c19973abe8d4de0fe
             env:
               XDG_DATA_HOME: *configDir
               OP_HTTP_PORT: &syncPort 8081
