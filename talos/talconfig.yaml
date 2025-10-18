@@ -20,63 +20,63 @@ cniConfig:
   name: none
 
 nodes:
-  - hostname: "asgard-rp-01"
-    ipAddress: "10.0.13.21"
-    installDisk: "/dev/sda"
-    machineSpec:
-      secureboot: false
-    talosImageURL: factory.talos.dev/installer/ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9
-    controlPlane: true
-    networkInterfaces:
-      - deviceSelector:
-          hardwareAddr: "e4:5f:01:c2:35:27"
-        dhcp: false
-        addresses:
-          - "10.0.13.21/24"
-        routes:
-          - network: "0.0.0.0/0"
-            gateway: "10.0.13.1"
-        mtu: 1500
-        vip:
-          ip: "10.0.13.20"
-  - hostname: "asgard-rp-02"
-    ipAddress: "10.0.13.22"
-    installDisk: "/dev/sda"
-    machineSpec:
-      secureboot: false
-    talosImageURL: factory.talos.dev/installer/ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9
-    controlPlane: true
-    networkInterfaces:
-      - deviceSelector:
-          hardwareAddr: "e4:5f:01:c2:35:6c"
-        dhcp: false
-        addresses:
-          - "10.0.13.22/24"
-        routes:
-          - network: "0.0.0.0/0"
-            gateway: "10.0.13.1"
-        mtu: 1500
-        vip:
-          ip: "10.0.13.20"
-  - hostname: "asgard-rp-03"
-    ipAddress: "10.0.13.23"
-    installDisk: "/dev/sda"
-    machineSpec:
-      secureboot: false
-    talosImageURL: factory.talos.dev/installer/ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9
-    controlPlane: true
-    networkInterfaces:
-      - deviceSelector:
-          hardwareAddr: "e4:5f:01:c2:35:c6"
-        dhcp: false
-        addresses:
-          - "10.0.13.23/24"
-        routes:
-          - network: "0.0.0.0/0"
-            gateway: "10.0.13.1"
-        mtu: 1500
-        vip:
-          ip: "10.0.13.20"
+  # - hostname: "asgard-rp-01"
+  #   ipAddress: "10.0.13.21"
+  #   installDisk: "/dev/sda"
+  #   machineSpec:
+  #     secureboot: false
+  #   talosImageURL: factory.talos.dev/installer/ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9
+  #   controlPlane: true
+  #   networkInterfaces:
+  #     - deviceSelector:
+  #         hardwareAddr: "e4:5f:01:c2:35:27"
+  #       dhcp: false
+  #       addresses:
+  #         - "10.0.13.21/24"
+  #       routes:
+  #         - network: "0.0.0.0/0"
+  #           gateway: "10.0.13.1"
+  #       mtu: 1500
+  #       vip:
+  #         ip: "10.0.13.20"
+  # - hostname: "asgard-rp-02"
+  #   ipAddress: "10.0.13.22"
+  #   installDisk: "/dev/sda"
+  #   machineSpec:
+  #     secureboot: false
+  #   talosImageURL: factory.talos.dev/installer/ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9
+  #   controlPlane: true
+  #   networkInterfaces:
+  #     - deviceSelector:
+  #         hardwareAddr: "e4:5f:01:c2:35:6c"
+  #       dhcp: false
+  #       addresses:
+  #         - "10.0.13.22/24"
+  #       routes:
+  #         - network: "0.0.0.0/0"
+  #           gateway: "10.0.13.1"
+  #       mtu: 1500
+  #       vip:
+  #         ip: "10.0.13.20"
+  # - hostname: "asgard-rp-03"
+  #   ipAddress: "10.0.13.23"
+  #   installDisk: "/dev/sda"
+  #   machineSpec:
+  #     secureboot: false
+  #   talosImageURL: factory.talos.dev/installer/ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9
+  #   controlPlane: true
+  #   networkInterfaces:
+  #     - deviceSelector:
+  #         hardwareAddr: "e4:5f:01:c2:35:c6"
+  #       dhcp: false
+  #       addresses:
+  #         - "10.0.13.23/24"
+  #       routes:
+  #         - network: "0.0.0.0/0"
+  #           gateway: "10.0.13.1"
+  #       mtu: 1500
+  #       vip:
+  #         ip: "10.0.13.20"
   - hostname: "asgard-mpc-01"
     ipAddress: "10.0.13.24"
     installDisk: "/dev/nvme0n1"
@@ -98,7 +98,7 @@ nodes:
     machineSpec:
       secureboot: false
     talosImageURL: factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
-    controlPlane: false
+    controlPlane: true
     networkInterfaces:
       - deviceSelector:
           hardwareAddr: "84:47:09:54:a3:99"
@@ -109,6 +109,8 @@ nodes:
           - network: "0.0.0.0/0"
             gateway: "10.0.13.1"
         mtu: 1500
+        vip:
+          ip: "10.0.13.20"
   - hostname: "asgard-mpc-02"
     ipAddress: "10.0.13.25"
     installDisk: "/dev/nvme0n1"
@@ -130,7 +132,7 @@ nodes:
     machineSpec:
       secureboot: false
     talosImageURL: factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
-    controlPlane: false
+    controlPlane: true
     networkInterfaces:
       - deviceSelector:
           hardwareAddr: "84:47:09:54:a8:99"
@@ -141,6 +143,8 @@ nodes:
           - network: "0.0.0.0/0"
             gateway: "10.0.13.1"
         mtu: 1500
+        vip:
+          ip: "10.0.13.20"
   - hostname: "asgard-mpc-03"
     ipAddress: "10.0.13.26"
     installDisk: "/dev/nvme0n1"
@@ -162,7 +166,7 @@ nodes:
     machineSpec:
       secureboot: false
     talosImageURL: factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
-    controlPlane: false
+    controlPlane: true
     networkInterfaces:
       - deviceSelector:
           hardwareAddr: "84:47:09:54:a4:9c"
@@ -173,6 +177,8 @@ nodes:
           - network: "0.0.0.0/0"
             gateway: "10.0.13.1"
         mtu: 1500
+        vip:
+          ip: "10.0.13.20"
 
 # Global patches
 patches:
