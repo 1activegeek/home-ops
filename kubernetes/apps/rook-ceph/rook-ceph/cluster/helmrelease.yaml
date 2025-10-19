@@ -88,13 +88,13 @@ spec:
         nodes:
           - name: asgard-mpc-01
             devices:
-              - name: /dev/disk/by-id/nvme-KINGSTON_OM8PGP41024N-A0_50026B7383A064AE-part5
+              - name: /dev/disk/by-partlabel/r-ceph
           - name: asgard-mpc-02
             devices:
-              - name: /dev/disk/by-id/nvme-KINGSTON_OM8PGP41024N-A0_50026B7383A073A3-part5
+              - name: /dev/disk/by-partlabel/r-ceph
           - name: asgard-mpc-03
             devices:
-              - name: /dev/disk/by-id/nvme-KINGSTON_OM8PGP41024N-A0_50026B7383A053D5-part5
+              - name: /dev/disk/by-partlabel/r-ceph
     cephBlockPools:
       - name: ceph-blockpool
         spec:
