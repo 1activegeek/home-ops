@@ -88,6 +88,13 @@ nodes:
           minSize: 20GiB
           maxSize: 50GiB        # Limit EPHEMERAL to 50GB
           grow: false           # Don't auto-grow
+    userVolumes:
+      - name: secondary
+        provisioning:
+          diskSelector:
+            match: "system_disk"  # Use the same system disk
+          minSize: 500GiB
+          # maxSize not specified = uses remaining available space
     machineSpec:
       secureboot: false
     talosImageURL: factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
@@ -115,6 +122,13 @@ nodes:
           minSize: 20GiB
           maxSize: 50GiB        # Limit EPHEMERAL to 50GB
           grow: false           # Don't auto-grow
+    userVolumes:
+      - name: secondary
+        provisioning:
+          diskSelector:
+            match: "system_disk"  # Use the same system disk
+          minSize: 500GiB
+          # maxSize not specified = uses remaining available space
     machineSpec:
       secureboot: false
     talosImageURL: factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
@@ -142,6 +156,13 @@ nodes:
           minSize: 20GiB
           maxSize: 50GiB        # Limit EPHEMERAL to 50GB
           grow: false           # Don't auto-grow
+    userVolumes:
+      - name: secondary
+        provisioning:
+          diskSelector:
+            match: "system_disk"  # Use the same system disk
+          minSize: 500GiB
+          # maxSize not specified = uses remaining available space
     machineSpec:
       secureboot: false
     talosImageURL: factory.talos.dev/metal-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
@@ -166,12 +187,10 @@ patches:
   - "@./patches/global/machine-network.yaml"
   - "@./patches/global/machine-sysctls.yaml"
   - "@./patches/global/machine-time.yaml"
-  - "@./patches/global/raw-volumes.yaml"
 
 # Controller patches
 controlPlane:
   patches:
-    # Temporarily disabled due to JSON6902 format incompatibility with talhelper 3.x
-    # - "@./patches/controller/admission-controller-patch.yaml"
+    - "@./patches/controller/admission-controller-patch.yaml"
     - "@./patches/controller/cluster.yaml"
 
