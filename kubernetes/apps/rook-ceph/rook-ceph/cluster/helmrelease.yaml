@@ -59,6 +59,7 @@ spec:
       crashCollector:
         disable: false
       csi:
+        enableCSIOperator: false  # Disable CSI operator mode, use built-in CSI driver
         readAffinity:
           enabled: true
       dashboard:
