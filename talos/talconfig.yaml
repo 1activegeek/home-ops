@@ -166,7 +166,8 @@ patches:
   - "@./patches/global/machine-network.yaml"
   - "@./patches/global/machine-sysctls.yaml"
   - "@./patches/global/machine-time.yaml"
-  - "@./patches/global/raw-volumes.yaml"
+  # Temporarily disabled to wipe old Ceph metadata
+  # - "@./patches/global/raw-volumes.yaml"
 
 # Controller patches
 controlPlane:
