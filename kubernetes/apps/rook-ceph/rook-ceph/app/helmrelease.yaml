@@ -40,7 +40,7 @@ spec:
       enableLiveness: true
       serviceMonitor:
         enabled: true
-    enableCSIOperator: false  # Disable CSI operator, use built-in CSI driver
+    # Use default CSI operator mode (rookUseCsiOperator: true) as recommended for v1.18
     enableDiscoveryDaemon: true
     image:
       repository: ghcr.io/rook/ceph
