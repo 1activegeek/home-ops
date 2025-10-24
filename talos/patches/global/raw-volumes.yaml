@@ -1,9 +1,0 @@
----
-# Raw volume configuration for Rook-Ceph storage
-apiVersion: v1alpha1
-kind: RawVolumeConfig
-name: ceph
-provisioning:
-  diskSelector:
-    match: system_disk
-  minSize: 500GiB

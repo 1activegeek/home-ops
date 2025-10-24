@@ -166,7 +166,7 @@ patches:
   - "@./patches/global/machine-network.yaml"
   - "@./patches/global/machine-sysctls.yaml"
   - "@./patches/global/machine-time.yaml"
-  - "@./patches/global/raw-volumes.yaml"
+  # - "@./patches/global/raw-volumes.yaml"  # Disabled - was for Rook-Ceph
 
 # Controller patches
 controlPlane:
