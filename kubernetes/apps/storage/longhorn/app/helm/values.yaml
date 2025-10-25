@@ -1,0 +1,3 @@
+# Longhorn Helm values overrides
+# This file can be used for additional customizations if needed
+# Currently using inline values in helmrelease.yaml for simplicity

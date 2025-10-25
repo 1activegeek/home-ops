@@ -1,0 +1,42 @@
+# Kustomize configuration for Longhorn Helm values
+# Used for variable substitution in values.yaml if needed
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: longhorn-values
+transformers:
+  - |-
+    apiVersion: builtin
+    kind: ReplacementTransformer
+    metadata:
+      name: replace-cluster-domain
+    replacements:
+      - source:
+          kind: HelmRelease
+          name: longhorn
+        targets:
+          - select:
+              kind: HelmRelease
+              name: longhorn
+            fieldPaths:
+              - spec.values.ingress.host
+            options:
+              create: true
+              delimiter: "${"
+            replacement:
+              text: "${CLUSTER_DOMAIN}"
+      - source:
+          kind: HelmRelease
+          name: longhorn
+        targets:
+          - select:
+              kind: HelmRelease
+              name: longhorn
+            fieldPaths:
+              - spec.values.ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-url
+              - spec.values.ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-signin
+            options:
+              create: true
+              delimiter: "${"
+            replacement:
+              text: "${SECRET_DOMAIN}"
