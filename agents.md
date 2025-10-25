@@ -506,4 +506,20 @@ kubectl get ingress -A
 
 ---
 
+## Recent Updates
+
+**Last Updated**: 2025-10-25
+
+**Key Changes Since Creation**:
+- Removed Rook-Ceph storage configuration and artifacts (replaced with CSI Driver NFS)
+- Updated various components via Renovate automation:
+  - Cloudflared to latest 2025.x
+  - External-DNS to latest 0.x
+  - Flux-local CI action to v7.11.0
+- Minor fixes to taskfile quoting and documentation
+
+**Current Status**: Cluster configuration is stable with Talos v1.11.3 and Kubernetes v1.34.1. All core services operational.
+
+---
+
 **Remember**: When in doubt, ask the user. It's better to clarify than to compromise security or cluster stability.
