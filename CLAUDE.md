@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a GitOps-based Kubernetes cluster template for home lab deployments. The cluster runs on **Talos Linux** (v1.11.3) with **Kubernetes** (v1.34.1) managed by **Flux CD** (v2.7.2). All secrets are encrypted with **SOPS + age** encryption.
+This is a GitOps-based Kubernetes cluster template for home lab deployments. The cluster runs on **Talos Linux** (v1.11.3) with **Kubernetes** (v1.34.1) managed by **Flux CD** (v2.7.2). Application secrets are managed with **External Secrets Operator + 1Password**, with SOPS + age encryption for bootstrap secrets.
 
 **Core Stack:**
 - **OS:** Talos Linux (immutable, API-managed container OS)
@@ -14,7 +14,7 @@ This is a GitOps-based Kubernetes cluster template for home lab deployments. The
 - **DNS:** k8s_gateway (internal), external-dns (Cloudflare)
 - **Certificates:** cert-manager
 - **Tunneling:** Cloudflare Tunnel (cloudflared)
-- **Secrets:** SOPS + age encryption
+- **Secrets:** External Secrets Operator + 1Password (application), SOPS + age (bootstrap)
 - **Other:** Spegel (image mirroring), Reloader (config reloading)
 
 ## Core Development Principles
@@ -23,18 +23,30 @@ This is a GitOps-based Kubernetes cluster template for home lab deployments. The
 
 ### 1. Never Commit Unencrypted Secrets
 
-**All secrets, passwords, API tokens, certificates, and any sensitive data MUST be encrypted with SOPS before committing to Git.**
+**All secrets, passwords, API tokens, certificates, and any sensitive data MUST be managed securely - NEVER commit plaintext secrets to Git.**
 
-- ❌ **NEVER** commit plaintext secrets, even temporarily
-- ❌ **NEVER** commit files containing passwords, API keys, or confidential information without encryption
-- ✅ **ALWAYS** use SOPS to encrypt secrets (files with `.sops.yaml` suffix)
+**Standard Method (Application Secrets):**
+- ✅ **ALWAYS** use External Secrets Operator + 1Password for application secrets
+- ✅ Store secrets in 1Password `homeops` vault
+- ✅ Create ExternalSecret resources to sync secrets into Kubernetes
+- ✅ No secrets in Git - only ExternalSecret manifests referencing 1Password items
+
+**Bootstrap Secrets Only (SOPS):**
+- ⚠️ **ONLY** use SOPS for bootstrap/infrastructure secrets that External Secrets depends on:
+  - 1Password Connect Server credentials
+  - Flux GitHub tokens
+  - Talos machine secrets
+- ✅ **ALWAYS** encrypt with SOPS before committing (files with `.sops.yaml` suffix)
 - ✅ **ALWAYS** verify encryption before `git push`:
   ```bash
   # Check that all .sops.yaml files are encrypted (should show 'sops' metadata)
   grep -r "sops:" kubernetes/**/*.sops.yaml talos/**/*.sops.yaml
   ```
 
-**Exception:** For application secrets, use External Secrets Operator with 1Password (deployed in `security` namespace). SOPS is still required for bootstrap secrets (1Password credentials, Flux tokens, etc.) that External Secrets depends on.
+**Critical Rules:**
+- ❌ **NEVER** commit plaintext secrets, even temporarily
+- ❌ **NEVER** create new SOPS-encrypted secrets for applications (use External Secrets instead)
+- ❌ **NEVER** commit files containing passwords, API keys, or confidential information unencrypted
 
 ### 2. GitOps-Only Changes (No Direct kubectl apply)
 
@@ -219,9 +231,11 @@ kubectl -n kube-system describe certificates
 
 ## Secret Management
 
-### Primary Method: External Secrets + 1Password (Preferred for Application Secrets)
+**⚡ STANDARD METHOD: All application secrets MUST use External Secrets + 1Password.**
 
-**For all new application secrets, use External Secrets Operator with 1Password.**
+### Primary Method: External Secrets + 1Password (Required for Application Secrets)
+
+**For ALL application secrets, use External Secrets Operator with 1Password. Do NOT create new SOPS-encrypted secrets.**
 
 **Architecture:**
 - **1Password Connect Server:** Deployed in `security` namespace, provides API access to 1Password vaults
@@ -277,11 +291,13 @@ kubectl describe externalsecret <name> -n <namespace>
 kubectl get secret <secret-name> -n <namespace>
 ```
 
-### Legacy Method: SOPS (Required for Bootstrap Secrets Only)
+### Bootstrap Method: SOPS (Bootstrap/Infrastructure Secrets Only)
+
+**⚠️ SOPS is DEPRECATED for application secrets. Use External Secrets instead.**
 
 **SOPS Configuration:** See [.sops.yaml](.sops.yaml)
 
-**SOPS is ONLY used for:**
+**SOPS is ONLY used for bootstrap/infrastructure secrets:**
 - 1Password Connect Server credentials (`security/onepassword-connect/app/secret.sops.yaml`)
 - Flux GitHub tokens
 - Talos machine secrets
@@ -310,16 +326,27 @@ grep -r "sops:" kubernetes/**/*.sops.yaml talos/**/*.sops.yaml
 
 **Important:** Never commit unencrypted secrets. Always verify `*.sops.yaml` files are encrypted before pushing.
 
-### When to Use Which Method
+### Decision Matrix: Which Method to Use
+
+**⚡ Default: External Secrets + 1Password (use for everything except bootstrap)**
 
 | Use Case | Method | Reason |
 |----------|--------|--------|
-| Application database credentials | External Secrets + 1Password | Centralized secret rotation, easier management |
-| API keys for services | External Secrets + 1Password | Can be rotated in 1Password without GitOps changes |
-| OAuth tokens | External Secrets + 1Password | Automatic sync from 1Password |
-| 1Password Connect credentials | SOPS | Bootstrap dependency - ESO needs this to function |
-| Flux GitHub tokens | SOPS | Bootstrap dependency - Flux needs this to pull repo |
-| Talos machine secrets | SOPS | Infrastructure bootstrap secrets |
+| **Application database credentials** | ✅ External Secrets + 1Password | Centralized secret rotation, easier management |
+| **API keys for services** | ✅ External Secrets + 1Password | Can be rotated in 1Password without GitOps changes |
+| **OAuth tokens** | ✅ External Secrets + 1Password | Automatic sync from 1Password |
+| **Application passwords** | ✅ External Secrets + 1Password | No secrets in Git, centralized management |
+| **TLS certificates (app-level)** | ✅ External Secrets + 1Password | Easy rotation without code changes |
+| **ANY application secret** | ✅ External Secrets + 1Password | **This is the standard method** |
+| | | |
+| **1Password Connect credentials** | ⚠️ SOPS | Bootstrap dependency - ESO needs this to function |
+| **Flux GitHub tokens** | ⚠️ SOPS | Bootstrap dependency - Flux needs this to pull repo |
+| **Talos machine secrets** | ⚠️ SOPS | Infrastructure bootstrap secrets |
+| **SOPS age keys** | ⚠️ SOPS | Required to decrypt other SOPS secrets |
+
+**Rule of Thumb:**
+- If it's used by an application/service → Use External Secrets + 1Password
+- If it's needed to bootstrap the cluster or External Secrets itself → Use SOPS
 
 ## Debugging Workflows
 
