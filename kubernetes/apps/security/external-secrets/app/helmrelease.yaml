@@ -1,0 +1,80 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: external-secrets
+  interval: 1h
+  values:
+    # Install CRDs
+    installCRDs: true
+
+    # Replicas for HA
+    replicaCount: 2
+
+    # Resource configuration
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+
+    # Security context
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      fsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      capabilities:
+        drop:
+          - ALL
+
+    # ServiceMonitor for Prometheus (if deployed)
+    serviceMonitor:
+      enabled: true
+      interval: 1m
+
+    # Webhook configuration
+    webhook:
+      create: true
+      port: 10250
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+
+    # Cert controller for webhook certificates
+    certController:
+      create: true
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
