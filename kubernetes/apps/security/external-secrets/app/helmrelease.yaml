@@ -9,8 +9,8 @@ spec:
     name: external-secrets
   interval: 1h
   values:
-    # Install CRDs
-    installCRDs: true
+    # CRDs are installed via bootstrap helmfile (00-crds.yaml)
+    installCRDs: false
 
     # Replicas for HA
     replicaCount: 2
