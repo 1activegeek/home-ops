@@ -9,6 +9,8 @@
 - [ ] Setup auth structure and SSO - look into passkey options
 - [ ] Add monitoring stack - TBD - Promehteus/Grafana or others?
 - [ ] Optimize core deployment
+- [ ] Automation bot for working with PRs and automatically applying or group applying
+
 
 ## Services/Apps to Deploy
 - [ ] Home Assistant
