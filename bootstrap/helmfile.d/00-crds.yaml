@@ -27,3 +27,8 @@ releases:
     namespace: observability
     chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
     version: 78.5.0
+
+  - name: external-secrets
+    namespace: security
+    chart: oci://ghcr.io/external-secrets/charts/external-secrets
+    version: 0.20.4
