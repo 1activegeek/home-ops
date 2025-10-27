@@ -25,6 +25,25 @@ nodes:
       secureboot: false
     talosImageURL: factory.talos.dev/installer/c9078f9419961640c712a8bf2bb9174933dfcf1da383fd8ea2b7dc21493f8bac
     controlPlane: true
+    volumes:
+      - name: EPHEMERAL
+        provisioning:
+          diskSelector:
+            match: "system_disk" # Keep it on the system disk
+          minSize: 50GB
+          maxSize: 95GB # Limit EPHEMERAL to 95GB
+          grow: false # Don't auto-grow
+    # patches: # Allow individual patching if we need it
+    #   - "@talconfig/patches/node-specific/k8s-ctrl-01.yaml"
+    userVolumes:
+      - name: longhorn-data
+        provisioning:
+          diskSelector:
+            match: "system_disk"
+          maxSize: 900GB
+          grow: true
+        filesystem:
+          type: ext4
     networkInterfaces:
       - deviceSelector:
           hardwareAddr: "84:47:09:54:a3:99"
@@ -44,6 +63,25 @@ nodes:
       secureboot: false
     talosImageURL: factory.talos.dev/installer/c9078f9419961640c712a8bf2bb9174933dfcf1da383fd8ea2b7dc21493f8bac
     controlPlane: true
+    volumes:
+      - name: EPHEMERAL
+        provisioning:
+          diskSelector:
+            match: "system_disk" # Keep it on the system disk
+          minSize: 50GB
+          maxSize: 95GB # Limit EPHEMERAL to 95GB
+          grow: false # Don't auto-grow
+    # patches: # Allow individual patching if we need it
+    #   - "@talconfig/patches/node-specific/k8s-ctrl-01.yaml"
+    userVolumes:
+      - name: longhorn-data
+        provisioning:
+          diskSelector:
+            match: "system_disk"
+          maxSize: 900GB
+          grow: true
+        filesystem:
+          type: ext4
     networkInterfaces:
       - deviceSelector:
           hardwareAddr: "84:47:09:54:a8:99"
@@ -63,6 +101,25 @@ nodes:
       secureboot: false
     talosImageURL: factory.talos.dev/installer/c9078f9419961640c712a8bf2bb9174933dfcf1da383fd8ea2b7dc21493f8bac
     controlPlane: true
+    volumes:
+      - name: EPHEMERAL
+        provisioning:
+          diskSelector:
+            match: "system_disk" # Keep it on the system disk
+          minSize: 50GB
+          maxSize: 95GB # Limit EPHEMERAL to 95GB
+          grow: false # Don't auto-grow
+    # patches: # Allow individual patching if we need it
+    #   - "@talconfig/patches/node-specific/k8s-ctrl-01.yaml"
+    userVolumes:
+      - name: longhorn-data
+        provisioning:
+          diskSelector:
+            match: "system_disk"
+          maxSize: 900GB
+          grow: true
+        filesystem:
+          type: ext4
     networkInterfaces:
       - deviceSelector:
           hardwareAddr: "84:47:09:54:a4:9c"
