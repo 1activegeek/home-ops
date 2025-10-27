@@ -44,10 +44,9 @@ spec:
             memory: 256Mi
         httpPort: 8081
 
-      # Shared configuration
-      credentials:
-        name: onepassword-connect-secret
-        key: 1password-credentials.json
+      # Shared configuration - use existing SOPS-encrypted secret
+      credentialsName: onepassword-connect-secret
+      credentialsKey: 1password-credentials.json
 
       # Service configuration
       service:
