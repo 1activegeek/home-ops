@@ -1,0 +1,91 @@
+---
+clusterName: kubernetes
+
+talosVersion: "${talosVersion}"
+kubernetesVersion: "${kubernetesVersion}"
+
+endpoint: https://10.0.13.20:6443
+additionalApiServerCertSans: &sans
+  - "127.0.0.1"
+  - "10.0.13.20"
+additionalMachineCertSans: *sans
+
+clusterPodNets: ["10.42.0.0/16"]
+clusterSvcNets: ["10.43.0.0/16"]
+
+# Disable built-in CNI to use Cilium
+cniConfig:
+  name: none
+
+nodes:
+  - hostname: "asgard-mpc-01"
+    ipAddress: "10.0.13.24"
+    installDisk: "/dev/nvme0n1"
+    machineSpec:
+      secureboot: false
+    talosImageURL: factory.talos.dev/installer/c9078f9419961640c712a8bf2bb9174933dfcf1da383fd8ea2b7dc21493f8bac
+    controlPlane: true
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "84:47:09:54:a3:99"
+        dhcp: false
+        addresses:
+          - "10.0.13.24/24"
+        routes:
+          - network: "0.0.0.0/0"
+            gateway: "10.0.13.1"
+        mtu: 1500
+        vip:
+          ip: "10.0.13.20"
+  - hostname: "asgard-mpc-02"
+    ipAddress: "10.0.13.25"
+    installDisk: "/dev/nvme0n1"
+    machineSpec:
+      secureboot: false
+    talosImageURL: factory.talos.dev/installer/c9078f9419961640c712a8bf2bb9174933dfcf1da383fd8ea2b7dc21493f8bac
+    controlPlane: true
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "84:47:09:54:a8:99"
+        dhcp: false
+        addresses:
+          - "10.0.13.25/24"
+        routes:
+          - network: "0.0.0.0/0"
+            gateway: "10.0.13.1"
+        mtu: 1500
+        vip:
+          ip: "10.0.13.20"
+  - hostname: "asgard-mpc-03"
+    ipAddress: "10.0.13.26"
+    installDisk: "/dev/nvme0n1"
+    machineSpec:
+      secureboot: false
+    talosImageURL: factory.talos.dev/installer/c9078f9419961640c712a8bf2bb9174933dfcf1da383fd8ea2b7dc21493f8bac
+    controlPlane: true
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "84:47:09:54:a4:9c"
+        dhcp: false
+        addresses:
+          - "10.0.13.26/24"
+        routes:
+          - network: "0.0.0.0/0"
+            gateway: "10.0.13.1"
+        mtu: 1500
+        vip:
+          ip: "10.0.13.20"
+
+# Global patches
+patches:
+  - "@./patches/global/machine-files.yaml"
+  - "@./patches/global/machine-kubelet.yaml"
+  - "@./patches/global/machine-network.yaml"
+  - "@./patches/global/machine-sysctls.yaml"
+  - "@./patches/global/machine-time.yaml"
+
+# Controller patches
+controlPlane:
+  patches:
+    - "@./patches/controller/cluster.yaml"
+
