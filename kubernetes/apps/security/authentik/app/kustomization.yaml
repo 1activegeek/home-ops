@@ -11,30 +11,7 @@ resources:
   - service.yaml
   - httproute.yaml
 
-# Substitute environment variables
+# Common labels for all resources
 commonLabels:
   app.kubernetes.io/name: authentik
   app.kubernetes.io/instance: authentik
-
-# Helm values substitution
-replacements:
-  - source:
-      kind: Secret
-      name: authentik-secrets
-      fieldPath: data.AUTHENTIK_DB_PASSWORD
-    targets:
-      - select:
-          kind: HelmRelease
-        fieldPaths:
-          - spec.values.authentik.postgresql.auth.password
-          - spec.values.authentik.authentik.postgresql.password
-  - source:
-      kind: Secret
-      name: authentik-secrets
-      fieldPath: data.AUTHENTIK_SECRET_KEY
-    targets:
-      - select:
-          kind: HelmRelease
-        fieldPaths:
-          - spec.values.authentik.secret_key
-          - spec.values.authentik.authentik.secret_key

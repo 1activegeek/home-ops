@@ -22,13 +22,35 @@ spec:
       retries: 3
   values:
     # Authentik Replicas
-    authentik:
-      replicas: 2
-      log_level: info
-
-    # Worker Configuration
+    replicaCount: 2
     worker:
       replicas: 1
+
+    # Authentik Core Configuration
+    authentik:
+      log_level: info
+      secret_key: ${AUTHENTIK_SECRET_KEY}
+      error_reporting:
+        enabled: false
+      postgresql:
+        host: authentik-postgresql
+        name: authentik
+        user: authentik
+        password: ${AUTHENTIK_DB_PASSWORD}
+        port: 5432
+      redis:
+        host: authentik-redis-master
+        db: 0
+        port: 6379
+      email:
+        host: smtp.example.com
+        port: 25
+        username: ""
+        password: ""
+        use_tls: false
+        use_ssl: false
+        timeout: 30
+        from_address: authentik@example.com
 
     # PostgreSQL Database Configuration
     postgresql:
@@ -56,31 +78,6 @@ spec:
           storageClass: longhorn
           size: 5Gi
 
-    # Authentik Secret Configuration
-    authentik:
-      secret_key: ${AUTHENTIK_SECRET_KEY}
-      error_reporting:
-        enabled: false
-      postgresql:
-        host: authentik-postgresql
-        name: authentik
-        user: authentik
-        password: ${AUTHENTIK_DB_PASSWORD}
-        port: 5432
-      redis:
-        host: authentik-redis-master
-        db: 0
-        port: 6379
-      email:
-        host: smtp.example.com
-        port: 25
-        username: ""
-        password: ""
-        use_tls: false
-        use_ssl: false
-        timeout: 30
-        from_address: authentik@example.com
-
     # Service Configuration
     service:
       type: ClusterIP
@@ -89,10 +86,6 @@ spec:
     # Ingress is disabled - using Gateway API HTTPRoute instead
     ingress:
       enabled: false
-
-    # OIDC Provider Configuration
-    authentik:
-      outposts: {}
 
     # Resource Limits
     resources:
