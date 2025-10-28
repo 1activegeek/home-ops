@@ -10,3 +10,4 @@ resources:
   - ./namespace.yaml
   - ./onepassword-connect/ks.yaml
   - ./external-secrets/ks.yaml
+  - ./authentik/ks.yaml
