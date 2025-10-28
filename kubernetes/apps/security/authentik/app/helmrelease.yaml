@@ -38,9 +38,6 @@ spec:
       valuesKey: AUTHENTIK_DB_PASSWORD
       targetPath: postgresql.auth.postgresPassword
   values:
-    worker:
-      replicas: 1
-
     # Authentik Core Configuration
     authentik:
       log_level: info
