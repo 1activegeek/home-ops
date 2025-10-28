@@ -1,0 +1,115 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+spec:
+  chart:
+    spec:
+      chart: authentik
+      version: 2025.10.0
+      sourceRef:
+        kind: OCIRepository
+        name: authentik
+  interval: 1h
+  timeout: 15m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # Authentik Replicas
+    authentik:
+      replicas: 2
+      log_level: info
+
+    # Worker Configuration
+    worker:
+      replicas: 1
+
+    # PostgreSQL Database Configuration
+    postgresql:
+      enabled: true
+      auth:
+        username: authentik
+        password: ${AUTHENTIK_DB_PASSWORD}
+        database: authentik
+      primary:
+        persistence:
+          enabled: true
+          storageClass: longhorn
+          size: 25Gi
+          accessModes:
+            - ReadWriteOnce
+
+    # Redis Cache Configuration
+    redis:
+      enabled: true
+      auth:
+        enabled: false
+      master:
+        persistence:
+          enabled: true
+          storageClass: longhorn
+          size: 5Gi
+
+    # Authentik Secret Configuration
+    authentik:
+      secret_key: ${AUTHENTIK_SECRET_KEY}
+      error_reporting:
+        enabled: false
+      postgresql:
+        host: authentik-postgresql
+        name: authentik
+        user: authentik
+        password: ${AUTHENTIK_DB_PASSWORD}
+        port: 5432
+      redis:
+        host: authentik-redis-master
+        db: 0
+        port: 6379
+      email:
+        host: smtp.example.com
+        port: 25
+        username: ""
+        password: ""
+        use_tls: false
+        use_ssl: false
+        timeout: 30
+        from_address: authentik@example.com
+
+    # Service Configuration
+    service:
+      type: ClusterIP
+      annotations: {}
+
+    # Ingress is disabled - using Gateway API HTTPRoute instead
+    ingress:
+      enabled: false
+
+    # OIDC Provider Configuration
+    authentik:
+      outposts: {}
+
+    # Resource Limits
+    resources:
+      server:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
+      worker:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+
+    # Pod Security
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9300"
