@@ -6,7 +6,7 @@ metadata:
 spec:
   chart:
     spec:
-      chart: charts/authentik
+      chart: authentik
       version: 2025.10.0
       sourceRef:
         kind: HelmRepository
