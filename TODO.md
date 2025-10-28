@@ -6,6 +6,7 @@
 - [x] Add longhorn for persistent storage
 - [x] Enable NFS for external storage access
 - [ ] Authentik for SSO/Passkey/Enroll
+  - [ ] Fix/handle HTTPS redirect after success (https://gateway-api.sigs.k8s.io/guides/http-redirect-rewrite/#http-to-https-redirects)
 - [ ] Observability Stack (see below)
 - [ ] User Landing Page
 - [ ] Optimize core deployment
