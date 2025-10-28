@@ -38,25 +38,12 @@ spec:
       valuesKey: AUTHENTIK_DB_PASSWORD
       targetPath: postgresql.auth.postgresPassword
   values:
-    # Authentik Replicas
-    replicaCount: 2
     worker:
       replicas: 1
 
     # Authentik Core Configuration
     authentik:
       log_level: info
-      error_reporting:
-        enabled: false
-      postgresql:
-        host: authentik-postgresql
-        name: authentik
-        user: authentik
-        port: 5432
-      redis:
-        host: authentik-redis-master
-        db: 0
-        port: 6379
       email:
         host: smtp.example.com
         port: 25
@@ -66,6 +53,25 @@ spec:
         use_ssl: false
         timeout: 30
         from_address: authentik@example.com
+
+    # Authentik Server Configuration
+    server:
+      replicas: 2
+    route:
+      main:
+        enabled: true
+        hostnames:
+          - {{ .Release.Name }}.${SECRET_DOMAIN}
+          - auth.$SECRET_DOMAIN
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        https: true
+
+    # Authentik Worker Configuration
+    worker:
+      replicas: 1
 
     # PostgreSQL Database Configuration
     postgresql:
@@ -81,22 +87,13 @@ spec:
           accessModes:
             - ReadWriteOnce
 
-    # Redis Cache Configuration
-    redis:
-      enabled: true
-      auth:
-        enabled: false
-      master:
-        persistence:
-          enabled: true
-          storageClass: longhorn
-          size: 5Gi
-
-    # Service Configuration
-    service:
-      type: ClusterIP
-      annotations: {}
-
-    # Ingress is disabled - using Gateway API HTTPRoute instead
-    ingress:
-      enabled: false
+    # # Redis Cache Configuration - should be deprecated and not required
+    # redis:
+    #   enabled: true
+    #   auth:
+    #     enabled: false
+    #   master:
+    #     persistence:
+    #       enabled: true
+    #       storageClass: longhorn
+    #       size: 5Gi
