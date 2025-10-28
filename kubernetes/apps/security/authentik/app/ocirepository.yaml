@@ -5,5 +5,4 @@ metadata:
   name: authentik
 spec:
   interval: 15m
-  type: oci
-  url: oci://ghcr.io/goauthentik/charts
+  url: https://goauthentik.github.io/helm
