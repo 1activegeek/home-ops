@@ -86,18 +86,3 @@ spec:
     # Ingress is disabled - using Gateway API HTTPRoute instead
     ingress:
       enabled: false
-
-    # Resource Limits
-    resources:
-      server:
-        requests:
-          cpu: 100m
-          memory: 512Mi
-        limits:
-          memory: 1Gi
-      worker:
-        requests:
-          cpu: 50m
-          memory: 256Mi
-        limits:
-          memory: 512Mi
