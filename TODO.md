@@ -3,8 +3,8 @@
 ## Core Infra to Deploy
 - [x] Implement External Secrets Operator
 - [x] Deploy 1Password integrated with External Secrets
-- [ ] Add longhorn for persistent storage
-- [ ] Enable NFS for external storage access
+- [x] Add longhorn for persistent storage
+- [x] Enable NFS for external storage access
 - [ ] Evaluate where secrets can be removed from cluster secrets and use 1Password
 - [ ] Setup auth structure and SSO - look into passkey options
 - [ ] Add monitoring stack - TBD - Promehteus/Grafana or others?
