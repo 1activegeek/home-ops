@@ -1,0 +1,53 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: longhorn
+  interval: 1h
+  timeout: 15m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # Set default data path for Longhorn storage
+    defaultSettings:
+      defaultDataPath: /var/mnt/longhorn-data
+      defaultReplicaCount: 3
+      defaultDataLocality: best-effort
+      allowRecurringJobWhileVolumeDetached: true
+      snapshotDataIntegrity: enabled
+      snapshotDataIntegrityImmediateCheckAfterSnapshotCreation: true
+      fastReplicaRebuildEnabled: true
+
+    # Enable persistent storage
+    persistence:
+      defaultClass: true
+      defaultFsType: ext4
+      defaultClassReplicaCount: 3
+      defaultDataLocality: best-effort
+      reclaimPolicy: Delete
+      volumeBindingMode: Immediate
+
+    # Longhorn engine and manager settings
+    longhornManager:
+      priorityClass: system-cluster-critical
+
+    longhornDriver:
+      priorityClass: system-cluster-critical
+
+    # UI service configuration (internal only)
+    service:
+      ui:
+        type: ClusterIP
+
+    # Ingress disabled - we'll use Gateway API HTTPRoute
+    ingress:
+      enabled: false
