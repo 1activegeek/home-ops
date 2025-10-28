@@ -4,6 +4,6 @@ kind: Kustomization
 namespace: security
 resources:
   - externalsecret.yaml
-  - ocirepository.yaml
+  - helmrepository.yaml
   - helmrelease.yaml
   # - httproute.yaml
