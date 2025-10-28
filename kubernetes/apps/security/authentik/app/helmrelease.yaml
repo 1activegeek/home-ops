@@ -6,10 +6,10 @@ metadata:
 spec:
   chart:
     spec:
-      chart: authentik
+      chart: charts/authentik
       version: 2025.10.0
       sourceRef:
-        kind: OCIRepository
+        kind: HelmRepository
         name: authentik
   interval: 1h
   timeout: 15m
