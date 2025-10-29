@@ -54,17 +54,17 @@ spec:
     # Authentik Server Configuration
     server:
       replicas: 2
-    route:
-      main:
-        enabled: true
-        hostnames:
-          - "{{ .Release.Name }}.${SECRET_DOMAIN}"
-          - auth.$SECRET_DOMAIN
-        parentRefs:
-          - name: envoy-internal
-            namespace: network
-            sectionName: https
-        https: true
+      route:
+        main:
+          enabled: true
+          hostnames:
+            - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+            - auth.$SECRET_DOMAIN
+          parentRefs:
+            - name: envoy-internal
+              namespace: network
+              sectionName: https
+          https: true
 
     # Authentik Worker Configuration
     worker:
