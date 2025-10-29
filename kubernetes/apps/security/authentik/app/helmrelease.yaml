@@ -59,7 +59,7 @@ spec:
           enabled: true
           hostnames:
             - "{{ .Release.Name }}.${SECRET_DOMAIN}"
-            - auth.$SECRET_DOMAIN
+            - auth.${SECRET_DOMAIN}
           parentRefs:
             - name: envoy-internal
               namespace: network
