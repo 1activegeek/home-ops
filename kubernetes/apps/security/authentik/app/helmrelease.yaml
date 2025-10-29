@@ -33,10 +33,10 @@ spec:
       name: authentik-secret
       valuesKey: AUTHENTIK_DB_PASSWORD
       targetPath: postgresql.auth.password
-    - kind: Secret
-      name: authentik-secret
-      valuesKey: AUTHENTIK_DB_PASSWORD
-      targetPath: postgresql.auth.postgresPassword
+    # - kind: Secret
+    #   name: authentik-secret
+    #   valuesKey: AUTHENTIK_DB_PASSWORD
+    #   targetPath: postgresql.auth.postgresPassword
   values:
     # Authentik Core Configuration
     authentik:
