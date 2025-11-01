@@ -26,8 +26,8 @@ spec:
       TZ: "America/New_York"
     envSecrets:
       dbEncryption:
-        existingSecret: db-encryption
-        key: db-encryption-key
+        existingSecret: "homarr-secret"
+        key: "SECRET_ENCRYPTION_KEY"
     #   HOMARR_PASSWORD:
     #     secretName: {{ .Release.Name}}-secret
     #     secretKey: HOMARR_PASSWORD
