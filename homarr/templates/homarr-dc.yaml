@@ -1,0 +1,10 @@
+             - name: SECRET_ENCRYPTION_KEY
+               valueFrom:
+                 secretKeyRef:
+                   name: {{ .Values.envSecrets.dbEncryption.existingSecret }}
+                   key: {{ .Values.envSecrets.dbEncryption.key }}
+             - name: HOMARR_PASSWORD
+               valueFrom:
+                 secretKeyRef:
+                   name: {{ .Values.envSecrets.homarrCredentials.existingSecret }}
+                   key: {{ .Values.envSecrets.homarrCredentials.passwordKey }}
