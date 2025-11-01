@@ -5,15 +5,23 @@
 - [x] Deploy 1Password integrated with External Secrets
 - [x] Add longhorn for persistent storage
 - [x] Enable NFS for external storage access
-- [ ] Authentik for SSO/Passkey/Enroll
-  - [ ] Fix/handle HTTPS redirect after success (https://gateway-api.sigs.k8s.io/guides/http-redirect-rewrite/#http-to-https-redirects)
-- [ ] Observability Stack (see below)
-- [ ] User Landing Page
+- [x] Authentik for SSO/Passkey/Enroll
+- [ ] User Landing Page (see below)
 - [ ] Optimize core deployment
 - [ ] Automation bot for working with PRs and automatically applying or group applying
+- [ ] Observability Stack (see below)
 
 ## Observability Stack
-- [ ] openobserve
+- App
+  Name: openobserve
+  Namespace: monitoring
+  Helm/OCI Repo:
+  Replicas:
+  ExternalSecret: openobserve-secret
+  Values: document any values I would need and any that should be a secret so they can be populated
+  Storage: [Longhorn, NFS]
+  Route: internal only
+  Hostnames: default, plus observe.{$SECRET_DOMAIN}
 
 Decide on whether to add any of these additionally:
 - kube-prometheus-stack
@@ -21,12 +29,18 @@ Decide on whether to add any of these additionally:
 - opentelemetry
 - loki
 
+## Fixarr
+
+
 ## User Landing Page
-Choose one of the following
-- homepage
-- homer
-- dashy
-- homarr
+- Decide on one of the following
+  - homepage
+  - homer
+  - dashy
+  - homarr
+- Create the app folder+files
+- Ask for customizations required to deploy
+
 
 ## Services/Apps to Deploy
 - Home Assistant
@@ -44,6 +58,8 @@ Choose one of the following
 - pihole
 - audiobookshelf
 - unpoller
+- docuseal
+
 
 
 ## Virtualization
@@ -52,8 +68,21 @@ Choose one of the following
 - [ ] Dedicated jump/bastion host
 
 ## Some Future Enhancements
-1. Migrate existing SOPS-encrypted application secrets to External Secrets (if any exist)
-2. Evaluate where secrets can be removed from cluster secrets and use 1Password
-3. Create ExternalSecret resources for actual applications that need secrets
-4. Document how to add new secrets to the 1Password homeops vault
-5. Configure Longhorn recurring snapshots and backup targets (S3/NFS)
+- 1Password
+  - Upgrade 1Password to use itself for secrets vs SOPS
+  - Migrate existing SOPS-encrypted application secrets to External Secrets (if any exist)
+  - Evaluate where secrets can be removed from cluster secrets and use 1Password
+  - Create ExternalSecret resources for actual applications that need secrets
+  - Create ExternalSecret standards for claude.md file
+  - Document how to add new secrets to the 1Password homeops vault
+- Authentik
+  - Configure User configs in Authentik
+  - Fix/handle HTTPS redirect after success (https://gateway-api.sigs.k8s.io/guides/http-redirect-rewrite/#http-to-https-redirects)
+- Longhorn
+  - Configure Longhorn recurring snapshots and backup targets (S3/NFS)
+
+ ## Others
+- Make list of the common Gotchas I get snagged on
+  - formatting issues, forgetting the proper {{ .ReleaseName }} or ${ENV_VAR}
+setup standards for dpeloyment of routes, secret handling, substitutions
+
