@@ -2,7 +2,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: homarr
+  name: &app homarr
   namespace: default
 spec:
   chartRef:
@@ -34,7 +34,7 @@ spec:
     httproute:
       enabled: true
       hostnames:
-        - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+        - *app.${SECRET_DOMAIN}
         - home.${SECRET_DOMAIN}
       parentRefs:
         - name: envoy-internal
