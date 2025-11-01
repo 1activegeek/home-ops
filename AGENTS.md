@@ -1,10 +1,11 @@
-# CLAUDE.md
+# AGENTS.md
+**IMPORTANT: Once you have completed processing this file, view the .agents folder for further context.**
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to any AI agent when working with code in this repository.
 
 ## Project Overview
 
-This is a GitOps-based Kubernetes cluster template for home lab deployments. The cluster runs on **Talos Linux** (v1.11.3) with **Kubernetes** (v1.34.1) managed by **Flux CD** (v2.7.2). All secrets are encrypted with **SOPS + age** encryption.
+This is a GitOps-based Kubernetes cluster template for home lab deployments. The cluster runs on **Talos Linux** (v1.11.3) with **Kubernetes** (v1.34.1) managed by **Flux CD** (v2.7.2). Application secrets are managed with **External Secrets Operator + 1Password**, with SOPS + age encryption for bootstrap secrets.
 
 **Core Stack:**
 - **OS:** Talos Linux (immutable, API-managed container OS)
@@ -14,7 +15,7 @@ This is a GitOps-based Kubernetes cluster template for home lab deployments. The
 - **DNS:** k8s_gateway (internal), external-dns (Cloudflare)
 - **Certificates:** cert-manager
 - **Tunneling:** Cloudflare Tunnel (cloudflared)
-- **Secrets:** SOPS + age encryption
+- **Secrets:** External Secrets Operator + 1Password (application), SOPS + age (bootstrap)
 - **Other:** Spegel (image mirroring), Reloader (config reloading)
 
 ## Core Development Principles
@@ -23,18 +24,30 @@ This is a GitOps-based Kubernetes cluster template for home lab deployments. The
 
 ### 1. Never Commit Unencrypted Secrets
 
-**All secrets, passwords, API tokens, certificates, and any sensitive data MUST be encrypted with SOPS before committing to Git.**
+**All secrets, passwords, API tokens, certificates, and any sensitive data MUST be managed securely - NEVER commit plaintext secrets to Git.**
 
-- ❌ **NEVER** commit plaintext secrets, even temporarily
-- ❌ **NEVER** commit files containing passwords, API keys, or confidential information without encryption
-- ✅ **ALWAYS** use SOPS to encrypt secrets (files with `.sops.yaml` suffix)
+**Standard Method (Application Secrets):**
+- ✅ **ALWAYS** use External Secrets Operator + 1Password for application secrets
+- ✅ Store secrets in 1Password `homeops` vault
+- ✅ Create ExternalSecret resources to sync secrets into Kubernetes
+- ✅ No secrets in Git - only ExternalSecret manifests referencing 1Password items
+
+**Bootstrap Secrets Only (SOPS):**
+- ⚠️ **ONLY** use SOPS for bootstrap/infrastructure secrets that External Secrets depends on:
+  - 1Password Connect Server credentials
+  - Flux GitHub tokens
+  - Talos machine secrets
+- ✅ **ALWAYS** encrypt with SOPS before committing (files with `.sops.yaml` suffix)
 - ✅ **ALWAYS** verify encryption before `git push`:
   ```bash
   # Check that all .sops.yaml files are encrypted (should show 'sops' metadata)
   grep -r "sops:" kubernetes/**/*.sops.yaml talos/**/*.sops.yaml
   ```
 
-**Exception:** External secret management systems (e.g., External Secrets Operator) will be added in the future to complement SOPS.
+**Critical Rules:**
+- ❌ **NEVER** commit plaintext secrets, even temporarily
+- ❌ **NEVER** create new SOPS-encrypted secrets for applications (use External Secrets instead)
+- ❌ **NEVER** commit files containing passwords, API keys, or confidential information unencrypted
 
 ### 2. GitOps-Only Changes (No Direct kubectl apply)
 
@@ -82,6 +95,62 @@ flux-local diff
 - Dependency issues
 
 **Note:** The GitHub Actions workflow (`.github/workflows/flux-local.yaml`) also runs this validation automatically on PRs.
+
+### 4. Use creator repo for inspriation
+
+When being asked to add new apps or resources, check if the creator repo has a similar deployment.
+- **SHOULD** be used for some simple sane defaults
+- **SHOULD NOT** be taken as verbatim option to deploy
+- Can answer some basic questions about structure
+- Great way to find other resources for helm charts
+
+### 5. Specialized Agents for Cluster Operations
+
+This repository uses specialized AI agents to manage the progressive pipeline for Kubernetes cluster deployments and maintenance. These agents operate in a GitOps-compliant manner, ensuring all changes are planned, reviewed, and staged without direct cluster modifications.
+
+#### Agent Pipeline Overview
+The agents follow a sequential workflow: **Plan** → **Review** → **Build** → **Test** → **Deploy** → **Validate**, coordinated by the **Orchestrator**.
+
+- **k8s-plannarr**: Handles initial planning and research for deployments, creating comprehensive plans and gathering requirements.
+- **k8s-reviewarr**: Reviews plans, manifests, and configurations for security, best practices, and compliance before proceeding.
+- **k8s-buildarr**: Builds and packages artifacts (e.g., Helm charts, OCI repos) based on reviewed plans.
+- **k8s-testarr**: Tests built artifacts through simulations and validations to ensure reliability.
+- **k8s-deployarr**: Prepares and stages GitOps-based rollouts, creating patches and PR drafts.
+- **k8s-validatarr**: Validates post-deployment health, monitors for issues, and confirms success.
+- **k8s-orchestratarr**: Central coordinator that parses requests, assigns tasks to agents, and oversees the entire pipeline.
+
+All agents adhere to core principles: reference AGENTS.md for cluster context, NEVER make direct changes or commits, and operate in read-only/advisory modes where applicable.
+
+### 6. Helm Chart Standards
+
+**Follow these standards when creating or modifying Helm charts for applications.**
+
+#### Hostnames
+- **Default:** Always use `{{ .Release.Name }}.${SECRET_DOMAIN}` for hostnames.
+- **Additional Subdomains:** If a user requests additional subdomains, ensure they include `${SECRET_DOMAIN}` to form proper FQDNs (e.g., `subdomain.{{ .Release.Name }}.${SECRET_DOMAIN}`).
+
+#### Secrets
+- **Naming:** Always use `{appname}-secret` for secret names unless explicitly stated otherwise.
+- **Mapping:** Prefer `valuesFrom` and `envFrom` in Helm charts over mapping individual values to simplify configuration and reduce errors.
+- **1Password Structure:** Place ALL secrets for each app in a single 1Password item with multiple fields mapped to their relevant Values or ENV values in the Helm charts.
+
+#### Template Variables
+- **Usage:** Use Helm template variables (e.g., `{{ .Release.Name }}`) wherever possible to simplify configurations and enable reuse of release names or top-level configs, reducing manual updates and changes.
+
+#### YAML Anchors and Aliases
+- **Usage:** Use YAML anchors (&) and aliases (*) to reuse repeated values (e.g., names, URLs, configurations) within Helm charts, reducing duplication and simplifying maintenance.
+- **Example:**
+  ```yaml
+  common: &common
+    name: my-app
+    url: https://example.com
+  service1:
+    <<: *common
+    port: 80
+  service2:
+    <<: *common
+    port: 443
+  ```
 
 ## Architecture
 
@@ -210,19 +279,86 @@ kubectl -n kube-system describe certificates
 
 ## Secret Management
 
+**⚡ STANDARD METHOD: All application secrets MUST use External Secrets + 1Password.**
+
+### Primary Method: External Secrets + 1Password (Required for Application Secrets)
+
+**For ALL application secrets, use External Secrets Operator with 1Password. Do NOT create new SOPS-encrypted secrets.**
+
+**Architecture:**
+- **1Password Connect Server:** Deployed in `security` namespace, provides API access to 1Password vaults
+- **External Secrets Operator (ESO):** Syncs secrets from 1Password to Kubernetes Secrets
+- **ClusterSecretStore:** Cluster-wide access to 1Password vaults
+
+**Adding Application Secrets:**
+
+1. **Store secret in 1Password vault:**
+   - Use 1Password app or CLI to create items
+   - Recommended vault: `kubernetes` (or app-specific vaults)
+
+2. **Create an ExternalSecret resource:**
+   ```yaml
+   apiVersion: external-secrets.io/v1
+   kind: ExternalSecret
+   metadata:
+     name: my-app-secret
+     namespace: default
+   spec:
+     refreshInterval: 1h
+     secretStoreRef:
+       kind: ClusterSecretStore
+       name: onepassword-store
+     target:
+       name: my-app-secret
+       template:
+         data:
+           APP_DB_PASSWORD: "{{ .APP_DB_PASSWORD }}"
+           APP_SECRET_KEY: "{{ .APP_SECRET_KEY }}"
+     dataFrom:
+       - extract:
+           key: my-app  # 1Password item name
+   ```
+
+3. **Reference the secret in your application:**
+   ```yaml
+   envFrom:
+     - secretRef:
+         name: my-app-secret
+   ```
+
+**Checking ExternalSecret Status:**
+```bash
+# Check if ExternalSecret is syncing
+kubectl get externalsecret -A
+kubectl describe externalsecret <name> -n <namespace>
+
+# Verify the Kubernetes Secret was created
+kubectl get secret <secret-name> -n <namespace>
+```
+
+### Bootstrap Method: SOPS (Bootstrap/Infrastructure Secrets Only)
+
+**⚠️ SOPS is DEPRECATED for application secrets. Use External Secrets instead.**
+
 **SOPS Configuration:** See [.sops.yaml](.sops.yaml)
+
+**SOPS is ONLY used for bootstrap/infrastructure secrets:**
+- 1Password Connect Server credentials (`security/onepassword-connect/app/secret.sops.yaml`)
+- Flux GitHub tokens
+- Talos machine secrets
+- Any secrets that External Secrets Operator depends on (bootstrap secrets)
 
 **Encryption Rules:**
 - `talos/*.sops.yaml`: Fully encrypted with MAC
 - `kubernetes/*.sops.yaml`: Only `data` and `stringData` fields encrypted
 - Age public key: `age1azd5x9cmhpaqn8ww60q7yqwc6dhlw3z66cz7mjwmnkfqdqf0lytskc8asw`
 
-**Working with Secrets:**
+**Working with SOPS Secrets (Bootstrap Only):**
 ```bash
 # Edit encrypted secret (auto-decrypts/encrypts)
-sops kubernetes/apps/network/cloudflare-tunnel/app/secret.sops.yaml
+sops kubernetes/apps/security/onepassword-connect/app/secret.sops.yaml
 
-# Encrypt a new secret
+# Encrypt a new bootstrap secret
 kubectl create secret generic my-secret \
   --from-literal=key=value \
   --dry-run=client -o yaml | \
@@ -230,10 +366,32 @@ kubectl create secret generic my-secret \
   --encrypt /dev/stdin > kubernetes/apps/default/my-app/app/secret.sops.yaml
 
 # Verify secrets are encrypted before committing
-# All kubernetes/**/*.sops.* files should NOT contain plaintext secrets
+grep -r "sops:" kubernetes/**/*.sops.yaml talos/**/*.sops.yaml
 ```
 
 **Important:** Never commit unencrypted secrets. Always verify `*.sops.yaml` files are encrypted before pushing.
+
+### Decision Matrix: Which Method to Use
+
+**⚡ Default: External Secrets + 1Password (use for everything except bootstrap)**
+
+| Use Case | Method | Reason |
+|----------|--------|--------|
+| **Application database credentials** | ✅ External Secrets + 1Password | Centralized secret rotation, easier management |
+| **API keys for services** | ✅ External Secrets + 1Password | Can be rotated in 1Password without GitOps changes |
+| **OAuth tokens** | ✅ External Secrets + 1Password | Automatic sync from 1Password |
+| **Application passwords** | ✅ External Secrets + 1Password | No secrets in Git, centralized management |
+| **TLS certificates (app-level)** | ✅ External Secrets + 1Password | Easy rotation without code changes |
+| **ANY application secret** | ✅ External Secrets + 1Password | **This is the standard method** |
+| | | |
+| **1Password Connect credentials** | ⚠️ SOPS | Bootstrap dependency - ESO needs this to function |
+| **Flux GitHub tokens** | ⚠️ SOPS | Bootstrap dependency - Flux needs this to pull repo |
+| **Talos machine secrets** | ⚠️ SOPS | Infrastructure bootstrap secrets |
+| **SOPS age keys** | ⚠️ SOPS | Required to decrypt other SOPS secrets |
+
+**Rule of Thumb:**
+- If it's used by an application/service → Use External Secrets + 1Password
+- If it's needed to bootstrap the cluster or External Secrets itself → Use SOPS
 
 ## Debugging Workflows
 
@@ -385,3 +543,4 @@ Update versions in these files:
 - **Talos/Kubernetes versions:** [talos/talenv.yaml](talos/talenv.yaml)
 - **Tool versions:** [.mise.toml](.mise.toml)
 - **Flux components:** Renovate handles automatically via [.renovaterc.json5](.renovaterc.json5)
+
