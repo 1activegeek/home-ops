@@ -44,4 +44,4 @@ spec:
       homarrDatabase:
         enabled: true
         size: 5Gi
-        storageClassName: "" # Use default (Longhorn)
+        # storageClassName: "Longhorn" # Use default (Longhorn)
