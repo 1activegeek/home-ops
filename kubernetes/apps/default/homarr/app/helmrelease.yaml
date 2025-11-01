@@ -1,65 +1,47 @@
+---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: homarr
   namespace: default
 spec:
-  interval: 30m
-  chart:
-    spec:
-      chart: homarr
-      version: "8.2.1" # Specify a stable version; update as needed
-      sourceRef:
-        kind: OCIRepository
-        name: homarr
+  chartRef:
+    kind: OCIRepository
+    name: homarr
+  interval: 1h
+  timeout: 15m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
   values:
     image:
-      repository: homarr/homarr
+      repository: ghcr.io/homarr-labs/homarr
       tag: "8.2.1"
-      pullPolicy: IfNotPresent
-    service:
-      type: ClusterIP
-      port: 7575
+    env:
+      AUTH_PROVIDERS: "credentials"
+      TZ: "America/New_York"
+    # envSecrets:
+    #   SECRET_ENCRYPTION_KEY:
+    #     secretName: {{ .Release.Name}}-secret
+    #     secretKey: SECRET_ENCRYPTION_KEY
+    #   HOMARR_PASSWORD:
+    #     secretName: {{ .Release.Name}}-secret
+    #     secretKey: HOMARR_PASSWORD
     httproute:
       enabled: true
-      parentRefs:
-        - name: envoy-internal
-          namespace: network
       hostnames:
         - "{{ .Release.Name }}.${SECRET_DOMAIN}"
         - home.${SECRET_DOMAIN}
-      # For external access, uncomment and use:
-      # parentRefs:
-      #   - name: envoy-external
-      #     namespace: network
-      rules:
-        - backendRefs:
-            - name: homarr
-              port: 7575
+      parentRefs:
+        - name: envoy-internal
+          namespace: network
+          sectionName: https
     persistence:
       homarrDatabase:
         enabled: true
         size: 5Gi
-        storageClass: "" # Use default (Longhorn)
-    env:
-      TZ: "UTC"
-      LOG_LEVEL: "info"
-      AUTH_PROVIDERS: "credentials"
-    envSecrets:
-      homarrCredentials:
-        existingSecret: "homarr-secret"
-        passwordKey: "HOMARR_PASSWORD"
-      dbEncryption:
-        existingSecret: "homarr-secret"
-        key: "SECRET_ENCRYPTION_KEY"
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-    securityContext:
-      runAsNonRoot: true
-      runAsUser: 1001
-      readOnlyRootFilesystem: true
+        storageClassName: "" # Use default (Longhorn)
