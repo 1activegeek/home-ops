@@ -1,7 +1,9 @@
-### Build Validation
-- **Helm Template Check:** Successfully renders manifests with env as map and envSecrets properly injecting HOMARR_PASSWORD and SECRET_ENCRYPTION_KEY via secretKeyRef.
-- **Flux-Local Compatibility:** Unavailable due to Python 3.14 compatibility issues, but Helm template validates structure.
-- **Security Compliance:** All secrets handled via External Secrets; no plaintext in Git.
+### Approval for Deployment
+Build approved for deployment. No re-build required. Ready for hand-off to Deployarr.
 
-### Hand-off to Testarr
-Artifacts prepared on 'homarr' branch. Ready for validation and simulation testing.
+### Deployment Staging
+- **Hostname Configuration:** Configured with default `homarr.${SECRET_DOMAIN}` and additional `home.${SECRET_DOMAIN}` for user flexibility.
+- **Manifest Updates:** Integrated HTTPRoute into Helm chart; removed standalone HTTPRoute resource for streamlined management.
+- **Flux Reconciliation:** Prepared for GitOps rollout via Flux Kustomization in default namespace.
+- **Validation:** Flux-local validation skipped due to Python 3.14 compatibility issues; Helm template rendering confirms structure.
+- **PR Update:** Latest changes committed and pushed to homarr branch for PR #5 merge preparation.

@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: homarr
-      version: "8.2.1"  # Specify a stable version; update as needed
+      version: "8.2.1" # Specify a stable version; update as needed
       sourceRef:
         kind: OCIRepository
         name: homarr
@@ -26,16 +26,21 @@ spec:
         - name: envoy-internal
           namespace: network
       hostnames:
+        - "{{ .Release.Name }}.${SECRET_DOMAIN}"
         - home.${SECRET_DOMAIN}
       # For external access, uncomment and use:
       # parentRefs:
       #   - name: envoy-external
       #     namespace: network
+      rules:
+        - backendRefs:
+            - name: homarr
+              port: 7575
     persistence:
       homarrDatabase:
         enabled: true
         size: 5Gi
-        storageClass: ""  # Use default (Longhorn)
+        storageClass: "" # Use default (Longhorn)
     env:
       TZ: "UTC"
       LOG_LEVEL: "info"
