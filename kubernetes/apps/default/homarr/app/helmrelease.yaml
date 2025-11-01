@@ -34,7 +34,7 @@ spec:
     httproute:
       enabled: true
       hostnames:
-        - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+        - homarr.${SECRET_DOMAIN}
         - home.${SECRET_DOMAIN}
       parentRefs:
         - name: envoy-internal
