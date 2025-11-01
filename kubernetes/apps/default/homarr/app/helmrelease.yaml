@@ -21,9 +21,16 @@ spec:
     image:
       repository: ghcr.io/homarr-labs/homarr
       tag: "8.2.1"
+    env:
+      AUTH_PROVIDERS: "credentials"
+      TZ: "America/New_York"
     envSecrets:
-      - secretRef:
-        name: {{ .Release.Name }}-secret
+      SECRET_ENCRYPTION_KEY:
+        secretName: {{ .Release.Name}}-secret
+        secretKey: SECRET_ENCRYPTION_KEY
+      HOMARR_PASSWORD:
+        secretName: {{ .Release.Name}}-secret
+        secretKey: HOMARR_PASSWORD
     httproute:
       enabled: true
       hostnames:
@@ -36,5 +43,5 @@ spec:
     persistence:
       homarrDatabase:
         enabled: true
-        size: 1Gi
+        size: 5Gi
         storageClassName: "" # Use default (Longhorn)
