@@ -24,10 +24,9 @@ spec:
     env:
       AUTH_PROVIDERS: "credentials"
       TZ: "America/New_York"
-    envSecrets:
-      dbEncryption:
-        existingSecret: {{ .Release.Name}}-secret
-        key: SECRET_ENCRYPTION_KEY
+    envFrom:
+      - secretRef:
+          name: {{ .Release.Name}}-secret
     #   HOMARR_PASSWORD:
     #     secretName: {{ .Release.Name}}-secret
     #     secretKey: HOMARR_PASSWORD
