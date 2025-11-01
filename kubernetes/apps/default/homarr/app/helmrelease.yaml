@@ -20,7 +20,7 @@ spec:
   values:
     image:
       repository: ghcr.io/homarr-labs/homarr
-      tag: "1.43.1"
+      tag: "v1.43.1"
     env:
       AUTH_PROVIDERS: "credentials"
       TZ: "America/New_York"
