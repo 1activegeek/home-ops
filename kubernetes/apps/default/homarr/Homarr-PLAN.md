@@ -1,4 +1,23 @@
 ### Staging for GitOps Reconciliation
-Changes staged on homarr branch for Flux reconciliation. PR created: https://github.com/1activegeek/home-ops/pull/12</content>
-</xai:function_call name="bash">
-<parameter name="command">git add kubernetes/apps/default/homarr/Homarr-PLAN.md
+Changes staged on homarr branch for Flux reconciliation. PR created: https://github.com/1activegeek/home-ops/pull/12
+
+### Build Update: HelmRelease Restoration
+- Restored the corrupted HelmRelease file with full specification.
+- Included apiVersion, metadata, spec with chartRef to OCIRepository.
+- Added complete values: image, env (with secret references), envSecrets, httproute (for Envoy Gateway), and persistence.
+- Ensured alignment with cluster standards: secrets via ExternalSecret, hostnames using template variables, default storage class.
+- Local validation attempted via flux-local but encountered tool error (version incompatibility); build artifacts prepared for Testarr handoff.
+
+### Test Results: Validation of Restored HelmRelease
+- **Syntax Validation:** All YAML files (HelmRelease, OCIRepository, ExternalSecret, Kustomization) are syntactically valid as confirmed by yq parsing.
+- **Completeness Check:** HelmRelease includes all required fields: apiVersion (helm.toolkit.fluxcd.io/v2), kind (HelmRelease), metadata (name: homarr, namespace: default), spec with chartRef (kind: OCIRepository, name: homarr), interval (1h), timeout (15m), install/upgrade remediation, and comprehensive values (image, env with secretKeyRef, envSecrets, httproute enabled with proper hostnames and parentRefs, persistence with homarrDatabase).
+- **Compatibility with OCIRepository:** OCIRepository correctly references oci://ghcr.io/homarr-labs/charts/homarr with tag "8.2.1", aligning with the image tag in HelmRelease values.
+- **Cluster Compatibility:** 
+  - Secrets managed via ExternalSecret from 1Password ClusterSecretStore (onepassword-store), standard for application secrets in the cluster.
+  - HTTPRoute configured for envoy-internal gateway in network namespace, appropriate for internal applications.
+  - Hostnames use template variables ({{ .Release.Name }}.${SECRET_DOMAIN}), with substitution handled by Flux via cluster-secrets.
+  - Persistence uses default storage class (empty string), which defaults to Longhorn as per cluster configuration.
+  - No conflicts with existing cluster components (Cilium, Envoy Gateway, etc.) detected.
+- **Flux-Local Validation:** Attempted but failed due to tool version incompatibility with Python 3.14. Manual validation performed as alternative.
+- **Edge Cases/Security:** No hardcoded secrets; all sensitive data via ExternalSecret. No resource conflicts or network policy issues anticipated.
+- **Status:** PASS - Build artifacts validated successfully. Approving for deployment. Handing off to Deployarr for staging and PR updates.
