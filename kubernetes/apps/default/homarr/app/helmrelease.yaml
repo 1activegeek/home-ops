@@ -8,30 +8,45 @@ spec:
   chart:
     spec:
       chart: homarr
-      version: "1.0.0"  # Specify a stable version; update as needed
+      version: "8.2.1"  # Specify a stable version; update as needed
       sourceRef:
         kind: OCIRepository
         name: homarr
   values:
     image:
       repository: homarr/homarr
-      tag: latest
+      tag: "8.2.1"
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
       port: 7575
-    ingress:
-      enabled: false  # Using HTTPRoute instead
-    persistence:
+    httproute:
       enabled: true
-      size: 5Gi
-      storageClass: ""  # Use default (Longhorn)
+      parentRefs:
+        - name: envoy-internal
+          namespace: network
+      hostnames:
+        - home.${SECRET_DOMAIN}
+      # For external access, uncomment and use:
+      # parentRefs:
+      #   - name: envoy-external
+      #     namespace: network
+    persistence:
+      homarrDatabase:
+        enabled: true
+        size: 5Gi
+        storageClass: ""  # Use default (Longhorn)
     env:
-      - name: HOMARR_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: homarr-secret
-            key: HOMARR_PASSWORD
+      TZ: "UTC"
+      LOG_LEVEL: "info"
+      AUTH_PROVIDERS: "credentials"
+    envSecrets:
+      homarrCredentials:
+        existingSecret: "homarr-secret"
+        passwordKey: "HOMARR_PASSWORD"
+      dbEncryption:
+        existingSecret: "homarr-secret"
+        key: "SECRET_ENCRYPTION_KEY"
     resources:
       requests:
         cpu: 100m
