@@ -21,7 +21,7 @@ spec:
     image:
       repository: ghcr.io/homarr-labs/homarr
       tag: "8.2.1"
-    envFrom:
+    envSecrets:
       - secretRef:
         name: {{ .Release.Name }}-secret
     httproute:
