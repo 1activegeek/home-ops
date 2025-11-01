@@ -1,0 +1,65 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: homarr
+  namespace: default
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: homarr
+      version: "8.2.1" # Specify a stable version; update as needed
+      sourceRef:
+        kind: OCIRepository
+        name: homarr
+  values:
+    image:
+      repository: homarr/homarr
+      tag: "8.2.1"
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 7575
+    httproute:
+      enabled: true
+      parentRefs:
+        - name: envoy-internal
+          namespace: network
+      hostnames:
+        - "{{ .Release.Name }}.${SECRET_DOMAIN}"
+        - home.${SECRET_DOMAIN}
+      # For external access, uncomment and use:
+      # parentRefs:
+      #   - name: envoy-external
+      #     namespace: network
+      rules:
+        - backendRefs:
+            - name: homarr
+              port: 7575
+    persistence:
+      homarrDatabase:
+        enabled: true
+        size: 5Gi
+        storageClass: "" # Use default (Longhorn)
+    env:
+      TZ: "UTC"
+      LOG_LEVEL: "info"
+      AUTH_PROVIDERS: "credentials"
+    envSecrets:
+      homarrCredentials:
+        existingSecret: "homarr-secret"
+        passwordKey: "HOMARR_PASSWORD"
+      dbEncryption:
+        existingSecret: "homarr-secret"
+        key: "SECRET_ENCRYPTION_KEY"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1001
+      readOnlyRootFilesystem: true
