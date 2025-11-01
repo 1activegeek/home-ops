@@ -1,0 +1,10 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: OCIRepository
+metadata:
+  name: homarr
+  namespace: default
+spec:
+  interval: 1h
+  url: oci://ghcr.io/homarr-labs/homarr
+  ref:
+    tag: latest
