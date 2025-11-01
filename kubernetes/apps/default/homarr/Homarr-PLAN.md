@@ -21,3 +21,15 @@ Changes staged on homarr branch for Flux reconciliation. PR created: https://git
 - **Flux-Local Validation:** Attempted but failed due to tool version incompatibility with Python 3.14. Manual validation performed as alternative.
 - **Edge Cases/Security:** No hardcoded secrets; all sensitive data via ExternalSecret. No resource conflicts or network policy issues anticipated.
 - **Status:** PASS - Build artifacts validated successfully. Approving for deployment. Handing off to Deployarr for staging and PR updates.
+
+### Rollout Plan
+- **Deployment Strategy:** Standard rollout via Flux reconciliation. No canary or progressive delivery required for initial deployment.
+- **Prerequisites:** Ensure ExternalSecret 'homarr-secret' is created in 1Password vault with keys: HOMARR_PASSWORD, SECRET_ENCRYPTION_KEY, PLEX_API_KEY, SONARR_API_KEY.
+- **Steps:**
+  1. Merge PR #12 to main branch.
+  2. Flux will reconcile the homarr Kustomization, deploying OCIRepository, ExternalSecret, and HelmRelease.
+  3. Monitor deployment: Check HelmRelease status with `flux get hr -n default`.
+  4. Verify HTTPRoute creation and routing via Envoy Gateway.
+  5. Confirm persistence (homarrDatabase PVC) is bound to Longhorn storage.
+- **Rollback:** If issues arise, Flux will handle remediation retries; manual rollback via `flux suspend hr homarr -n default` and revert commit if needed.
+- **Post-Deploy:** Hand off to Validatarr for health checks and confirmation.
