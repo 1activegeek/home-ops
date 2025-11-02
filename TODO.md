@@ -6,7 +6,7 @@
 - [x] Add longhorn for persistent storage
 - [x] Enable NFS for external storage access
 - [x] Authentik for SSO/Passkey/Enroll
-- [ ] User Landing Page (see below)
+- [x] User Landing Page (see below)
 - [ ] Optimize core deployment
 - [ ] Automation bot for working with PRs and automatically applying or group applying
 - [ ] Observability Stack (see below)
@@ -33,14 +33,7 @@ Decide on whether to add any of these additionally:
 
 
 ## User Landing Page
-- Decide on one of the following
-  - homepage
-  - homer
-  - dashy
-  - homarr
-- Create the app folder+files
-- Ask for customizations required to deploy
-
+In case Homarr doesn't work out: homer
 
 ## Services/Apps to Deploy
 - Home Assistant
@@ -59,6 +52,12 @@ Decide on whether to add any of these additionally:
 - audiobookshelf
 - unpoller
 - docuseal
+- glances
+- scrutiny
+- tailscale
+- teleport
+
+
 
 
 

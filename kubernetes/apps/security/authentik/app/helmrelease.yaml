@@ -33,6 +33,14 @@ spec:
       name: authentik-secret
       valuesKey: AUTHENTIK_DB_PASSWORD
       targetPath: postgresql.auth.password
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: SMTP_USERNAME
+      targetPath: authentik.email.username
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: SMTP_PASSWORD
+      targetPath: authentik.email.password
     # - kind: Secret
     #   name: authentik-secret
     #   valuesKey: AUTHENTIK_DB_PASSWORD
@@ -42,14 +50,12 @@ spec:
     authentik:
       log_level: info
       email:
-        host: smtp.example.com
-        port: 25
-        username: ""
-        password: ""
-        use_tls: false
+        host: smtp.mail.me.com
+        port: 587
+        use_tls: true
         use_ssl: false
         timeout: 30
-        from_address: authentik@example.com
+        from_address: admin@thegeekybits.com
 
     # Authentik Server Configuration
     server:
