@@ -9,4 +9,4 @@ components:
 resources:
   - ./namespace.yaml
   - ./echo/ks.yaml
-  - ./homarr/ks.yaml
+  # - ./homarr/ks.yaml
