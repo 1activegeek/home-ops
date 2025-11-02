@@ -44,8 +44,7 @@ spec:
           namespace: network
           sectionName: https
       rules:
-        - matches:
-          backendRefs:
+        - backendRefs:
             - name: homarr
               port: 7575
     persistence:
