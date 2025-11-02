@@ -27,7 +27,7 @@ spec:
     envSecrets:
       dbEncryption:
         existingSecret: "homarr-secret"
-        key: "SECRET_ENCRYPTION_KEY"
+        key: "db-encryption-key"
     #   HOMARR_PASSWORD:
     #     secretName: {{ .Release.Name}}-secret
     #     secretKey: HOMARR_PASSWORD
