@@ -50,7 +50,7 @@ spec:
     authentik:
       log_level: info
       email:
-        host: smtp.mail.me.com
+        host: "smtp.mail.me.com"
         port: 587
         use_tls: true
         use_ssl: false
