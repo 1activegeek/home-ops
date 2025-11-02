@@ -21,9 +21,12 @@ spec:
     image:
       repository: ghcr.io/homarr-labs/homarr
       tag: "v1.43.1"
+    rbac:
+      enabled: true
     env:
       AUTH_PROVIDERS: "credentials"
       TZ: "America/New_York"
+      LOG_LEVEL: "debug"
     envSecrets:
       dbEncryption:
         existingSecret: "homarr-secret"
@@ -43,5 +46,5 @@ spec:
     persistence:
       homarrDatabase:
         enabled: true
-        size: 5Gi
+        size: 1Gi
         storageClassName: "longhorn" # Use default (Longhorn)
