@@ -26,7 +26,7 @@ spec:
     env:
       AUTH_PROVIDERS: "credentials"
       TZ: "America/New_York"
-      LOG_LEVEL: "debug"
+      # LOG_LEVEL: "debug"
     envSecrets:
       dbEncryption:
         existingSecret: "homarr-secret"
