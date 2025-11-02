@@ -43,6 +43,11 @@ spec:
         - name: envoy-internal
           namespace: network
           sectionName: https
+      rules:
+        - matches:
+          backendRefs:
+            - name: homarr
+              port: 7575
     persistence:
       homarrDatabase:
         enabled: true
