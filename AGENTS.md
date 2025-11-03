@@ -77,15 +77,7 @@ kubectl get pods -A -w
 
 ### 3. Validate Before Committing
 
-**Always run flux-local validation before committing to catch configuration errors early.**
-
-```bash
-# Run flux-local to validate all Kustomizations and HelmReleases
-# This catches issues before they reach the cluster
-flux-local diff
-
-# Or use the GitHub Actions workflow locally (if configured)
-```
+**Always run flux-local validation before committing to catch configuration errors early. See the "Local Validation" section below for detailed commands.**
 
 **This prevents:**
 - Invalid YAML syntax
@@ -111,6 +103,8 @@ This repository uses specialized AI agents to manage the progressive pipeline fo
 #### Agent Pipeline Overview
 The agents follow a sequential workflow: **Plan** → **Review** → **Build** → **Test** → **Deploy** → **Validate**, coordinated by the **Orchestrator**.
 
+All agents must append new sections to the core {App Name}-PLAN.md file in the app folder (e.g., kubernetes/apps/{namespace}/{app}/{app}-PLAN.md) without overwriting or removing previous content. The PLAN serves as a cumulative record of the deployment pipeline. Only the `/cleanup-plan` command may strip details and convert it to a README.md post-validation.
+
 - **k8s-plannarr**: Handles initial planning and research for deployments, creating comprehensive plans and gathering requirements.
 - **k8s-reviewarr**: Reviews plans, manifests, and configurations for security, best practices, and compliance before proceeding.
 - **k8s-buildarr**: Builds and packages artifacts (e.g., Helm charts, OCI repos) based on reviewed plans.
@@ -121,7 +115,13 @@ The agents follow a sequential workflow: **Plan** → **Review** → **Build** �
 
 All agents adhere to core principles: reference AGENTS.md for cluster context, NEVER make direct changes or commits, and operate in read-only/advisory modes where applicable.
 
-### 6. Helm Chart Standards
+### 6. Pipeline Integrity
+Agents must treat PLAN.md as append-only to maintain a full audit trail. If content loss occurs, revert and re-run agents to append missing sections. Agents must include flux-local validation results in PLAN.md to confirm configs before PR creation.
+
+### 7. Output Cleanliness
+Agents may write local temp files for processing/research if needed, but these MUST NOT be committed and MUST be cleaned up immediately after use. Outputs are limited to required configs and PLAN/README docs.
+
+### 8. Helm Chart Standards
 
 **Follow these standards when creating or modifying Helm charts for applications.**
 
@@ -151,6 +151,15 @@ All agents adhere to core principles: reference AGENTS.md for cluster context, N
     <<: *common
     port: 443
   ```
+
+#### Versions
+- **Usage:** Agents must use tools (e.g., webfetch) to research and specify the latest chart version from official sources. Include version and source in all plans. Avoid boilerplate defaults.
+
+#### Routes
+- **Usage:** Embed HTTPRoute configurations in the Helm release values when the chart supports it (e.g., via ingress values). Research chart docs to confirm support; avoid separate files unless necessary for Flux/Kustomize overrides.
+
+#### Value Overrides
+- **Usage:** Research chart default values and only include overrides that differ. Use tools (e.g., webfetch) to fetch values.yaml from the repo and compare. Avoid redundant defaults for cleaner releases.
 
 ## Architecture
 
@@ -187,6 +196,7 @@ kubernetes/apps/<namespace>/<app-name>/
     ├── helmrelease.yaml       # Helm chart deployment
     ├── ocirepository.yaml     # OCI chart source
     ├── secret.sops.yaml       # Encrypted secrets (optional)
+    ├── httproute.yaml         # HTTPRoute (optional, if not embedded)
     └── kustomization.yaml     # Kustomize manifest
 ```
 
@@ -194,6 +204,7 @@ kubernetes/apps/<namespace>/<app-name>/
 - `ks.yaml` files define Flux Kustomizations that reference the `app/` subdirectory
 - Secrets use the `.sops.yaml` suffix and are encrypted with SOPS
 - OCI repositories are preferred over traditional Helm repos
+- Prefer embedding HTTPRoutes in helmrelease.yaml values if the chart supports ingress/route configuration; use separate httproute.yaml only if unsupported or for overrides
 - Each namespace has its own `namespace.yaml` and root `kustomization.yaml`
 
 ### Flux Reconciliation Flow
@@ -258,6 +269,24 @@ task talos:upgrade-k8s
 # Reset cluster (WARNING: destructive)
 task talos:reset
 ```
+
+### Local Validation
+
+**Run flux-local tests locally before pushing to catch errors early and replicate GitHub Actions.**
+
+```bash
+# Install flux-local
+pip install flux-local
+
+# Validate Flux configurations (equivalent to GitHub Actions)
+flux-local test --enable-helm --all-namespaces --path ./kubernetes/flux/cluster -v
+
+# Check diffs for changes
+flux-local diff kustomization --path ./kubernetes/flux/cluster --all-namespaces --sources flux-system
+flux-local diff helmrelease --path ./kubernetes/flux/cluster --all-namespaces --sources flux-system
+```
+
+This helps catch simple issues (e.g., YAML syntax, reconciliation errors) locally, saving PR iterations.
 
 **Direct Kubectl/Flux Commands:**
 ```bash

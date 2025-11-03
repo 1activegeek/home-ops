@@ -38,9 +38,11 @@ Operational Guidelines:
 • Ensure all secrets are in single 1Password item per app.
 • Verify encryption/removal before completion.
 • Report created items and cleaned files.
+• Remove any temp artifacts created during command execution.
 
 Specific Outcomes:
 1. Insert secrets into 1Password.
 2. Update manifests with ExternalSecret references.
 3. Strip secrets from source files.
 4. Confirm no secrets remain in repo.
+5. Ensure temp files are cleaned up; only mandated outputs persist.

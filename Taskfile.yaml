@@ -31,3 +31,13 @@ tasks:
     preconditions:
       - test -f {{.KUBECONFIG}}
       - which flux
+
+  validate:
+    desc: Run local flux-local validation to catch configuration errors before committing
+    cmd: |
+      echo "Running flux-local validation..."
+      flux-local test --enable-helm --all-namespaces --path ./kubernetes/flux/cluster -v
+      flux-local diff kustomization --path ./kubernetes/flux/cluster --all-namespaces --sources flux-system
+      flux-local diff helmrelease --path ./kubernetes/flux/cluster --all-namespaces --sources flux-system
+    preconditions:
+      - which flux-local
