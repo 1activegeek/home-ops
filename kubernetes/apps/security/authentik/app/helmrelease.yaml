@@ -55,7 +55,7 @@ spec:
         use_tls: true
         use_ssl: false
         timeout: 30
-        from_address: admin@thegeekybits.com
+        from: admin@thegeekybits.com
 
     # Authentik Server Configuration
     server:
