@@ -33,17 +33,20 @@ Primary Responsibilities:
 • Read {App Name}-PLAN.md from the app folder.
 • Strip planning sections (e.g., questions, answers, drafts, internal notes).
 • Retain final details: deployment summary, resources, validation results, final manifests references.
+• Synthesize comprehensive README from PLAN.md, configs, and cluster context.
 • Convert to README.md in the same folder, overwriting if exists.
 • Ensure no sensitive info remains; remove any leftover secrets references.
 
 Operational Guidelines:
 • Preserve structure: Overview, Resources, Validation, Next Steps.
+• Expand to include: Overview (purpose/fit), Current Setup (exposure/parts/operation), Important Notes about Config (details/gotchas), Tasks (remaining/future).
 • Use markdown formatting for readability.
 • Confirm with user before overwriting.
-• Remove any temp artifacts created during command execution.
+• Synthesize missing details from HelmRelease, cluster standards (e.g., AGENTS.md), and app context if PLAN.md is incomplete.
 
 Specific Outcomes:
 1. Process and clean PLAN.md content.
 2. Create/update README.md with finalized docs.
 3. Report completion and any removed content.
+4. Ensure README includes synthesized sections for full documentation.
 4. Ensure temp files are cleaned up; only mandated outputs persist.
