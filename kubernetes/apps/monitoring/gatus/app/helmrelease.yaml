@@ -1,117 +1,118 @@
 ---
-
 apiVersion: helm.toolkit.fluxcd.io/v2
-
 kind: HelmRelease
-
 metadata:
-
   name: gatus
-
   namespace: monitoring
-
 spec:
-
   chartRef:
-
-    kind: HelmRepository
-
+    kind: OCIRepository
     name: gatus
-
   interval: 1h
-
   timeout: 15m
-
   install:
-
     remediation:
-
       retries: 3
-
   upgrade:
-
     cleanupOnFail: true
-
     remediation:
-
       retries: 3
-
   values:
-
-    image:
-
-      repository: twinproduction/gatus
-
-      tag: "v5.27.2"
-
+    controllers:
+      gatus:
+        containers:
+          app:
+            image:
+              repository: twinproduction/gatus
+              tag: "v5.27.2"
+            env:
+              GATUS_CONFIG_PATH: /config/config.yaml
+            probes:
+              liveness:
+                enabled: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 80
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: 80
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 256Mi
+        configMaps:
+          config:
+            enabled: true
+            data:
+              config.yaml: |
+                storage:
+                  type: sqlite
+                  path: /data/data.db
+                endpoints:
+                  - name: Envoy Internal Gateway
+                    url: "https://envoy-internal.network.svc.cluster.local"
+                    conditions:
+                      - "[STATUS] == 200"
+                  - name: Cert Manager Webhook
+                    url: "https://cert-manager-webhook.cert-manager.svc.cluster.local:443/healthz"
+                    conditions:
+                      - "[STATUS] == 200"
+                  - name: External DNS
+                    url: "https://external-dns.network.svc.cluster.local:7979/healthz"
+                    conditions:
+                      - "[STATUS] == 200"
+                  - name: Authentik
+                    url: "https://authentik.security.svc.cluster.local"
+                    conditions:
+                      - "[STATUS] == 200"
+                  - name: Homarr
+                    url: "https://homarr.default.svc.cluster.local:7575"
+                    conditions:
+                      - "[STATUS] == 200"
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
     persistence:
-
-      enabled: true
-
-      size: 1Gi
-
-      storageClassName: "longhorn"
-
-    resources:
-
-      requests:
-
-        cpu: 100m
-
-        memory: 128Mi
-
-      limits:
-
-        cpu: 500m
-
-        memory: 256Mi
-
-    config:
-
-      storage:
-
-        type: sqlite
-
-        path: /data/data.db
-
-      endpoints:
-
-        - name: Envoy Internal Gateway
-
-          url: "https://envoy-internal.network.svc.cluster.local"
-
-          conditions:
-
-            - "[STATUS] == 200"
-
-        - name: Cert Manager Webhook
-
-          url: "https://cert-manager-webhook.cert-manager.svc.cluster.local:443/healthz"
-
-          conditions:
-
-            - "[STATUS] == 200"
-
-        - name: External DNS
-
-          url: "https://external-dns.network.svc.cluster.local:7979/healthz"
-
-          conditions:
-
-            - "[STATUS] == 200"
-
-        - name: Authentik
-
-          url: "https://authentik.security.svc.cluster.local"
-
-          conditions:
-
-            - "[STATUS] == 200"
-
-        - name: Homarr
-
-          url: "https://homarr.default.svc.cluster.local:7575"
-
-          conditions:
-
-            - "[STATUS] == 200"
+      app:
+        enabled: true
+        size: 1Gi
+        storageClassName: "longhorn"
+        accessMode: ReadWriteOnce
+        mountPath: /data
+    service:
+      app:
+        ports:
+          http:
+            port: 80
+    route:
+      app:
+        hostnames: ["gatus.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - identifier: app
+                port: 80

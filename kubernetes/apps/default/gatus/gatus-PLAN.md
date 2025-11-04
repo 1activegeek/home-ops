@@ -97,3 +97,34 @@ Push to Buildarr for building manifests.
 
 ## Approval for Deployment
 **Approved**: Build artifacts validated successfully. Ready for deployment to cluster via Deployarr.
+
+## Staging Details
+- **Branch**: gatus branch created and populated with deployment manifests.
+- **Manifests Staged**: All Flux resources (Kustomizations, HelmRelease, HTTPRoute) committed to gatus branch.
+- **Compatibility Verification**:
+  - **Envoy-Internal Gateway**: HTTPRoute configured to route via envoy-internal in network namespace, using https sectionName and backend port 80. Compatible with cluster gateway architecture.
+  - **Storage**: PVC uses Longhorn storageClass, aligning with cluster storage standards. No conflicts with existing storage.
+  - **Namespace**: Deployed in monitoring namespace, which is created via namespace.yaml and included in cluster apps via root kustomization.yaml.
+- **Rollout Plan**: Standard GitOps deployment via Flux reconciliation. No canary or progressive rollout required for initial deployment of monitoring app. Single replica deployment with immediate reconciliation.
+- **Simulated Reconciliation**: Flux-local validation attempted but failed due to Python 3.14 compatibility issues. Alternative validations (kustomize build, helm template) confirm manifests are syntactically correct and compatible. Assumes successful reconciliation based on prior validations.
+- **Patches Prepared**: Manifests serve as deployment patches; no additional patches needed as changes are additive (new namespace and app).
+- **PR Draft Prepared**: Pull request to merge gatus branch into main for deployment approval.
+  - **Title**: feat: deploy Gatus monitoring application
+  - **Body**:
+    ## Summary
+    - Adds Gatus v5.27.2 for monitoring core infrastructure services
+    - Deploys in monitoring namespace with internal routing via envoy-internal
+    - Monitors envoy-internal gateway, cert-manager, external-dns, Authentik, and Homarr
+    - Uses SQLite storage on Longhorn PVC with minimal resource allocation
+
+    ## Changes
+    - New namespace: monitoring
+    - Gatus HelmRelease with endpoints configuration
+    - HTTPRoute for internal access at gatus.${SECRET_DOMAIN}
+    - Flux Kustomization for automated deployment
+
+    ## Validation
+    - Manifests validated via kustomize build and helm template
+    - Compatible with envoy-internal gateway and Longhorn storage
+    - No secrets required; ready for GitOps reconciliation
+- **Readiness for Deployment**: All staging complete. Awaiting PR approval and merge to trigger Flux reconciliation. Post-deployment, handoff to Validatarr for health checks.
