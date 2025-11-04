@@ -44,7 +44,6 @@ In case Homarr doesn't work out: homer
 - n8n
 - Gitea
 - Teslamate
-- tailscale
 - nextcloud
 - uptime kuma
 - gatus
@@ -58,7 +57,11 @@ In case Homarr doesn't work out: homer
 - teleport
 
 
-
+## Optimizations
+- Cleanup secrets naming
+- Plan PVC monitoring to keep space consumption optimal (kill old dangling PVC)
+- Customize README for Repo - move odl to template ref, update with current state
+- Switch over old helm repo url to OCI format
 
 
 ## Virtualization
