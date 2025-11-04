@@ -10,13 +10,6 @@ spec:
     name: gatus
   interval: 1h
   timeout: 15m
-  install:
-    remediation:
-      retries: 3
-  upgrade:
-    cleanupOnFail: true
-    remediation:
-      retries: 3
   values:
     controllers:
       gatus:
@@ -107,7 +100,7 @@ spec:
             port: 80
     route:
       app:
-        hostnames: ["gatus.${SECRET_DOMAIN}"]
+        hostnames: ["gatus.${SECRET_DOMAIN}", "status.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal
             namespace: network
