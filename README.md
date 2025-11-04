@@ -30,11 +30,24 @@ Welcome to my opinionated self-hosted declarative Kubernetes cluster. The primar
 - **flux-local**: Local testing and diffing of Flux manifests.
 
 ## 🤖 Agentic Assistance
-Still a WIP, but working on building out simple agents in the .opencode repo to be able to handle onboarding new applications or making updates to the cluster. You'll notice a familiar naming structure of the "arr" present here just for fun. If you'd like to try it out, just grab the .opencode directory and drop it into your own repo, install [OpenCode](https://opencode.ai), and start testing. You can obviously adapt this to other agentic tools, just adapt formatting to match. Also keep in midn some of the rules and outcomes are subjective and created by my preference - certainly work on testing it out with your own updated guidance.
+Still a WIP, but working on building out simple agents in the .opencode repo to be able to handle onboarding new applications or making updates to the cluster. You'll notice a familiar naming structure of the "arr" present here just for fun. If you'd like to try it out:
+
+- grab the .opencode directory and drop it into your repo
+- install [OpenCode](https://opencode.ai)
+- init to build an agents.md
+- start testing
+
+You can obviously adapt this to other agentic tools, just adapt formatting to match. Also keep in mind some of the rules and outcomes are subjective and created by my preference - certainly work on testing it out with your own updated guidance.
 
 ## 🏗️ Cluster Architecture
 
 This cluster runs on Talos Linux, an immutable OS managed via API for security and reliability. GitOps is implemented with Flux CD, enabling declarative and version-controlled deployments. Networking is handled by Cilium for efficient container communication, with Envoy Gateway providing ingress for both internal and external access. DNS management includes internal k8s_gateway and external-dns integration with Cloudflare. Certificates are automated via cert-manager, and secrets are securely managed through External Secrets Operator with 1Password. Utilities like Spegel provide distributed image caching, while Reloader ensures automatic pod updates on config changes.
+
+## 🖥️ Cluster Nodes
+
+- **Nodes**: 3 high-availability control plane nodes running Talos Linux.
+- **Storage**: NVMe SSD with ephemeral volumes (50-95GB) and Longhorn-managed data volumes (up to 900GB ext4).
+- **Networking**: Static IPs with virtual IP for load balancing.
 
 ## 🔧 Development & Automation
 
