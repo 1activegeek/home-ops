@@ -1,0 +1,15 @@
+---
+
+apiVersion: source.toolkit.fluxcd.io/v1
+
+kind: HelmRepository
+
+metadata:
+
+  name: gatus
+
+spec:
+
+  interval: 15m
+
+  url: https://twin.github.io/helm-charts

@@ -1,0 +1,117 @@
+---
+
+apiVersion: helm.toolkit.fluxcd.io/v2
+
+kind: HelmRelease
+
+metadata:
+
+  name: gatus
+
+  namespace: monitoring
+
+spec:
+
+  chartRef:
+
+    kind: HelmRepository
+
+    name: gatus
+
+  interval: 1h
+
+  timeout: 15m
+
+  install:
+
+    remediation:
+
+      retries: 3
+
+  upgrade:
+
+    cleanupOnFail: true
+
+    remediation:
+
+      retries: 3
+
+  values:
+
+    image:
+
+      repository: twinproduction/gatus
+
+      tag: "v5.27.2"
+
+    persistence:
+
+      enabled: true
+
+      size: 1Gi
+
+      storageClassName: "longhorn"
+
+    resources:
+
+      requests:
+
+        cpu: 100m
+
+        memory: 128Mi
+
+      limits:
+
+        cpu: 500m
+
+        memory: 256Mi
+
+    config:
+
+      storage:
+
+        type: sqlite
+
+        path: /data/data.db
+
+      endpoints:
+
+        - name: Envoy Internal Gateway
+
+          url: "https://envoy-internal.network.svc.cluster.local"
+
+          conditions:
+
+            - "[STATUS] == 200"
+
+        - name: Cert Manager Webhook
+
+          url: "https://cert-manager-webhook.cert-manager.svc.cluster.local:443/healthz"
+
+          conditions:
+
+            - "[STATUS] == 200"
+
+        - name: External DNS
+
+          url: "https://external-dns.network.svc.cluster.local:7979/healthz"
+
+          conditions:
+
+            - "[STATUS] == 200"
+
+        - name: Authentik
+
+          url: "https://authentik.security.svc.cluster.local"
+
+          conditions:
+
+            - "[STATUS] == 200"
+
+        - name: Homarr
+
+          url: "https://homarr.default.svc.cluster.local:7575"
+
+          conditions:
+
+            - "[STATUS] == 200"
