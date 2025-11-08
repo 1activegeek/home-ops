@@ -24,40 +24,38 @@ spec:
     rbac:
       enabled: true
     env:
-      - name: AUTH_PROVIDERS
-        value: "credentials,oidc"
-      - name: TZ
-        value: "America/New_York"
+      AUTH_PROVIDERS: "credentials,oidc"
+      TZ: "America/New_York"
       # LOG_LEVEL: "debug"
     envSecrets:
       dbEncryption:
         existingSecret: "homarr-secret"
         key: "db-encryption-key"
       OIDC_CLIENT_ID:
-        secretName: homarr-secret
-        secretKey: OIDC_CLIENT_ID
+        existingSecret: homarr-secret
+        key: OIDC_CLIENT_ID
       OIDC_CLIENT_SECRET:
-        secretName: homarr-secret
-        secretKey: OIDC_CLIENT_SECRET
+        existingSecret: homarr-secret
+        key: OIDC_CLIENT_SECRET
       OIDC_ISSUER:
-        secretName: homarr-secret
-        secretKey: OIDC_ISSUER
+        existingSecret: homarr-secret
+        key: OIDC_ISSUER
       OIDC_NAME:
-        secretName: homarr-secret
-        secretKey: OIDC_NAME
+        existingSecret: homarr-secret
+        key: OIDC_NAME
       OIDC_SCOPE:
-        secretName: homarr-secret
-        secretKey: OIDC_SCOPE
+        existingSecret: homarr-secret
+        key: OIDC_SCOPE
       NEXTAUTH_URL:
-        secretName: homarr-secret
-        secretKey: NEXTAUTH_URL
+        existingSecret: homarr-secret
+        key: NEXTAUTH_URL
       NEXTAUTH_SECRET:
-        secretName: homarr-secret
-        secretKey: NEXTAUTH_SECRET
+        existingSecret: homarr-secret
+        key: NEXTAUTH_SECRET
 
     #   HOMARR_PASSWORD:
-    #     secretName: {{ .Release.Name}}-secret
-    #     secretKey: HOMARR_PASSWORD
+    #     existingSecret: {{ .Release.Name}}-secret
+    #     key: HOMARR_PASSWORD
     httproute:
       enabled: true
       hostnames:
