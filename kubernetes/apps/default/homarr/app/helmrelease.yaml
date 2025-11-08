@@ -24,30 +24,26 @@ spec:
     rbac:
       enabled: true
     env:
-      AUTH_PROVIDERS: "credentials"
-      # AUTH_OIDC_AUTO_LOGIN: true #To sign in with Authentik automatically
-      # AUTH_OIDC_CLIENT_NAME: "authentik"
-      # AUTH_OIDC_GROUPS_ATTRIBUTE: "groups"
+      TZ: "America/New_York"
+      # LOG_LEVEL: "debug"
+      AUTH_PROVIDERS: "oidc,credentials"
+      AUTH_LOGOUT_REDIRECT_URL: "https://auth.${SECRET_DOMAIN}/application/o/homarr/end-session/"
+      AUTH_SESSION_EXPIRY_TIME: "14d"
+      AUTH_OIDC_ISSUER: "https://auth.${SECRET_DOMAIN}/application/o/homarr"
+      AUTH_OIDC_CLIENT_NAME: "authentik"
+      AUTH_OIDC_AUTO_LOGIN: true #To sign in with Authentik automatically
+      AUTH_OIDC_GROUPS_ATTRIBUTE: "groups"
       # BASE_URL: "https://home.${SECRET_DOMAIN}"
       # NEXTAUTH_URL: "https://home.${SECRET_DOMAIN}"
-      # AUTH_OIDC_ISSUER: "https://auth.${SECRET_DOMAIN}/application/o/homarr"
       # AUTH_OIDC_URI: "https://auth.${SECRET_DOMAIN}/application/o/authorize"
-      # AUTH_LOGOUT_REDIRECT_URL: "https://${AUTH_DOMAIN}/application/o/homarr/end-session/"
-      TZ:
-        "America/New_York"
-        # LOG_LEVEL: "debug"
-    # envFrom:
-    #   secretRefs:
-    #     - name: "homarr-secret"
-    #         AUTH_OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
-    # AUTH_OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
     envSecrets:
       dbEncryption:
         existingSecret: "homarr-secret"
         key: "db-encryption-key"
-    #   HOMARR_PASSWORD:
-    #     existingSecret: {{ .Release.Name}}-secret
-    #     key: HOMARR_PASSWORD
+      authOidcCredentials:
+        existingSecret: "homarr-secret"
+        oidcClientId: "oidc-client-id"
+        oidcClientSecret: "oidc-client-secret"
     httproute:
       enabled: true
       hostnames:
