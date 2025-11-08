@@ -24,35 +24,27 @@ spec:
     rbac:
       enabled: true
     env:
-      AUTH_PROVIDERS: "credentials,oidc"
-      TZ: "America/New_York"
-      # LOG_LEVEL: "debug"
-    envSecrets:
-      dbEncryption:
-        existingSecret: "homarr-secret"
-        key: "db-encryption-key"
-      OIDC_CLIENT_ID:
-        existingSecret: homarr-secret
-        key: OIDC_CLIENT_ID
-      OIDC_CLIENT_SECRET:
-        existingSecret: homarr-secret
-        key: OIDC_CLIENT_SECRET
-      OIDC_ISSUER:
-        existingSecret: homarr-secret
-        key: OIDC_ISSUER
-      OIDC_NAME:
-        existingSecret: homarr-secret
-        key: OIDC_NAME
-      OIDC_SCOPE:
-        existingSecret: homarr-secret
-        key: OIDC_SCOPE
-      NEXTAUTH_URL:
-        existingSecret: homarr-secret
-        key: NEXTAUTH_URL
-      NEXTAUTH_SECRET:
-        existingSecret: homarr-secret
-        key: NEXTAUTH_SECRET
-
+      AUTH_PROVIDERS: "oidc,credentials"
+      AUTH_OIDC_AUTO_LOGIN: true #To sign in with Authentik automatically
+      AUTH_OIDC_CLIENT_NAME: "authentik"
+      AUTH_OIDC_GROUPS_ATTRIBUTE: "groups"
+      BASE_URL: "https://home.${SECRET_DOMAIN}"
+      NEXTAUTH_URL: "https://home.${SECRET_DOMAIN}"
+      AUTH_OIDC_ISSUER: "https://auth.${SECRET_DOMAIN}/application/o/homarr"
+      AUTH_OIDC_URI: "https://auth.${SECRET_DOMAIN}/application/o/authorize"
+      AUTH_LOGOUT_REDIRECT_URL: "https://${AUTH_DOMAIN}/application/o/homarr/end-session/"
+      TZ:
+        "America/New_York"
+        # LOG_LEVEL: "debug"
+    envFrom:
+      secretRefs:
+        - name: "homarr-secret"
+      #         AUTH_OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+      # AUTH_OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+    # envSecrets:
+    #   dbEncryption:
+    #     existingSecret: "homarr-secret"
+    #     key: "db-encryption-key"
     #   HOMARR_PASSWORD:
     #     existingSecret: {{ .Release.Name}}-secret
     #     key: HOMARR_PASSWORD
