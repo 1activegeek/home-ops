@@ -20,7 +20,7 @@ spec:
   values:
     image:
       repository: ghcr.io/homarr-labs/homarr
-      tag: "v1.43.1"
+      tag: "v1.43.3"
     rbac:
       enabled: true
     env:
