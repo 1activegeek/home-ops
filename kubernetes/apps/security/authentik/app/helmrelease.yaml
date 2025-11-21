@@ -60,6 +60,8 @@ spec:
     # Authentik Server Configuration
     server:
       replicas: 2
+      annotations:
+        reloader.stakater.com/auto: "true"
       route:
         main:
           enabled: true
@@ -75,6 +77,8 @@ spec:
     # Authentik Worker Configuration
     worker:
       replicas: 1
+      annotations:
+        reloader.stakater.com/auto: "true"
 
     # PostgreSQL Database Configuration
     postgresql:
