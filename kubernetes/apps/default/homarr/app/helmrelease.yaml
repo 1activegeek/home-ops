@@ -21,10 +21,8 @@ spec:
     image:
       repository: ghcr.io/homarr-labs/homarr
       tag: "v1.43.1"
-    controllers:
-      homarr:
-        annotations:
-          reloader.stakater.com/auto: "true"
+    podAnnotations:
+      reloader.stakater.com/auto: "true"
     rbac:
       enabled: true
     env:
