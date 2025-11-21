@@ -161,6 +161,9 @@ Agents may write local temp files for processing/research if needed, but these M
 #### Value Overrides
 - **Usage:** Research chart default values and only include overrides that differ. Use tools (e.g., webfetch) to fetch values.yaml from the repo and compare. Avoid redundant defaults for cleaner releases.
 
+#### Annotations
+- **Reloader Auto-Reload:** Include `reloader.stakater.com/auto: "true"` on all controller annotations for deployments that use secrets or configmaps. This enables automatic rolling updates when secrets change. Skip for simple static deployments without dynamic configurations.
+
 ## Architecture
 
 ### Directory Structure
