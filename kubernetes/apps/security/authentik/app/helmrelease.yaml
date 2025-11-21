@@ -47,8 +47,9 @@ spec:
     #   targetPath: postgresql.auth.postgresPassword
   values:
     # Authentik Global Configurations
-    deploymentAnnotations:
-      reloader.stakater.com/auto: "true"
+    global:
+      deploymentAnnotations:
+        reloader.stakater.com/auto: "true"
 
     # Authentik Core Configuration
     authentik:
