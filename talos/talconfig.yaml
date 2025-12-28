@@ -4,10 +4,10 @@ clusterName: kubernetes
 talosVersion: "${talosVersion}"
 kubernetesVersion: "${kubernetesVersion}"
 
-endpoint: https://10.0.13.20:6443
+endpoint: https://10.0.3.51:6443
 additionalApiServerCertSans: &sans
   - "127.0.0.1"
-  - "10.0.13.20"
+  - "10.0.3.51"
 additionalMachineCertSans: *sans
 
 clusterPodNets: ["10.42.0.0/16"]
@@ -19,7 +19,7 @@ cniConfig:
 
 nodes:
   - hostname: "asgard-mpc-01"
-    ipAddress: "10.0.13.24"
+    ipAddress: "10.0.3.21"
     installDisk: "/dev/nvme0n1"
     machineSpec:
       secureboot: false
@@ -49,15 +49,15 @@ nodes:
           hardwareAddr: "84:47:09:54:a3:99"
         dhcp: false
         addresses:
-          - "10.0.13.24/24"
+          - "10.0.3.21/24"
         routes:
           - network: "0.0.0.0/0"
-            gateway: "10.0.13.1"
+            gateway: "10.0.3.1"
         mtu: 1500
         vip:
-          ip: "10.0.13.20"
+          ip: "10.0.3.51"
   - hostname: "asgard-mpc-02"
-    ipAddress: "10.0.13.25"
+    ipAddress: "10.0.3.22"
     installDisk: "/dev/nvme0n1"
     machineSpec:
       secureboot: false
@@ -87,15 +87,15 @@ nodes:
           hardwareAddr: "84:47:09:54:a8:99"
         dhcp: false
         addresses:
-          - "10.0.13.25/24"
+          - "10.0.3.22/24"
         routes:
           - network: "0.0.0.0/0"
-            gateway: "10.0.13.1"
+            gateway: "10.0.3.1"
         mtu: 1500
         vip:
-          ip: "10.0.13.20"
+          ip: "10.0.3.51"
   - hostname: "asgard-mpc-03"
-    ipAddress: "10.0.13.26"
+    ipAddress: "10.0.3.23"
     installDisk: "/dev/nvme0n1"
     machineSpec:
       secureboot: false
@@ -125,13 +125,13 @@ nodes:
           hardwareAddr: "84:47:09:54:a4:9c"
         dhcp: false
         addresses:
-          - "10.0.13.26/24"
+          - "10.0.3.23/24"
         routes:
           - network: "0.0.0.0/0"
-            gateway: "10.0.13.1"
+            gateway: "10.0.3.1"
         mtu: 1500
         vip:
-          ip: "10.0.13.20"
+          ip: "10.0.3.51"
 
 # Global patches
 patches:
