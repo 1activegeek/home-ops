@@ -98,6 +98,46 @@ flux-local test --enable-helm --all-namespaces --path ./kubernetes/flux/cluster 
 └── .taskfiles/                 # Task definitions
 ```
 
+## Researching New Deployments
+
+### Using kubesearch.dev
+
+[kubesearch.dev](https://kubesearch.dev/) is a community search engine that indexes HelmRelease configurations from public GitOps repositories. Use it to find real-world examples of how others deploy applications.
+
+**How to use it:**
+
+1. **Search for an application:** Enter the app name (e.g., "plex", "grafana", "authentik") in the search bar
+2. **Browse results:** Each result shows repositories that deploy that application
+3. **View configurations:** Click through to see actual HelmRelease YAML files from community repos
+
+**What you'll find:**
+- Release name and Helm chart used
+- Chart version deployed
+- Last update timestamp
+- Direct links to GitHub files with full configurations
+
+**Example workflow:**
+```
+1. Go to https://kubesearch.dev/
+2. Search for "sonarr" or your target application
+3. Click on results to view HelmRelease configurations
+4. Note patterns: chart source, values structure, common settings
+5. Adapt (don't copy blindly) to match this repo's conventions
+```
+
+**Important caveats:**
+- Results are from various GitOps setups - not all will match our patterns
+- Always adapt to use our conventions (OCI repos, External Secrets, Envoy Gateway)
+- Check chart versions are current - some repos may be outdated
+- Use as inspiration for values/settings, not as copy-paste templates
+
+**What to look for:**
+- Which Helm chart is commonly used for the app
+- Required environment variables and their typical values
+- Persistence configuration (volumes, mounts)
+- Networking setup (ports, protocols)
+- Any app-specific gotchas or workarounds
+
 ## Adding New Applications
 
 ### Standard App Structure
@@ -232,6 +272,65 @@ resources:
   - ./<new-app>/ks.yaml        # Add this line
 ```
 
+### Default Helm Chart: BJW-S App-Template
+
+When no official Helm chart exists for an application, use the **BJW-S app-template** chart:
+
+- **OCI URL:** `oci://ghcr.io/bjw-s-labs/helm/app-template`
+- **Documentation:** https://bjw-s-labs.github.io/helm-charts/docs/app-template/
+
+This chart provides a flexible template for deploying any container image with:
+- Multiple controllers (Deployment, StatefulSet, DaemonSet)
+- Sidecar containers
+- Persistence (PVC, hostPath, configMap, secret)
+- Services and routes
+- Init containers and probes
+
+See the `echo` app in `kubernetes/apps/default/echo/` for a working example.
+
+**Basic app-template structure:**
+```yaml
+values:
+  controllers:
+    <controller-name>:
+      type: Deployment  # or StatefulSet, DaemonSet
+      containers:
+        app:
+          image:
+            repository: ghcr.io/org/image
+            tag: latest
+          env:
+            TZ: America/New_York
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+
+  service:
+    app:
+      controller: <controller-name>
+      ports:
+        http:
+          port: 80
+
+  persistence:
+    config:
+      type: persistentVolumeClaim
+      storageClass: longhorn
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      globalMounts:
+        - path: /config
+
+  route:
+    app:
+      hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
+      parentRefs:
+        - name: envoy-internal
+          namespace: network
+          sectionName: https
+```
+
 ## Secret Management
 
 ### Application Secrets: External Secrets + 1Password
@@ -301,6 +400,48 @@ kubectl create secret generic my-secret \
   sops --filename-override kubernetes/path/secret.sops.yaml \
   --encrypt /dev/stdin > kubernetes/path/secret.sops.yaml
 ```
+
+### Managing Secrets with 1Password CLI
+
+Use the `/secrets` skill to manage 1Password items for Kubernetes deployments.
+
+**Create new secrets:**
+```bash
+# Create item with generated password fields (30+ chars, mixed)
+/secrets create app=myapp fields=db_password,api_key
+
+# For apps that can't handle special characters
+/secrets create app=myapp fields=db_password no-symbols
+
+# Force overwrite existing item
+/secrets create app=myapp fields=db_password force
+```
+
+**Check existing secrets:**
+```bash
+# Verify item exists and list its fields
+/secrets check app=myapp
+
+# List all items in vault
+/secrets list
+
+# Filter by pattern
+/secrets list filter=home
+```
+
+**Validate and troubleshoot:**
+```bash
+# Validate ExternalSecret matches 1Password item
+/secrets validate app=myapp namespace=home
+
+# Full troubleshooting (Connect, ClusterSecretStore, ExternalSecret, K8s Secret)
+/secrets troubleshoot app=myapp namespace=home
+```
+
+**Password specifications:**
+- Default: 30+ characters with letters, digits, and symbols
+- `no-symbols`: 30+ characters with letters and digits only
+- All passwords use the `homeops` vault unless specified otherwise
 
 ## Gateway & Networking
 
