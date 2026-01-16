@@ -35,6 +35,13 @@ spec:
       securityContext:
         runAsUser: 0
         runAsGroup: 0
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: home-assistant
+              topologyKey: kubernetes.io/hostname
 
     service:
       app:
