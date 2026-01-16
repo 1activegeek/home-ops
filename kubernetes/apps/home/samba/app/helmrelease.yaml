@@ -48,7 +48,7 @@ spec:
 
     persistence:
       ha-config:
-        existingClaim: config-home-assistant-0
+        existingClaim: home-assistant
         globalMounts:
           - path: /share/home-assistant
       config:
