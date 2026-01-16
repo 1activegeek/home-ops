@@ -1,0 +1,139 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: home-assistant
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: home-assistant
+  interval: 1h
+  values:
+    controllers:
+      home-assistant:
+        type: statefulset
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-assistant/home-assistant
+              tag: stable
+            env:
+              TZ: America/New_York
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8123
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 8123
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+          code-server:
+            image:
+              repository: ghcr.io/coder/code-server
+              tag: 4.96.4
+            args:
+              - --auth
+              - none
+              - --user-data-dir
+              - /config/.vscode
+              - --extensions-dir
+              - /config/.vscode
+              - --port
+              - "8081"
+              - /config
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 0      # HA needs root for some integrations
+        runAsGroup: 0
+        fsGroup: 0
+
+    # Uncomment and set hostname when USB devices are attached
+    # defaultPodOptions:
+    #   nodeSelector:
+    #     kubernetes.io/hostname: <node-with-usb>
+
+    service:
+      app:
+        controller: home-assistant
+        ports:
+          http:
+            port: 8123
+      code-server:
+        controller: home-assistant
+        ports:
+          http:
+            port: 8081
+
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 25Gi
+        globalMounts:
+          - path: /config
+      # Uncomment for AlarmDecoder USB device
+      # alarmdecoder-usb:
+      #   type: hostPath
+      #   hostPath: /dev/serial/by-id/<alarmdecoder-device-id>
+      #   globalMounts:
+      #     - path: /dev/ttyUSB0
+
+    route:
+      app:
+        hostnames: ["hass.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - identifier: app
+                port: 8123
+      code-server:
+        hostnames: ["hass-code.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - identifier: code-server
+                port: 8081
+      # Uncomment for external access (via Cloudflare Tunnel)
+      # app-external:
+      #   hostnames: ["hass.${SECRET_DOMAIN}"]
+      #   parentRefs:
+      #     - name: envoy-external
+      #       namespace: network
+      #       sectionName: https
+      #   rules:
+      #     - backendRefs:
+      #         - identifier: app
+      #           port: 8123
