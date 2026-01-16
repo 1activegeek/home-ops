@@ -15,26 +15,16 @@ spec:
           app:
             image:
               repository: ghcr.io/tsl0922/ttyd
-              tag: latest
+              tag: "1.7.7"
             args:
               - -W
-              - sh
+              - /bin/sh
             resources:
               requests:
                 cpu: 10m
                 memory: 32Mi
               limits:
                 memory: 128Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities: { drop: ["ALL"] }
-
-    defaultPodOptions:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 65534
-        runAsGroup: 65534
 
     service:
       app:
