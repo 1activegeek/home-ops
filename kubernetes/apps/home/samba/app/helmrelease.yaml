@@ -48,12 +48,12 @@ spec:
 
     persistence:
       ha-config:
-        existingClaim: home-assistant-config
+        existingClaim: config-home-assistant-0
         globalMounts:
           - path: /share/home-assistant
       config:
         type: configMap
-        name: samba-config
+        identifier: config
         globalMounts:
           - path: /data/config.yml
             subPath: config.yml
