@@ -7,4 +7,3 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./podmonitor.yaml
-  - ./security-policy-authentik.yaml
