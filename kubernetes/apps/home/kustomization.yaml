@@ -14,3 +14,4 @@ resources:
   - ./home-assistant/ks.yaml
   - ./samba/ks.yaml
   - ./ttyd/ks.yaml
+  - ./esphome/ks.yaml

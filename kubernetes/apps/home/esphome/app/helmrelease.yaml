@@ -1,0 +1,60 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: esphome
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: esphome
+  interval: 1h
+  values:
+    controllers:
+      esphome:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/esphome/esphome
+              tag: "2024.12.4"
+            env:
+              TZ: America/New_York
+              ESPHOME_DASHBOARD_USE_PING: "true"
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 2Gi
+
+    defaultPodOptions:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+
+    service:
+      app:
+        controller: esphome
+        ports:
+          http:
+            port: 6052
+
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        globalMounts:
+          - path: /config
+
+    route:
+      app:
+        hostnames: ["hass-esphome.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - identifier: app
+                port: 6052
