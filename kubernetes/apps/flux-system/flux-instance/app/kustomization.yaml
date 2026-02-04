@@ -7,3 +7,21 @@ resources:
   - ./secret.sops.yaml
   - ./httproute.yaml
   - ./receiver.yaml
+
+components:
+  - ../../../../../components/public-access
+
+replacements:
+  - source:
+      kind: HTTPRoute
+      name: github-webhook
+      fieldPath: metadata.name
+    targets:
+      - select:
+          kind: SecurityPolicy
+        fieldPaths:
+          - spec.targetRefs.0.name
+          - metadata.name
+        options:
+          delimiter: '-'
+          index: 0
