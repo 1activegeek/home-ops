@@ -9,7 +9,7 @@ resources:
   - ./receiver.yaml
 
 components:
-  - ../../../../../components/public-access
+  - ../../../../components/public-access
 
 replacements:
   - source:
