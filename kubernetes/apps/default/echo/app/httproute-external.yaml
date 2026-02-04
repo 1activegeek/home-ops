@@ -1,22 +1,21 @@
 ---
+# Public HTTPRoute for echo app (no authentication)
+# Used for testing external connectivity without auth barriers
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: github-webhook
+  name: echo-external
+  namespace: default
   labels:
     security.home-ops/public: "true"
 spec:
-  hostnames: ["flux-webhook.${SECRET_DOMAIN}"]
+  hostnames:
+    - echo.${SECRET_DOMAIN}
   parentRefs:
     - name: envoy-external
       namespace: network
       sectionName: https
   rules:
     - backendRefs:
-        - name: webhook-receiver
-          namespace: flux-system
+        - name: echo-app
           port: 80
-      matches:
-        - path:
-            type: PathPrefix
-            value: /hook/

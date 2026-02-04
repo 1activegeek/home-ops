@@ -1,0 +1,46 @@
+---
+name: "Security Validation"
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "kubernetes/apps/**/*.yaml"
+      - ".taskfiles/kubernetes/scripts/validate-external-routes.sh"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-external-routes:
+    name: Validate External Route Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Setup yq
+        uses: mikefarah/yq@d2f1ae9db722ac6836e651c0b4b7ff9507fcf907 # v4.45.1
+
+      - name: Validate external HTTPRoute security
+        run: bash .taskfiles/kubernetes/scripts/validate-external-routes.sh
+
+  security-validation-status:
+    name: Security Validation Success
+    needs: ["validate-external-routes"]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Validation failed?
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: |
+          echo "❌ Security validation failed!"
+          echo ""
+          echo "One or more external HTTPRoutes are missing required security labels."
+          echo "See the validation job output above for details."
+          exit 1
+
+      - name: Validation passed?
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: echo "✅ All external routes have proper security configuration"

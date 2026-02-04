@@ -1,0 +1,47 @@
+---
+# Public Access SecurityPolicy Component
+#
+# This component creates a SecurityPolicy that DISABLES authentication
+# for a specific HTTPRoute. Use this to explicitly opt-out of the
+# gateway-level default auth (envoy-external-default-auth).
+#
+# Usage:
+#   1. Create an HTTPRoute with label: security.home-ops/public: "true"
+#   2. Include this component in the app's kustomization.yaml
+#   3. Use replacements to target the correct HTTPRoute name
+#
+# Example kustomization.yaml:
+#
+#   components:
+#     - ../../../../components/public-access
+#
+#   replacements:
+#     - source:
+#         kind: HTTPRoute
+#         name: my-public-route
+#         fieldPath: metadata.name
+#       targets:
+#         - select:
+#             kind: SecurityPolicy
+#             name: public-access
+#           fieldPaths:
+#             - spec.targetRefs.0.name
+#             - metadata.name
+#           options:
+#             delimiter: '-'
+#             index: 1
+#
+# This SecurityPolicy OVERRIDES the gateway-level default, disabling auth
+# for the specific route it targets.
+#
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: ROUTE_NAME-public
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: ROUTE_NAME
+  # Empty extAuth section = no authentication required
+  # This overrides the gateway-level default-auth policy

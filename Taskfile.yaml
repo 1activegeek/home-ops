@@ -41,3 +41,7 @@ tasks:
       flux-local diff helmrelease --path ./kubernetes/flux/cluster --all-namespaces --sources flux-system
     preconditions:
       - which flux-local
+
+  validate-security:
+    desc: Validate external HTTPRoute security configurations
+    cmd: bash "{{.ROOT_DIR}}/.taskfiles/kubernetes/scripts/validate-external-routes.sh"

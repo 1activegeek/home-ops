@@ -2,15 +2,15 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: echo
+  name: test-echo
 spec:
   chartRef:
     kind: OCIRepository
-    name: echo
+    name: test-echo
   interval: 1h
   values:
     controllers:
-      echo:
+      test-echo:
         strategy: RollingUpdate
         containers:
           app:
@@ -51,6 +51,7 @@ spec:
         runAsGroup: 65534
     service:
       app:
+        controller: test-echo
         ports:
           http:
             port: *port
@@ -58,3 +59,14 @@ spec:
       app:
         endpoints:
           - port: http
+    route:
+      app:
+        hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - identifier: app
+                port: *port

@@ -6,4 +6,24 @@ resources:
   - externalsecret.yaml
   - helmrepository.yaml
   - helmrelease.yaml
-  # - httproute.yaml
+  - httproute-external.yaml
+  - referencegrant.yaml
+
+components:
+  - ../../../../components/public-access
+
+replacements:
+  # Wire up the public-access SecurityPolicy to target authentik-external HTTPRoute
+  - source:
+      kind: HTTPRoute
+      name: authentik-external
+      fieldPath: metadata.name
+    targets:
+      - select:
+          kind: SecurityPolicy
+        fieldPaths:
+          - spec.targetRefs.0.name
+          - metadata.name
+        options:
+          delimiter: '-'
+          index: 0
