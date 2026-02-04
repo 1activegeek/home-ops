@@ -17,5 +17,5 @@ spec:
       sectionName: https
   rules:
     - backendRefs:
-        - name: echo-app
+        - name: echo
           port: 80
