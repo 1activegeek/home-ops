@@ -5,11 +5,12 @@
 This document outlines a comprehensive plan for deploying OpenCode as a remote server on the Serenity Kubernetes cluster. The goal is to enable a "Claude Code-like" experience where users can connect from any device (mobile, web, desktop) to a centralized server that handles all AI processing, with persistent sessions and workspace storage.
 
 **Key Objectives:**
-- Remote OpenCode server accessible via external proxy (no auth blocking API)
+- Remote OpenCode server accessible via internal network (Phase 1)
+- External access with proper security controls (Phase 3 - future)
 - Multi-session support for working on multiple projects simultaneously
 - Session persistence allowing connect/disconnect from any device
 - Local filesystem storage for project workspaces
-- Notification system for user interaction alerts
+- Notification system for user interaction alerts (Phase 2 - future)
 - Flexible LLM provider support (Anthropic, OpenAI, etc.)
 
 ---
@@ -20,8 +21,8 @@ This document outlines a comprehensive plan for deploying OpenCode as a remote s
 2. [Component Requirements](#2-component-requirements)
 3. [Infrastructure Design](#3-infrastructure-design)
 4. [Session & Workspace Management](#4-session--workspace-management)
-5. [External Access & Security](#5-external-access--security)
-6. [Notification System](#6-notification-system)
+5. [Access & Security](#5-access--security)
+6. [Notification System](#6-notification-system) *(Phase 2)*
 7. [User Workflow](#7-user-workflow)
 8. [Kubernetes Manifests](#8-kubernetes-manifests)
 9. [Implementation Phases](#9-implementation-phases)
@@ -33,52 +34,45 @@ This document outlines a comprehensive plan for deploying OpenCode as a remote s
 
 ### High-Level Architecture
 
+**Phase 1: Internal Access Only**
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              User Devices                                    │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐                     │
-│  │  Mobile  │  │  Laptop  │  │  Desktop │  │   Web    │                     │
-│  │   CLI    │  │   CLI    │  │   CLI    │  │ Browser  │                     │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘                     │
-└───────┼─────────────┼─────────────┼─────────────┼───────────────────────────┘
-        │             │             │             │
-        └─────────────┴──────┬──────┴─────────────┘
-                             │ HTTPS (opencode.${DOMAIN})
-                             ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Cloudflare Tunnel                                    │
-│                    (External Access Gateway)                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
-                             │
+│                         Local Network Devices                                │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                                   │
+│  │  Laptop  │  │  Desktop │  │  Other   │                                   │
+│  │   CLI    │  │   CLI    │  │ Internal │                                   │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘                                   │
+└───────┼─────────────┼─────────────┼─────────────────────────────────────────┘
+        │             │             │
+        └─────────────┴──────┬──────┘
+                             │ HTTPS (oc.${DOMAIN}) - Internal DNS
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                      Kubernetes Cluster (Serenity)                           │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                     Envoy External Gateway                           │    │
+│  │                     Envoy Internal Gateway                           │    │
 │  │                   (HTTPRoute → OpenCode Service)                     │    │
+│  │                   No authentication layer                            │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                             │                                                │
 │                             ▼                                                │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                      OpenCode Server Pod                             │    │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │    │
-│  │  │  opencode serve │  │   Notification  │  │    Session Data     │  │    │
-│  │  │   (HTTP API)    │  │     Plugin      │  │  (~/.local/share/)  │  │    │
-│  │  │   Port 8080     │  │                 │  │                     │  │    │
-│  │  └────────┬────────┘  └────────┬────────┘  └──────────┬──────────┘  │    │
-│  │           │                    │                      │             │    │
-│  └───────────┼────────────────────┼──────────────────────┼─────────────┘    │
-│              │                    │                      │                   │
-│              │                    ▼                      ▼                   │
-│              │         ┌──────────────────┐    ┌────────────────────┐        │
-│              │         │  Notification    │    │   Longhorn PVC     │        │
-│              │         │  Services        │    │  (Session Storage) │        │
-│              │         │  (ntfy/Discord)  │    │                    │        │
-│              │         └──────────────────┘    └────────────────────┘        │
-│              │                                                               │
+│  │  ┌─────────────────┐                       ┌─────────────────────┐  │    │
+│  │  │  opencode serve │                       │    Session Data     │  │    │
+│  │  │   (HTTP API)    │                       │  (~/.local/share/)  │  │    │
+│  │  │   Port 8080     │                       │                     │  │    │
+│  │  └────────┬────────┘                       └──────────┬──────────┘  │    │
+│  │           │                                           │             │    │
+│  └───────────┼───────────────────────────────────────────┼─────────────┘    │
+│              │                                           ▼                   │
+│              │                                 ┌────────────────────┐        │
+│              │                                 │   Longhorn PVC     │        │
+│              │                                 │  (Session Storage) │        │
+│              │                                 └────────────────────┘        │
 │              ▼                                                               │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                     Workspace Storage (NFS/Longhorn)                 │    │
+│  │                     Workspace Storage (Longhorn)                     │    │
 │  │   /workspaces/project-1/  /workspaces/project-2/  ...               │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                             │                                                │
@@ -90,16 +84,45 @@ This document outlines a comprehensive plan for deploying OpenCode as a remote s
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+**Phase 3 (Future): External Access with Authentik**
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              Remote Devices                                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                                   │
+│  │  Mobile  │  │  Remote  │  │   Web    │                                   │
+│  │   CLI    │  │  Laptop  │  │ Browser  │                                   │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘                                   │
+└───────┼─────────────┼─────────────┼─────────────────────────────────────────┘
+        │             │             │
+        └─────────────┴──────┬──────┘
+                             │ HTTPS (oc.${DOMAIN})
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Cloudflare Tunnel                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Envoy External Gateway → Authentik Forward-Auth → OpenCode Service         │
+│  (Default-deny: all external routes protected by Authentik SSO)             │
+│                                                                              │
+│  Options for API access:                                                     │
+│  1. Authentik Application Token (header-based auth)                          │
+│  2. Public-access component (bypass SSO, use OpenCode's HTTP Basic Auth)    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### Core Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Deployment Model | Single StatefulSet | Single user, persistent state required |
 | Session Architecture | Native `opencode serve` | Built-in session management, API-first |
-| Storage Backend | Longhorn (sessions) + NFS (workspaces) | Distributed reliability + network access |
-| External Access | Envoy External + Cloudflare Tunnel | Existing infrastructure, secure |
+| Storage Backend | Longhorn (sessions + workspaces) | Distributed reliability, single storage class |
+| Phase 1 Access | Envoy Internal Gateway | Internal network only, no auth overhead |
+| Phase 3 Access (Future) | Envoy External + Authentik | External access with SSO protection |
 | Authentication | API token (OPENCODE_SERVER_PASSWORD) | Simple, works with CLI attach |
-| Notifications | Plugin-based (ntfy + Discord webhook) | Flexible, multiple channels |
+| Notifications | Phase 2 (deferred) | Plugin-based (ntfy + Discord webhook) |
 
 ---
 
@@ -167,19 +190,28 @@ kubernetes/apps/default/opencode/
 ├── ks.yaml                    # Flux Kustomization
 └── app/
     ├── kustomization.yaml     # Resource list
-    ├── helmrelease.yaml       # App-template deployment
+    ├── helmrelease.yaml       # App-template deployment (name: opencode)
     ├── ocirepository.yaml     # Chart source
     ├── externalsecret.yaml    # 1Password secrets
-    ├── configmap.yaml         # OpenCode configuration
-    └── httproute.yaml         # External gateway route (if needed)
+    └── configmap.yaml         # OpenCode configuration
 ```
+
+**Note:** The app directory is named `opencode` but the hostname will be `oc.${SECRET_DOMAIN}` for brevity.
 
 ### 3.2 Network Architecture
 
-**External Access Flow:**
+**Phase 1: Internal Access Flow**
 ```
-User CLI → opencode.${SECRET_DOMAIN} → Cloudflare Tunnel
-         → Envoy External Gateway → OpenCode Service (8080)
+User CLI (local network) → oc.${SECRET_DOMAIN} → Internal DNS (k8s-gateway)
+                        → Envoy Internal Gateway (10.0.3.53)
+                        → OpenCode Service (8080)
+```
+
+**Phase 3 (Future): External Access Flow**
+```
+User CLI (remote) → oc.${SECRET_DOMAIN} → Cloudflare Tunnel
+                 → Envoy External Gateway → Authentik Forward-Auth
+                 → OpenCode Service (8080)
 ```
 
 **Endpoints Exposed:**
@@ -254,7 +286,7 @@ GET /session/:id/status
 POST /session
 
 # Resume session (attach from CLI)
-opencode attach --host opencode.example.com --port 443
+opencode attach --host oc.example.com --port 443
 
 # Export session
 GET /session/:id/export
@@ -298,65 +330,93 @@ The `directory` query parameter in API calls specifies which workspace context t
 
 ---
 
-## 5. External Access & Security
+## 5. Access & Security
 
-### 5.1 Cloudflare Tunnel Configuration
+### 5.1 Phase 1: Internal Access (Initial Deployment)
 
-Add to existing Cloudflare Tunnel config:
+**No external access** - the service is only reachable from the local network via the internal gateway.
 
+**Security Model:**
+- Network isolation provides primary security (internal network only)
+- OpenCode's built-in HTTP Basic Auth provides API protection
+- No Authentik/SSO in the path for internal access
+
+**Internal HTTPRoute Configuration:**
 ```yaml
-# In cloudflare-tunnel configmap
+# Embedded in HelmRelease via app-template route
+route:
+  app:
+    hostnames:
+      - oc.${SECRET_DOMAIN}
+    parentRefs:
+      - name: envoy-internal    # Internal gateway - no Authentik
+        namespace: network
+        sectionName: https
+    rules:
+      - backendRefs:
+          - name: opencode
+            port: 8080
+```
+
+### 5.2 Phase 3 (Future): External Access with Authentik
+
+When external access is needed, there are two options:
+
+**Option A: Authentik SSO (Recommended)**
+- Use `envoy-external` gateway (default-deny with Authentik)
+- All requests go through Authentik forward-auth
+- User authenticates via SSO, then accesses OpenCode
+- Pros: Consistent with other external apps, SSO convenience
+- Cons: CLI needs to handle Authentik auth flow
+
+**Option B: Public Access with API Token**
+- Use `public-access` component to bypass Authentik
+- Rely solely on OpenCode's `OPENCODE_SERVER_PASSWORD`
+- Pros: Simple CLI auth (HTTP Basic)
+- Cons: Single point of security (password only)
+
+**External Access Configuration (Phase 3):**
+```yaml
+# Option A: With Authentik (default for envoy-external)
+route:
+  app:
+    hostnames:
+      - oc.${SECRET_DOMAIN}
+    parentRefs:
+      - name: envoy-external
+        namespace: network
+        sectionName: https
+
+# Option B: Public access (bypass Authentik)
+# Requires adding public-access component to kustomization.yaml
+# See kubernetes/components/public-access/ for pattern
+```
+
+**Cloudflare Tunnel (Phase 3 only):**
+```yaml
+# Add to cloudflare-tunnel configmap when ready for external access
 ingress:
-  - hostname: opencode.${SECRET_DOMAIN}
+  - hostname: oc.${SECRET_DOMAIN}
     service: http://opencode.default.svc.cluster.local:8080
     originRequest:
       noTLSVerify: true
 ```
 
-### 5.2 HTTPRoute Configuration
-
-```yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: opencode
-  namespace: default
-spec:
-  hostnames:
-    - opencode.${SECRET_DOMAIN}
-  parentRefs:
-    - name: envoy-external
-      namespace: network
-      sectionName: https
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      backendRefs:
-        - name: opencode
-          port: 8080
-```
-
 ### 5.3 Authentication Strategy
 
-**API Token Authentication:**
+**Phase 1 (Internal):**
 - Set `OPENCODE_SERVER_PASSWORD` for HTTP Basic Auth
 - All API calls require `Authorization: Basic <base64(user:pass)>`
 - CLI `attach` command handles auth automatically
+- Network isolation is the primary security layer
 
 **Security Considerations:**
 | Concern | Mitigation |
 |---------|------------|
-| API exposure | Strong password, HTTPS only via Cloudflare |
+| API exposure | Internal network only (Phase 1), Authentik SSO (Phase 3) |
 | Session hijacking | Token-based auth per session |
 | Data at rest | Longhorn encryption (if enabled) |
 | LLM API keys | Stored in 1Password, injected via ExternalSecret |
-
-**Important:** The requirement states "no authentication in the way" - this means:
-- Cloudflare Tunnel handles TLS termination
-- No Authentik/SSO in the path (direct API access)
-- OpenCode's built-in HTTP Basic Auth is sufficient for API protection
 
 ---
 
@@ -473,8 +533,8 @@ containers:
 # Install OpenCode CLI
 npm install -g @opencode-ai/cli
 
-# Configure remote server
-opencode config set server.host opencode.example.com
+# Configure remote server (Phase 1: internal access)
+opencode config set server.host oc.example.com
 opencode config set server.port 443
 opencode config set server.tls true
 opencode config set server.username opencode
@@ -483,10 +543,12 @@ opencode config set server.password <api-password>
 
 **Or via environment variables:**
 ```bash
-export OPENCODE_SERVER_HOST=opencode.example.com
+export OPENCODE_SERVER_HOST=oc.example.com
 export OPENCODE_SERVER_PORT=443
 export OPENCODE_SERVER_PASSWORD=<api-password>
 ```
+
+**Note:** Phase 1 requires client to be on the internal network. Phase 3 will enable external access.
 
 ### 7.2 Daily Workflow
 
@@ -755,9 +817,9 @@ spec:
     route:
       app:
         hostnames:
-          - opencode.${SECRET_DOMAIN}
+          - oc.${SECRET_DOMAIN}
         parentRefs:
-          - name: envoy-external
+          - name: envoy-internal    # Phase 1: Internal access only
             namespace: network
             sectionName: https
         rules:
@@ -836,13 +898,15 @@ resources:
   - ./configmap.yaml
 ```
 
-### 8.7 Cloudflare Tunnel Update
+### 8.7 Cloudflare Tunnel Update (Phase 3 Only)
 
-Add to existing tunnel configuration in `kubernetes/apps/network/cloudflare-tunnel/`:
+**Note:** This is NOT needed for Phase 1 (internal access only).
+
+When implementing Phase 3 (external access), add to existing tunnel configuration in `kubernetes/apps/network/cloudflare-tunnel/`:
 
 ```yaml
-# Add to tunnel ingress rules
-- hostname: opencode.${SECRET_DOMAIN}
+# Add to tunnel ingress rules (Phase 3)
+- hostname: oc.${SECRET_DOMAIN}
   service: http://opencode.default.svc.cluster.local:8080
 ```
 
@@ -850,12 +914,13 @@ Add to existing tunnel configuration in `kubernetes/apps/network/cloudflare-tunn
 
 ## 9. Implementation Phases
 
-### Phase 1: Core Deployment (Week 1)
+### Phase 1: Core Deployment (Internal Access)
 
 **Objectives:**
 - [ ] Deploy basic OpenCode server
-- [ ] Establish external connectivity
+- [ ] Establish internal connectivity via `oc.${SECRET_DOMAIN}`
 - [ ] Verify session persistence
+- [ ] Test multi-session workflows
 
 **Tasks:**
 1. Create 1Password item `opencode` with required secrets:
@@ -863,8 +928,6 @@ Add to existing tunnel configuration in `kubernetes/apps/network/cloudflare-tunn
    - `server_username` - `opencode`
    - `anthropic_api_key` - API key from Anthropic
    - `openai_api_key` - API key from OpenAI (optional)
-   - `ntfy_topic` - (placeholder for Phase 2)
-   - `discord_webhook_url` - (placeholder for Phase 2)
 
 2. Create Kubernetes manifests:
    - `kubernetes/apps/default/opencode/ks.yaml`
@@ -877,32 +940,36 @@ Add to existing tunnel configuration in `kubernetes/apps/network/cloudflare-tunn
 3. Register app in namespace kustomization:
    - Add to `kubernetes/apps/default/kustomization.yaml`
 
-4. Update Cloudflare Tunnel configuration:
-   - Add opencode hostname to tunnel ingress
-
-5. Test connectivity:
+4. Test connectivity (internal network):
    ```bash
    # Verify pod is running
    kubectl get pods -n default -l app.kubernetes.io/name=opencode
 
-   # Test API endpoint
-   curl -u opencode:$PASSWORD https://opencode.example.com/
+   # Test API endpoint (from internal network)
+   curl -u opencode:$PASSWORD https://oc.example.com/
 
    # Test CLI attach
-   opencode attach --host opencode.example.com --port 443
+   opencode attach --host oc.example.com --port 443
    ```
 
-### Phase 2: Notifications (Week 2)
+5. Test workspace and session management:
+   - Create multiple sessions pointing to different workspaces
+   - Verify session persistence across pod restarts
+   - Test attach/detach workflow
+
+### Phase 2: Notifications (Future)
 
 **Objectives:**
 - [ ] Set up ntfy for push notifications
 - [ ] Configure Discord webhook alerts
 - [ ] Test notification delivery
 
+**Prerequisites:** Phase 1 complete and stable
+
 **Tasks:**
 1. **Option A - Deploy ntfy to cluster:**
    - Create `kubernetes/apps/default/ntfy/` deployment
-   - Configure external access
+   - Configure internal access initially
 
 2. **Option B - Use ntfy.sh:**
    - Generate unique topic URL
@@ -912,44 +979,59 @@ Add to existing tunnel configuration in `kubernetes/apps/network/cloudflare-tunn
    - Create webhook in Discord server
    - Store URL in 1Password
 
-4. Configure notification sidecar or plugin:
-   - Update HelmRelease with notification container
+4. Update 1Password `opencode` item with notification secrets:
+   - `ntfy_topic` - ntfy topic URL
+   - `discord_webhook_url` - Discord webhook URL
+
+5. Configure notification plugin or sidecar:
+   - Update HelmRelease with notification configuration
    - Test event-to-notification flow
 
-5. Test notifications:
+6. Test notifications:
    - Trigger permission event
    - Verify mobile push received
    - Verify Discord message posted
 
-### Phase 3: Workspace Management (Week 3)
+### Phase 3: External Access (Future)
 
 **Objectives:**
-- [ ] Set up multiple project workspaces
-- [ ] Document workspace initialization
-- [ ] Test multi-session workflows
+- [ ] Enable external access via Cloudflare Tunnel
+- [ ] Configure authentication (Authentik SSO or public-access)
+- [ ] Test remote CLI connectivity
+
+**Prerequisites:** Phase 1 complete and stable
+
+**Decision Required:** Authentication strategy
+- **Option A:** Authentik SSO (recommended for browser/web access)
+- **Option B:** Public-access with API token only (simpler for CLI)
 
 **Tasks:**
-1. Create workspace initialization script:
-   ```bash
-   #!/bin/bash
-   # init-workspace.sh
-   cd /workspaces
-   git clone $REPO_URL $PROJECT_NAME
-   cd $PROJECT_NAME
-   # Any project-specific setup
+1. Choose authentication strategy and document decision
+
+2. Update Cloudflare Tunnel configuration:
+   ```yaml
+   # Add to cloudflare-tunnel configmap
+   ingress:
+     - hostname: oc.${SECRET_DOMAIN}
+       service: http://opencode.default.svc.cluster.local:8080
    ```
 
-2. Document workspace management:
-   - How to add new projects
-   - How to manage workspace storage
-   - Backup procedures
+3. Create external HTTPRoute:
+   - If using Authentik: Simply change `parentRefs` to `envoy-external`
+   - If using public-access: Add `public-access` component
 
-3. Test multi-session:
-   - Create sessions for different projects
-   - Verify session isolation
-   - Test device switching
+4. Test external connectivity:
+   ```bash
+   # From external network
+   curl -u opencode:$PASSWORD https://oc.example.com/
 
-### Phase 4: Production Hardening (Week 4)
+   # Test CLI attach from external
+   opencode attach --host oc.example.com --port 443
+   ```
+
+5. Document external access procedures and security considerations
+
+### Phase 4: Production Hardening
 
 **Objectives:**
 - [ ] Pin container versions
@@ -963,6 +1045,8 @@ Add to existing tunnel configuration in `kubernetes/apps/network/cloudflare-tunn
    - Troubleshooting guide
    - Backup/restore procedures
    - Upgrade procedures
+4. Set up workspace initialization scripts
+5. Document multi-session best practices
 
 ---
 
@@ -970,13 +1054,27 @@ Add to existing tunnel configuration in `kubernetes/apps/network/cloudflare-tunn
 
 ### 10.1 Questions Requiring Decision
 
+**Phase 1 (Core Deployment):**
+
 | # | Question | Options | Recommendation |
 |---|----------|---------|----------------|
-| 1 | Should we deploy ntfy self-hosted or use ntfy.sh? | Self-hosted / SaaS | SaaS initially (simpler), self-host if privacy needed |
-| 2 | Should workspaces use Longhorn or NFS? | Longhorn / NFS | Longhorn for reliability, NFS if need larger capacity |
-| 3 | Pin OpenCode version or use latest? | Pinned / Latest | Pin after initial testing for stability |
-| 4 | Single namespace (default) or dedicated? | default / opencode | default follows existing patterns |
-| 5 | Need Git credential management in workspaces? | Yes / No | Yes - need to plan SSH key or credential storage |
+| 1 | Should workspaces use Longhorn or NFS? | Longhorn / NFS | Longhorn for reliability, NFS if need larger capacity |
+| 2 | Pin OpenCode version or use latest? | Pinned / Latest | Latest initially for testing, pin once stable |
+| 3 | Single namespace (default) or dedicated? | default / opencode | default follows existing patterns |
+| 4 | Need Git credential management in workspaces? | Yes / No | Yes - need to plan SSH key or credential storage |
+
+**Phase 2 (Notifications - Deferred):**
+
+| # | Question | Options | Recommendation |
+|---|----------|---------|----------------|
+| 5 | Should we deploy ntfy self-hosted or use ntfy.sh? | Self-hosted / SaaS | SaaS initially (simpler), self-host if privacy needed |
+
+**Phase 3 (External Access - Deferred):**
+
+| # | Question | Options | Recommendation |
+|---|----------|---------|----------------|
+| 6 | Authentication strategy for external access? | Authentik SSO / Public-access with API token | Authentik SSO recommended for security, API token simpler for CLI |
+| 7 | Can OpenCode CLI handle Authentik OAuth flow? | Research needed | May need to test or use public-access bypass |
 
 ### 10.2 Security Considerations
 
@@ -1040,7 +1138,7 @@ Create item named `opencode` in `homeops` vault:
 
 ```bash
 # Required
-export OPENCODE_SERVER_HOST=opencode.example.com
+export OPENCODE_SERVER_HOST=oc.example.com
 export OPENCODE_SERVER_PORT=443
 export OPENCODE_SERVER_PASSWORD=<password>
 
@@ -1054,7 +1152,7 @@ export OPENCODE_SERVER_TLS=true
 ```json
 {
   "server": {
-    "host": "opencode.example.com",
+    "host": "oc.example.com",
     "port": 443,
     "tls": true,
     "username": "opencode",
@@ -1129,6 +1227,7 @@ curl -X POST -H "Content-Type: application/json" \
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 0.1 | 2025-01-21 | Claude | Initial draft |
+| 0.2 | 2025-02-05 | Claude | Updated per user feedback: internal-only Phase 1, subdomain changed to `oc`, notifications deferred to Phase 2, external access moved to Phase 3 with Authentik considerations |
 
 ---
 
