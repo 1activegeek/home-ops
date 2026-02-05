@@ -1,0 +1,114 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: opencode-manager
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: opencode-manager
+  interval: 1h
+  values:
+    controllers:
+      opencode-manager:
+        type: statefulset
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/chriswritescode-dev/opencode-manager
+              tag: 0.8.22
+            env:
+              TZ: America/New_York
+              NODE_ENV: production
+              # Database configuration
+              DATABASE_PATH: /app/data/opencode.db
+              # Workspace configuration
+              WORKSPACE_DIR: /workspace
+              # Health check
+              HEALTH_CHECK_INTERVAL: "5000"
+              # File size limits
+              MAX_FILE_SIZE: "52428800"
+              MAX_UPLOAD_SIZE: "52428800"
+              # Auth configuration
+              AUTH_SECURE_COOKIES: "true"
+            envFrom:
+              - secretRef:
+                  name: opencode-manager-secret
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: &port 5003
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: *port
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
+
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+    service:
+      app:
+        controller: opencode-manager
+        ports:
+          http:
+            port: *port
+
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        globalMounts:
+          - path: /app/data
+      workspace:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 50Gi
+        globalMounts:
+          - path: /workspace
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+
+    route:
+      app:
+        hostnames: ["ocm.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - identifier: app
+                port: *port
