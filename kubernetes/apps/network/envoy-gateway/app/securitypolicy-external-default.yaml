@@ -44,7 +44,13 @@ spec:
       # Use envoy path for Envoy Gateway integration
       path: /outpost.goauthentik.io/auth/envoy
       # Auth RESPONSE headers to forward TO the backend (after successful auth)
+      # NOTE: Envoy Gateway lacks a headersToClient field, so Envoy also uses
+      # this list to filter headers on auth DENIAL responses (302 redirects).
+      # Location and Content-Type MUST be included or the browser won't follow
+      # the redirect to Authentik's login page.
       headersToBackend:
+        - Location
+        - Content-Type
         - Set-Cookie
         - X-authentik-uid
         - X-authentik-username
