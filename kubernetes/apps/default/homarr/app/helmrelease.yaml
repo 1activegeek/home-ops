@@ -20,7 +20,7 @@ spec:
   values:
     image:
       repository: ghcr.io/homarr-labs/homarr
-      tag: "v1.50.0"
+      tag: "v1.53.0"
     podAnnotations:
       reloader.stakater.com/auto: "true"
     rbac:
