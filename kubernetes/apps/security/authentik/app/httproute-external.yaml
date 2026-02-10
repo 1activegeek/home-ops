@@ -6,8 +6,6 @@ kind: HTTPRoute
 metadata:
   name: authentik-external
   namespace: security
-  labels:
-    security.home-ops/public: "true"
 spec:
   hostnames:
     - auth.${SECRET_DOMAIN}
