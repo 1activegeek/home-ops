@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup yq
-        uses: mikefarah/yq@d2f1ae9db722ac6836e651c0b4b7ff9507fcf907 # v4.45.1
+        uses: mikefarah/yq@2be0094729a1006f61e8339ce9934bfb3cbb549f # v4.52.2
 
       - name: Validate external HTTPRoute security
         run: bash .taskfiles/kubernetes/scripts/validate-external-routes.sh
