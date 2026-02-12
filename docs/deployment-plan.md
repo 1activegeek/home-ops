@@ -1358,7 +1358,7 @@ Well within a 3-node cluster capacity, though the AI stack (Ollama) will be the 
 This section is the **source of truth** for tracking progress across sessions. Update it after each deployment action.
 
 **Last updated:** 2026-02-12
-**Current focus:** Planning complete, ready to begin Phase 0
+**Current focus:** Phase 0+1 manifests created, ready for merge and reconcile
 
 ### Status Legend
 
@@ -1375,18 +1375,18 @@ This section is the **source of truth** for tracking progress across sessions. U
 
 | Component | Status | Branch | Notes |
 |-----------|--------|--------|-------|
-| Namespaces (media, ai, tools, monitoring) | `not started` | — | Must merge before any app deployments |
-| Shared NFS PV/PVC for media | `not started` | — | Needs NFS server/share path confirmed |
+| Namespaces (media, ai, tools, monitoring) | `in progress` | `claude/plan-cluster-deployment-KkwZ1` | Manifests created, pending merge |
+| Shared NFS PV/PVC for media | `not started` | — | Deferred to Phase 3; using same NAS (`NFS_SERVER`), share `/volume1/media`; will use 1Password for hostname/IP mapping |
 
 ### Phase 1: Simple Independent Apps
 
 | App | Status | Branch | Secrets Created | Auth Configured | Notes |
 |-----|--------|--------|-----------------|-----------------|-------|
-| 1a. KMS | `not started` | — | N/A | N/A | |
-| 1b. Gatus | `not started` | — | No | No | |
-| 1c. Uptime Kuma | `not started` | — | N/A | No | |
-| 1d. MeTube | `not started` | — | N/A | No | |
-| 1e. Grafana | `not started` | — | No | No | Teslamate datasource added in Phase 7 |
+| 1a. KMS | `in progress` | `claude/plan-cluster-deployment-KkwZ1` | N/A | N/A | vlmcsd, LoadBalancer TCP/1688 |
+| 1b. Gatus | `in progress` | `claude/plan-cluster-deployment-KkwZ1` | No | No | ConfigMap with basic endpoints; OIDC deferred |
+| 1c. Uptime Kuma | `in progress` | `claude/plan-cluster-deployment-KkwZ1` | N/A | No | v2 tag, 2Gi Longhorn |
+| 1d. MeTube | `in progress` | `claude/plan-cluster-deployment-KkwZ1` | N/A | No | Longhorn temp storage; switch to NFS in Phase 3 |
+| 1e. Grafana | `in progress` | `claude/plan-cluster-deployment-KkwZ1` | No | No | Official chart v8.9.0; Teslamate datasource in Phase 7 |
 
 ### Phase 2: Forgejo + Zipline
 
@@ -1457,7 +1457,7 @@ This section is the **source of truth** for tracking progress across sessions. U
 
 | Item | Status | Details |
 |------|--------|---------|
-| NFS media server/share path | **Needs confirmation** | Need `${NFS_MEDIA_SERVER}` and `${NFS_MEDIA_SHARE}` values for cluster-secrets |
+| NFS media server/share path | **Confirmed** | Same NAS as `NFS_SERVER`, share path `/volume1/media`; will use 1Password item `cluster-network` for hostname/IP mapping |
 | VPN provider credentials | **Needs manual input** | qBittorrent/Gluetun: vpn_username, vpn_password, vpn_endpoint |
 | Plex claim token | **Generate at deploy time** | https://plex.tv/claim — expires in 4 minutes |
 | GeoLite license key | **Needs manual input** | For Shlink IP geolocation (free MaxMind account) |
@@ -1472,4 +1472,5 @@ Track what was accomplished in each working session for continuity.
 | Date | Session | Work Completed |
 |------|---------|----------------|
 | 2026-02-12 | Initial planning | Created comprehensive deployment plan with all 9 phases, architecture decisions, migration strategy, and status tracking |
-| | | *Next: Begin Phase 0 (namespaces + shared NFS)* |
+| 2026-02-12 | Phase 0 + Phase 1 | Created 4 namespaces (media, ai, tools, monitoring). Deployed Phase 1 apps: KMS (tools), Gatus + Uptime Kuma + Grafana (monitoring), MeTube (media). NFS media PV/PVC deferred to Phase 3; user confirmed same NAS at `/volume1/media`, will use 1Password for hostname/IP mapping. All YAML validated. |
+| | | *Next: Merge to main, reconcile, verify pods. Then Phase 2 (Forgejo + Zipline).* |
