@@ -1350,3 +1350,126 @@ For each deployed app:
 | MariaDB instances | 1 (BookLore) |
 
 Well within a 3-node cluster capacity, though the AI stack (Ollama) will be the heaviest single consumer. Monitor Longhorn capacity closely as model storage grows.
+
+---
+
+## Deployment Status
+
+This section is the **source of truth** for tracking progress across sessions. Update it after each deployment action.
+
+**Last updated:** 2026-02-12
+**Current focus:** Planning complete, ready to begin Phase 0
+
+### Status Legend
+
+| Status | Meaning |
+|--------|---------|
+| `not started` | Work has not begun |
+| `in progress` | Branch created, actively developing manifests |
+| `deployed` | Manifests merged to main, Flux has reconciled, pods running |
+| `verified` | App tested end-to-end (UI, auth, inter-app connections) |
+| `migrated` | Data migrated from Docker, old container decommissioned |
+| `blocked` | Cannot proceed, see Notes column |
+
+### Phase 0: Shared Infrastructure
+
+| Component | Status | Branch | Notes |
+|-----------|--------|--------|-------|
+| Namespaces (media, ai, tools, monitoring) | `not started` | — | Must merge before any app deployments |
+| Shared NFS PV/PVC for media | `not started` | — | Needs NFS server/share path confirmed |
+
+### Phase 1: Simple Independent Apps
+
+| App | Status | Branch | Secrets Created | Auth Configured | Notes |
+|-----|--------|--------|-----------------|-----------------|-------|
+| 1a. KMS | `not started` | — | N/A | N/A | |
+| 1b. Gatus | `not started` | — | No | No | |
+| 1c. Uptime Kuma | `not started` | — | N/A | No | |
+| 1d. MeTube | `not started` | — | N/A | No | |
+| 1e. Grafana | `not started` | — | No | No | Teslamate datasource added in Phase 7 |
+
+### Phase 2: Forgejo + Zipline
+
+| App | Status | Branch | Secrets Created | Auth Configured | Notes |
+|-----|--------|--------|-----------------|-----------------|-------|
+| 2a. Forgejo | `not started` | — | No | No | |
+| 2b. Zipline | `not started` | — | No | No | OIDC configured post-deploy via UI |
+
+### Phase 3: Media Infrastructure
+
+| App | Status | Branch | Secrets Created | Auth Configured | Notes |
+|-----|--------|--------|-----------------|-----------------|-------|
+| 3a. Plex | `not started` | — | No | N/A (Plex.tv) | Claim token expires in 4min, generate at deploy time |
+| 3b. SABnzbd | `not started` | — | No | No | |
+| 3c. qBittorrent + Gluetun | `not started` | — | No | No | VPN creds needed (manual) |
+
+### Phase 4: *Arr Stack
+
+| App | Status | Branch | Secrets Created | Auth Configured | Migration | Notes |
+|-----|--------|--------|-----------------|-----------------|-----------|-------|
+| 4a. Prowlarr | `not started` | — | No | No | Not started | Deploy before other *arr apps |
+| 4b. Sonarr | `not started` | — | No | No | Not started | |
+| 4c. Radarr | `not started` | — | No | No | Not started | |
+| 4d. Radarr-4K | `not started` | — | No | No | Not started | |
+
+### Phase 5: Media Support & Automation
+
+| App | Status | Branch | Secrets Created | Auth Configured | Migration | Notes |
+|-----|--------|--------|-----------------|-----------------|-----------|-------|
+| 5a. Autoscan | `not started` | — | No | N/A | Not started | |
+| 5b. Seerr | `not started` | — | No | N/A (Plex OAuth) | Not started | Migrating from Overseerr |
+| 5c. Tautulli | `not started` | — | No | No | Not started | |
+| 5d. Bazarr | `not started` | — | N/A | No | N/A | |
+| 5e. Recyclarr | `not started` | — | No | N/A | N/A | |
+| 5f. Unpackerr | `not started` | — | No | N/A | N/A | |
+| 5g. Notifiarr | `not started` | — | No | N/A | N/A | Needs notifiarr.com account |
+
+### Phase 6: Shlink Stack
+
+| App | Status | Branch | Secrets Created | Auth Configured | Notes |
+|-----|--------|--------|-----------------|-----------------|-------|
+| 6. Shlink + Web + PG | `not started` | — | No | No (web: forward-auth) | Fresh install (not migrating MySQL data) |
+
+### Phase 7: Teslamate Stack
+
+| App | Status | Branch | Secrets Created | Auth Configured | Migration | Notes |
+|-----|--------|--------|-----------------|-----------------|-----------|-------|
+| 7. Teslamate + PG | `not started` | — | No | No | Not started | pg_dump/restore from Docker PG15→K8s PG17 |
+| 7. Grafana dashboards | `not started` | — | N/A | N/A | N/A | ConfigMaps with dashboard JSONs |
+
+### Phase 8: AI Stack
+
+| App | Status | Branch | Secrets Created | Auth Configured | Notes |
+|-----|--------|--------|-----------------|-----------------|-------|
+| 8a. Ollama | `not started` | — | N/A | N/A | CPU-only, heaviest resource consumer |
+| 8b. Qdrant | `not started` | — | N/A | N/A | |
+| 8c. OpenWebUI | `not started` | — | No | No | |
+| 8d. n8n | `not started` | — | No | No | |
+
+### Phase 9: Books
+
+| App | Status | Branch | Secrets Created | Auth Configured | Notes |
+|-----|--------|--------|-----------------|-----------------|-------|
+| 9a. BookLore | `not started` | — | No | No | |
+| 9b. Audiobookshelf | `not started` | — | N/A | No | |
+
+### Blockers & Open Questions
+
+| Item | Status | Details |
+|------|--------|---------|
+| NFS media server/share path | **Needs confirmation** | Need `${NFS_MEDIA_SERVER}` and `${NFS_MEDIA_SHARE}` values for cluster-secrets |
+| VPN provider credentials | **Needs manual input** | qBittorrent/Gluetun: vpn_username, vpn_password, vpn_endpoint |
+| Plex claim token | **Generate at deploy time** | https://plex.tv/claim — expires in 4 minutes |
+| GeoLite license key | **Needs manual input** | For Shlink IP geolocation (free MaxMind account) |
+| Notifiarr.com account | **Needs manual setup** | Free account required for notification routing |
+| Authentik OIDC providers | **Not started** | 6 apps need OAuth2 providers created in Authentik UI |
+| Authentik forward-auth | **Not started** | Proxy provider + SecurityPolicy for ~10 apps |
+
+### Session Log
+
+Track what was accomplished in each working session for continuity.
+
+| Date | Session | Work Completed |
+|------|---------|----------------|
+| 2026-02-12 | Initial planning | Created comprehensive deployment plan with all 9 phases, architecture decisions, migration strategy, and status tracking |
+| | | *Next: Begin Phase 0 (namespaces + shared NFS)* |
