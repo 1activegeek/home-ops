@@ -1445,7 +1445,7 @@ This section is the **source of truth** for tracking progress across sessions. U
 |-----------|--------|--------|-------|
 | Namespaces (media, ai, tools, monitoring) | `in progress` | `claude/plan-cluster-deployment-KkwZ1` | Manifests created, pending merge |
 | Shared NFS PV/PVC for media | `not started` | — | Deferred to Phase 3; using same NAS (`NFS_SERVER`), share `/volume1/media`; will use 1Password for hostname/IP mapping |
-| Tailscale Operator | `not started` | — | No | Needs OAuth client created in Tailscale admin console + 1Password item + ACL tags/autoApprovers configured before deploy |
+| Tailscale Operator + Gateway | `in progress` | `claude/plan-cluster-deployment-KkwZ1` | Manifests created; needs OAuth client + 1Password item + ACL tags/autoApprovers before deploy |
 
 ### Phase 1: Simple Independent Apps
 
