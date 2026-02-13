@@ -153,6 +153,74 @@ kubernetes/apps/monitoring/kustomization.yaml
 
 Also register in `kubernetes/flux/cluster/ks.yaml` (add entries for new namespace kustomizations).
 
+#### 0b. Tailscale Operator
+**Namespace: `network`** (existing, alongside Envoy Gateway, Cloudflare Tunnel) | **Migration: No**
+
+| Field | Value |
+|-------|-------|
+| Chart | `tailscale-operator` from `https://pkgs.tailscale.com/helmcharts` |
+| Chart Source | **HelmRepository** (OCI not available yet — [GitHub Issue #15536](https://github.com/tailscale/tailscale/issues/15536)) |
+| Auth | OAuth client (never expires, not tied to a user) |
+| 1Password | `tailscale-operator` (oauth_client_id, oauth_client_secret) |
+| Tags | `tag:k8s-operator` (operator), `tag:k8s` (managed devices) |
+| Resources | Operator: 50m CPU / 128Mi RAM; Connector proxy: 50m CPU / 128Mi RAM |
+
+**Purpose**: Connect the cluster to the Tailnet with three capabilities:
+1. **Exit node** — route all internet traffic through the cluster's connection
+2. **K8s cluster access** — reach any pod (`10.42.0.0/16`) or service (`10.43.0.0/16`) from Tailnet devices
+3. **Home network access** — reach any device on the home LAN (`10.0.3.0/24`) including NAS, IoT, etc.
+
+**Architecture:**
+```
+Tailscale Operator (Deployment, manages lifecycle)
+  └── Connector CRD: "cluster-gateway"
+        ├── Subnet Router: 10.42.0.0/16 (pods), 10.43.0.0/16 (services), 10.0.3.0/24 (home LAN)
+        └── Exit Node: true
+```
+
+The operator deploys a proxy pod that joins the Tailnet via OAuth credentials. The `Connector` CRD tells it to advertise subnet routes and offer itself as an exit node. All managed automatically — no manual `tailscale up` commands.
+
+**Tailscale Admin Console setup required (before deployment):**
+1. **Create OAuth client**: Admin Console → Settings → OAuth clients
+   - Scopes: Devices (Read+Write)
+   - Note Client ID + Secret → store in 1Password as `tailscale-operator`
+2. **Create ACL tags**: Admin Console → Access Controls
+   ```json
+   {
+     "tagOwners": {
+       "tag:k8s-operator": [],
+       "tag:k8s": ["tag:k8s-operator"]
+     }
+   }
+   ```
+3. **Auto-approve routes and exit node**: Add to ACL policy
+   ```json
+   {
+     "autoApprovers": {
+       "routes": {
+         "10.42.0.0/16": ["tag:k8s"],
+         "10.43.0.0/16": ["tag:k8s"],
+         "10.0.3.0/24": ["tag:k8s"]
+       },
+       "exitNode": ["tag:k8s"]
+     }
+   }
+   ```
+
+**Client-side**: Tailnet devices must have "Accept routes" enabled in their Tailscale client settings.
+
+**Files:**
+```
+kubernetes/apps/network/tailscale-operator/
+  ks.yaml
+  app/
+    kustomization.yaml
+    helmrepository.yaml          # HelmRepository (not OCI — exception)
+    helmrelease.yaml
+    externalsecret.yaml
+    connector.yaml               # Connector CRD: subnet router + exit node
+```
+
 ---
 
 ### Phase 1: Simple Independent Apps
@@ -1377,6 +1445,7 @@ This section is the **source of truth** for tracking progress across sessions. U
 |-----------|--------|--------|-------|
 | Namespaces (media, ai, tools, monitoring) | `in progress` | `claude/plan-cluster-deployment-KkwZ1` | Manifests created, pending merge |
 | Shared NFS PV/PVC for media | `not started` | — | Deferred to Phase 3; using same NAS (`NFS_SERVER`), share `/volume1/media`; will use 1Password for hostname/IP mapping |
+| Tailscale Operator | `not started` | — | No | Needs OAuth client created in Tailscale admin console + 1Password item + ACL tags/autoApprovers configured before deploy |
 
 ### Phase 1: Simple Independent Apps
 
@@ -1462,6 +1531,8 @@ This section is the **source of truth** for tracking progress across sessions. U
 | Plex claim token | **Generate at deploy time** | https://plex.tv/claim — expires in 4 minutes |
 | GeoLite license key | **Needs manual input** | For Shlink IP geolocation (free MaxMind account) |
 | Notifiarr.com account | **Needs manual setup** | Free account required for notification routing |
+| Tailscale OAuth client | **Needs manual setup** | Create OAuth client in Tailscale Admin Console (Settings → OAuth clients, scope: Devices Read+Write), store as 1Password item `tailscale-operator` |
+| Tailscale ACL policy | **Needs manual setup** | Add `tag:k8s-operator`, `tag:k8s` tags + autoApprovers for routes (10.42.0.0/16, 10.43.0.0/16, 10.0.3.0/24) and exitNode |
 | Authentik OIDC providers | **Not started** | 6 apps need OAuth2 providers created in Authentik UI |
 | Authentik forward-auth | **Not started** | Proxy provider + SecurityPolicy for ~10 apps |
 
