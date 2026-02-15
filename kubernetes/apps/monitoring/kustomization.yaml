@@ -8,3 +8,4 @@ components:
 
 resources:
   - ./namespace.yaml
+  - ./grafana/ks.yaml
