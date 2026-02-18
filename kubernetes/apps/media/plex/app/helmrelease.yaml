@@ -1,0 +1,123 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: plex
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: plex
+  interval: 1h
+  values:
+    controllers:
+      plex:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/home-operations/plex
+              tag: 1.41.7.4578-cc232efe7
+            env:
+              TZ: America/New_York
+              PLEX_ADVERTISE_URL: "https://plex.${SECRET_DOMAIN}:443"
+              PLEX_NO_AUTH_NETWORKS: "10.0.0.0/8"
+            envFrom:
+              - secretRef:
+                  name: plex-secret
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /identity
+                    port: &port 32400
+                  initialDelaySeconds: 15
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 500m
+              limits:
+                memory: 4Gi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+    service:
+      app:
+        controller: plex
+        type: LoadBalancer
+        ports:
+          http:
+            port: *port
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 10Gi
+        globalMounts:
+          - path: /config
+      transcode:
+        type: emptyDir
+        globalMounts:
+          - path: /transcode
+      # NFS media mounts - adjust paths to match your NAS share
+      movies:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/media/movies
+        globalMounts:
+          - path: /data/media/movies
+            readOnly: true
+      movies-4k:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/media/movies-4k
+        globalMounts:
+          - path: /data/media/movies-4k
+            readOnly: true
+      tv:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/media/tv
+        globalMounts:
+          - path: /data/media/tv
+            readOnly: true
+      tvrecordings:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/media/tvrecordings
+        globalMounts:
+          - path: /data/media/tvrecordings
+      courses:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/media/courses
+        globalMounts:
+          - path: /data/media/courses
+            readOnly: true
+      workouts:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/media/workouts
+        globalMounts:
+          - path: /data/media/workouts
+            readOnly: true
+    route:
+      app:
+        hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
