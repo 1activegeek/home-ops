@@ -1,0 +1,27 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recyclarr-config
+data:
+  recyclarr.yml: |
+    sonarr:
+      tv-hd:
+        base_url: http://sonarr.media.svc.cluster.local:8989
+        api_key: !env_var SONARR_API_KEY
+        include:
+          - template: sonarr-v4-quality-profile-web-1080p
+          - template: sonarr-v4-custom-formats-web-1080p
+    radarr:
+      movies-hd:
+        base_url: http://radarr.media.svc.cluster.local:7878
+        api_key: !env_var RADARR_API_KEY
+        include:
+          - template: radarr-quality-profile-hd-bluray-web
+          - template: radarr-custom-formats-hd-bluray-web
+      movies-4k:
+        base_url: http://radarr-4k.media.svc.cluster.local:7878
+        api_key: !env_var RADARR_4K_API_KEY
+        include:
+          - template: radarr-quality-profile-uhd-bluray-web
+          - template: radarr-custom-formats-uhd-bluray-web
