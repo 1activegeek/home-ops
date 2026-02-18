@@ -1,0 +1,73 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ollama
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: ollama
+  interval: 1h
+  values:
+    controllers:
+      ollama:
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: ollama/ollama
+              tag: 0.6.2
+            env:
+              TZ: America/New_York
+              OLLAMA_HOST: "0.0.0.0"
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/version
+                    port: &port 11434
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 2000m
+                memory: 4Gi
+              limits:
+                memory: 8Gi
+              # Uncomment when GPU node is added:
+              # limits:
+              #   nvidia.com/gpu: 1
+    defaultPodOptions:
+      # Uncomment when GPU node is added:
+      # nodeSelector:
+      #   gpu: "true"
+      # tolerations:
+      #   - key: nvidia.com/gpu
+      #     operator: Exists
+      #     effect: NoSchedule
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+    service:
+      app:
+        controller: ollama
+        ports:
+          http:
+            port: *port
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 50Gi
+        globalMounts:
+          - path: /root/.ollama
