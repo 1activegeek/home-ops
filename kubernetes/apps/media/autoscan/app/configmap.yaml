@@ -1,0 +1,21 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: autoscan-config
+data:
+  config.yml: |
+    port: 3030
+    triggers:
+      sonarr:
+        - name: sonarr
+          priority: 2
+      radarr:
+        - name: radarr
+          priority: 2
+        - name: radarr4k
+          priority: 5
+    targets:
+      plex:
+        - url: http://plex.media.svc.cluster.local:32400
+          token: ${PLEX_TOKEN}
