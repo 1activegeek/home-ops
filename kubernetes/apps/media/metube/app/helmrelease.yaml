@@ -1,0 +1,66 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: metube
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: metube
+  interval: 1h
+  values:
+    controllers:
+      metube:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/alexta69/metube
+              tag: "2025.01.06"
+            env:
+              TZ: America/New_York
+              DEFAULT_THEME: auto
+              DOWNLOAD_DIR: /downloads
+              STATE_DIR: /downloads/.metube
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: &port 8081
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+              limits:
+                memory: 512Mi
+    service:
+      app:
+        controller: metube
+        ports:
+          http:
+            port: *port
+    persistence:
+      downloads:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 20Gi
+        globalMounts:
+          - path: /downloads
+    route:
+      app:
+        hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https

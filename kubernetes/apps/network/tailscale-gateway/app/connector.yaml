@@ -1,0 +1,15 @@
+---
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: cluster-gateway
+spec:
+  hostname: k8s-gateway
+  tags:
+    - tag:k8s
+  subnetRouter:
+    advertiseRoutes:
+      - "10.42.0.0/16"
+      - "10.43.0.0/16"
+      - "10.0.3.0/24"
+  exitNode: true
