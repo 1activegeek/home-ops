@@ -9,3 +9,4 @@ components:
 resources:
   - ./namespace.yaml
   - ./metube/ks.yaml
+  - ./radarr-4k/ks.yaml
