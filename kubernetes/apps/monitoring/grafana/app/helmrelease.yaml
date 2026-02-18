@@ -1,0 +1,41 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: grafana
+  interval: 1h
+  values:
+    replicas: 1
+    deploymentStrategy:
+      type: Recreate
+
+    grafana.ini:
+      server:
+        root_url: "https://grafana.${SECRET_DOMAIN}"
+      analytics:
+        check_for_updates: false
+        check_for_plugin_updates: false
+        reporting_enabled: false
+      news:
+        news_feed_enabled: false
+
+    persistence:
+      enabled: true
+      type: pvc
+      storageClassName: longhorn
+      accessModes:
+        - ReadWriteOnce
+      size: 1Gi
+
+    sidecar:
+      dashboards:
+        enabled: true
+        searchNamespace: ALL
+        labelValue: ""
+      datasources:
+        enabled: true
+        searchNamespace: ALL
