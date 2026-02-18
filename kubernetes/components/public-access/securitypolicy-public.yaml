@@ -6,9 +6,8 @@
 # gateway-level default auth (envoy-external-default-auth).
 #
 # Usage:
-#   1. Create an HTTPRoute with label: security.home-ops/public: "true"
-#   2. Include this component in the app's kustomization.yaml
-#   3. Use replacements to target the correct HTTPRoute name
+#   1. Include this component in the app's kustomization.yaml
+#   2. Use replacements to target the correct HTTPRoute name
 #
 # Example kustomization.yaml:
 #

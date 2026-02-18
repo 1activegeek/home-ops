@@ -6,8 +6,6 @@ kind: HTTPRoute
 metadata:
   name: esphome-external
   namespace: home
-  labels:
-    security.home-ops/auth-required: "true"
 spec:
   hostnames:
     - hass-esphome.${SECRET_DOMAIN}
