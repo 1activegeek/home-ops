@@ -9,3 +9,4 @@ components:
 resources:
   - ./namespace.yaml
   - ./uptime-kuma/ks.yaml
+  - ./gatus/ks.yaml
