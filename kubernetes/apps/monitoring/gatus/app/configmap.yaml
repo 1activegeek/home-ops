@@ -1,0 +1,39 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gatus-config
+data:
+  config.yaml: |
+    storage:
+      type: sqlite
+      path: /data/data.db
+
+    ui:
+      title: Status | Home Ops
+      header: Status
+
+    endpoints:
+      - name: Gateway (Internal)
+        group: infrastructure
+        url: "https://echo.${SECRET_DOMAIN}"
+        interval: 5m
+        conditions:
+          - "[STATUS] == 200"
+          - "[RESPONSE_TIME] < 2000"
+
+      - name: Cloudflare
+        group: external
+        url: "https://1.1.1.1/cdn-cgi/trace"
+        interval: 5m
+        conditions:
+          - "[STATUS] == 200"
+          - "[RESPONSE_TIME] < 1000"
+
+      - name: Google
+        group: external
+        url: "https://www.google.com"
+        interval: 5m
+        conditions:
+          - "[STATUS] == 200"
+          - "[RESPONSE_TIME] < 1000"
