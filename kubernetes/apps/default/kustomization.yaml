@@ -10,5 +10,4 @@ resources:
   - ./namespace.yaml
   - ./echo/ks.yaml
   - ./homarr/ks.yaml
-  - ./opencode-manager/ks.yaml
   - ./test-echo/ks.yaml
