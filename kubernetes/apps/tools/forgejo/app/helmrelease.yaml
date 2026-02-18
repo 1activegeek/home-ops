@@ -1,0 +1,98 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: forgejo
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: forgejo
+  interval: 1h
+  values:
+    image:
+      rootless: true
+
+    podAnnotations:
+      reloader.stakater.com/auto: "true"
+
+    service:
+      http:
+        type: ClusterIP
+        port: 3000
+      ssh:
+        type: LoadBalancer
+        port: 22
+
+    persistence:
+      enabled: true
+      storageClass: longhorn
+      size: 10Gi
+
+    gitea:
+      admin:
+        existingSecret: forgejo-secret
+
+      additionalConfigSources:
+        - secret:
+            secretName: forgejo-secret
+
+      config:
+        server:
+          DOMAIN: "git.${SECRET_DOMAIN}"
+          ROOT_URL: "https://git.${SECRET_DOMAIN}"
+          SSH_DOMAIN: "git.${SECRET_DOMAIN}"
+          SSH_PORT: 22
+          START_SSH_SERVER: true
+
+        service:
+          DISABLE_REGISTRATION: false
+          REQUIRE_SIGNIN_VIEW: false
+          DEFAULT_KEEP_EMAIL_PRIVATE: true
+
+        repository:
+          DEFAULT_PRIVATE: last
+
+        openid:
+          ENABLE_OPENID_SIGNIN: true
+          ENABLE_OPENID_SIGNUP: true
+
+        # OIDC is configured post-deploy via Forgejo admin UI:
+        # Administration > Identity & Access > Authentication Sources
+        # Provider: OpenID Connect
+        # Discovery URL: https://authentik.${SECRET_DOMAIN}/application/o/forgejo/.well-known/openid-configuration
+
+    # PostgreSQL subchart (Bitnami)
+    postgresql:
+      enabled: true
+      global:
+        postgresql:
+          auth:
+            existingSecret: forgejo-secret
+            secretKeys:
+              adminPasswordKey: db-password
+              userPasswordKey: db-password
+            database: forgejo
+            username: forgejo
+      primary:
+        persistence:
+          enabled: true
+          storageClass: longhorn
+          size: 5Gi
+
+    # Disable Redis cluster (use memory for single-pod)
+    redis-cluster:
+      enabled: false
+
+    # Disable HA PostgreSQL
+    postgresql-ha:
+      enabled: false
+
+    strategy:
+      type: Recreate
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
