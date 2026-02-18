@@ -1,0 +1,145 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: n8n
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: n8n
+  interval: 1h
+  values:
+    controllers:
+      n8n:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        initContainers:
+          init-db:
+            image:
+              repository: ghcr.io/home-operations/postgres-init
+              tag: "17"
+            env:
+              INIT_POSTGRES_HOST: n8n-postgresql
+              INIT_POSTGRES_SUPER_USER: postgres
+              INIT_POSTGRES_SUPER_PASS:
+                valueFrom:
+                  secretKeyRef:
+                    name: n8n-secret
+                    key: POSTGRES_PASSWORD
+              INIT_POSTGRES_USER: n8n
+              INIT_POSTGRES_PASS:
+                valueFrom:
+                  secretKeyRef:
+                    name: n8n-secret
+                    key: POSTGRES_PASSWORD
+              INIT_POSTGRES_DBNAME: n8n
+        containers:
+          app:
+            image:
+              repository: docker.n8n.io/n8nio/n8n
+              tag: 1.80.4
+            env:
+              TZ: America/New_York
+              GENERIC_TIMEZONE: America/New_York
+              DB_TYPE: postgresdb
+              DB_POSTGRESDB_HOST: n8n-postgresql
+              DB_POSTGRESDB_PORT: "5432"
+              DB_POSTGRESDB_DATABASE: n8n
+              DB_POSTGRESDB_USER: n8n
+              WEBHOOK_URL: "https://n8n.${SECRET_DOMAIN}"
+              N8N_EDITOR_BASE_URL: "https://n8n.${SECRET_DOMAIN}"
+              N8N_RUNNERS_ENABLED: "true"
+            envFrom:
+              - secretRef:
+                  name: n8n-secret
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: &port 5678
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 200m
+              limits:
+                memory: 512Mi
+      postgresql:
+        type: Deployment
+        containers:
+          postgres:
+            image:
+              repository: postgres
+              tag: "17-alpine"
+            env:
+              POSTGRES_USER: postgres
+              POSTGRES_DB: n8n
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: n8n-secret
+                    key: POSTGRES_PASSWORD
+              PGDATA: /var/lib/postgresql/data/pgdata
+            resources:
+              requests:
+                cpu: 50m
+              limits:
+                memory: 256Mi
+        pod:
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+    service:
+      app:
+        controller: n8n
+        ports:
+          http:
+            port: *port
+      postgresql:
+        controller: postgresql
+        ports:
+          postgres:
+            port: 5432
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 1Gi
+        advancedMounts:
+          n8n:
+            app:
+              - path: /home/node/.n8n
+      db-data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        advancedMounts:
+          postgresql:
+            postgres:
+              - path: /var/lib/postgresql/data
+    route:
+      app:
+        hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
