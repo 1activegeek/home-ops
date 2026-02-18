@@ -1,0 +1,81 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openwebui
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: openwebui
+  interval: 1h
+  values:
+    controllers:
+      openwebui:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/open-webui/open-webui
+              tag: main
+            env:
+              TZ: America/New_York
+              OLLAMA_BASE_URL: "http://ollama.ai.svc.cluster.local:11434"
+              WEBUI_URL: "https://chat.${SECRET_DOMAIN}"
+              ENABLE_OAUTH_SIGNUP: "true"
+              OAUTH_PROVIDER_NAME: "Authentik"
+              OPENID_PROVIDER_URL: "https://authentik.${SECRET_DOMAIN}/application/o/openwebui/.well-known/openid-configuration"
+              OAUTH_SCOPES: "openid email profile"
+              ENABLE_RAG_WEB_SEARCH: "true"
+            envFrom:
+              - secretRef:
+                  name: openwebui-secret
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: &port 8080
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 200m
+              limits:
+                memory: 512Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+    service:
+      app:
+        controller: openwebui
+        ports:
+          http:
+            port: *port
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        globalMounts:
+          - path: /app/backend/data
+    route:
+      app:
+        hostnames: ["chat.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
