@@ -11,9 +11,6 @@ spec:
   values:
     controllers:
       opencode-manager:
-        type: statefulset
-        annotations:
-          reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
@@ -68,6 +65,8 @@ spec:
               capabilities: { drop: ["ALL"] }
 
     defaultPodOptions:
+      annotations:
+        reloader.stakater.com/auto: "true"
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -108,7 +107,3 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
-        rules:
-          - backendRefs:
-              - identifier: app
-                port: *port
