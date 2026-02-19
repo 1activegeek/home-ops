@@ -11,14 +11,11 @@ spec:
   values:
     controllers:
       opencode:
-        type: statefulset
-        annotations:
-          reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
               repository: ghcr.io/sst/opencode
-              tag: latest
+              tag: v1.2.6
             command:
               - opencode
               - serve
@@ -66,6 +63,8 @@ spec:
               capabilities: { drop: ["ALL"] }
 
     defaultPodOptions:
+      annotations:
+        reloader.stakater.com/auto: "true"
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -110,7 +109,3 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
-        rules:
-          - backendRefs:
-              - identifier: app
-                port: *port
