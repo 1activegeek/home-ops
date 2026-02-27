@@ -19,6 +19,9 @@ spec:
             env:
               TZ: America/New_York
               GATUS_CONFIG_PATH: /config
+            envFrom:
+              - secretRef:
+                  name: gatus-secret
             probes:
               liveness: &probes
                 enabled: true
@@ -41,6 +44,8 @@ spec:
                 cpu: 10m
               limits:
                 memory: 128Mi
+    podAnnotations:
+      reloader.stakater.com/auto: "true"
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
