@@ -13,6 +13,15 @@ spec:
     deploymentStrategy:
       type: Recreate
 
+    podAnnotations:
+      reloader.stakater.com/auto: "true"
+
+    admin:
+      existingSecret: grafana-secret
+      passwordKey: admin_password
+
+    envFromSecret: grafana-secret
+
     grafana.ini:
       server:
         root_url: "https://grafana.${SECRET_DOMAIN}"
@@ -22,6 +31,17 @@ spec:
         reporting_enabled: false
       news:
         news_feed_enabled: false
+      auth.generic_oauth:
+        enabled: true
+        name: Authentik
+        allow_sign_up: true
+        client_id: $__env{OIDC_CLIENT_ID}
+        client_secret: $__env{OIDC_CLIENT_SECRET}
+        scopes: openid email profile
+        auth_url: https://auth.thegeekybits.com/application/o/authorize/
+        token_url: https://auth.thegeekybits.com/application/o/token/
+        api_url: https://auth.thegeekybits.com/application/o/userinfo/
+        role_attribute_path: contains(groups[*], 'authentik Admins') && 'Admin' || 'Viewer'
 
     persistence:
       enabled: true
