@@ -128,3 +128,7 @@ spec:
           - name: envoy-external
             namespace: network
             sectionName: https
+        rules:
+          - backendRefs:
+              - name: zipline
+                port: 3000
