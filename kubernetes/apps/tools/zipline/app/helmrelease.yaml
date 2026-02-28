@@ -63,7 +63,7 @@ spec:
                 memory: 512Mi
 
       postgresql:
-        type: Deployment
+        type: deployment
         containers:
           postgres:
             image:
