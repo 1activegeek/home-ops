@@ -34,7 +34,7 @@ spec:
 
       additionalConfigSources:
         - secret:
-            secretName: forgejo-secret
+            secretName: forgejo-config-secret
 
       config:
         server:
