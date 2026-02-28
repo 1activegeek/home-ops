@@ -110,6 +110,21 @@ SIGNING_KEY=$(curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
 echo "Using signing key: $SIGNING_KEY"
 ```
 
+Get the openid/email/profile scope mappings (required — omitting these causes the userinfo endpoint to return empty data, breaking email resolution):
+```bash
+# Fetch all three scope mapping PKs
+SCOPE_OPENID=$(curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
+  "https://${AUTHENTIK_HOST}/api/v3/propertymappings/scope/?managed=goauthentik.io%2Fproviders%2Foauth2%2Fscope-openid" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['results'][0]['pk'])")
+SCOPE_EMAIL=$(curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
+  "https://${AUTHENTIK_HOST}/api/v3/propertymappings/scope/?managed=goauthentik.io%2Fproviders%2Foauth2%2Fscope-email" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['results'][0]['pk'])")
+SCOPE_PROFILE=$(curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
+  "https://${AUTHENTIK_HOST}/api/v3/propertymappings/scope/?managed=goauthentik.io%2Fproviders%2Foauth2%2Fscope-profile" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['results'][0]['pk'])")
+echo "Scope mappings: openid=$SCOPE_OPENID email=$SCOPE_EMAIL profile=$SCOPE_PROFILE"
+```
+
 Generate client credentials:
 ```bash
 CLIENT_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
@@ -132,7 +147,8 @@ PROVIDER_RESPONSE=$(curl -s -X POST \
     \"authorization_flow\": \"${AUTH_FLOW}\",
     \"sub_mode\": \"hashed_user_id\",
     \"include_claims_in_id_token\": true,
-    \"signing_key\": \"${SIGNING_KEY}\"
+    \"signing_key\": \"${SIGNING_KEY}\",
+    \"property_mappings\": [\"${SCOPE_OPENID}\", \"${SCOPE_EMAIL}\", \"${SCOPE_PROFILE}\"]
   }")
 
 PROVIDER_PK=$(echo "$PROVIDER_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['pk'])")
