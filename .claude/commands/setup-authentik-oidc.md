@@ -5,13 +5,31 @@ allowed-tools: Bash(curl:*), Bash(kubectl:*), Bash(op item get:*), Bash(op item 
 
 Configure Authentik OIDC authentication for a new cluster application. This creates the OAuth2 Provider and Application in Authentik, stores credentials in 1Password, creates/updates ExternalSecret manifests, and updates the HelmRelease with OIDC config.
 
-## Cluster Context
+## Step 0: Discover cluster configuration
 
-- **Authentik URL**: `https://auth.thegeekybits.com` (external) or `http://authentik.security.svc.cluster.local:9000` (internal)
-- **Domain**: `thegeekybits.com`
-- **Default gateway**: `envoy-internal` for internal apps, `envoy-external` for public apps
-- **Secret store**: 1Password vault `homeops`, ClusterSecretStore `onepassword-store`
-- **App namespace pattern**: app hostnames follow `<release-name>.thegeekybits.com`
+Resolve required cluster variables before proceeding.
+
+**Authentik host** — find from deployed HTTPRoute or ingress:
+```bash
+KUBECONFIG="./kubeconfig" kubectl get httproute -A \
+  -o jsonpath='{range .items[*]}{.spec.hostnames[0]}{"\t"}{.metadata.labels}{"\n"}{end}' \
+  | grep -i authentik | head -1 | awk '{print $1}'
+```
+If that returns nothing, check ingress/gateway resources:
+```bash
+KUBECONFIG="./kubeconfig" kubectl get httproute -A --no-headers \
+  | grep -i auth | head -5
+```
+Store as `AUTHENTIK_HOST` (e.g., `auth.example.com`). All Authentik API calls use `https://${AUTHENTIK_HOST}`.
+
+**Cluster domain** — resolve from cluster secrets:
+```bash
+KUBECONFIG="./kubeconfig" kubectl get secret cluster-secrets \
+  -n flux-system -o jsonpath='{.data.SECRET_DOMAIN}' | base64 -d
+```
+Store as `SECRET_DOMAIN`. App hostnames follow `<app>.${SECRET_DOMAIN}`.
+
+**1Password vault** — use the vault configured for this cluster. Check CLAUDE.md for the vault name (typically `homeops` or `home-ops`). Store as `VAULT`.
 
 ## Step 1: Gather required information
 
@@ -30,20 +48,21 @@ Or from the deployed route:
 KUBECONFIG="./kubeconfig" kubectl get httproute -n <namespace> <app> \
   -o jsonpath='{.spec.hostnames[0]}' 2>/dev/null
 ```
+Store as `HOSTNAME` (e.g., `myapp.${SECRET_DOMAIN}`).
 
 ## Step 2: Get or create Authentik API token
 
 Check 1Password for an existing token:
 ```bash
-op item get "authentik" --vault homeops --fields label=api_token 2>/dev/null
+op item get "authentik" --vault "${VAULT}" --fields label=api_token 2>/dev/null
 ```
 
 If no token exists, instruct the user to:
-1. Log into Authentik at `https://auth.thegeekybits.com`
+1. Log into Authentik at `https://${AUTHENTIK_HOST}`
 2. Go to **Admin Interface** → **Directory** → **Tokens & App Passwords**
 3. Create a token with identifier `claude-api-token`, intent: **API**
 4. Copy the token key
-5. Run: `op item edit "authentik" --vault homeops "api_token[password]=<token>"`
+5. Run: `op item edit "authentik" --vault "${VAULT}" "api_token[password]=<token>"`
 
 Store the token in variable `AUTHENTIK_TOKEN` for subsequent API calls.
 
@@ -71,14 +90,14 @@ Use the Authentik API. The provider name follows `<APP_NAME>-provider` conventio
 First, get the authorization flow ID:
 ```bash
 AUTH_FLOW=$(curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
-  "https://auth.thegeekybits.com/api/v3/flows/instances/?designation=authorization&slug=default-provider-authorization-implicit-consent" \
+  "https://${AUTHENTIK_HOST}/api/v3/flows/instances/?designation=authorization&slug=default-provider-authorization-implicit-consent" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['results'][0]['pk'])")
 ```
 
 Get the invalidation flow ID:
 ```bash
 INVAL_FLOW=$(curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
-  "https://auth.thegeekybits.com/api/v3/flows/instances/?designation=invalidation" \
+  "https://${AUTHENTIK_HOST}/api/v3/flows/instances/?designation=invalidation" \
   | python3 -c "import sys,json; data=json.load(sys.stdin); print(data['results'][0]['pk']) if data['results'] else print('')")
 ```
 
@@ -94,7 +113,7 @@ Create the provider:
 PROVIDER_RESPONSE=$(curl -s -X POST \
   -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
   -H "Content-Type: application/json" \
-  "https://auth.thegeekybits.com/api/v3/providers/oauth2/" \
+  "https://${AUTHENTIK_HOST}/api/v3/providers/oauth2/" \
   -d "{
     \"name\": \"${APP_NAME}-provider\",
     \"client_type\": \"confidential\",
@@ -117,7 +136,7 @@ echo "Created provider PK: $PROVIDER_PK"
 APP_RESPONSE=$(curl -s -X POST \
   -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
   -H "Content-Type: application/json" \
-  "https://auth.thegeekybits.com/api/v3/core/applications/" \
+  "https://${AUTHENTIK_HOST}/api/v3/core/applications/" \
   -d "{
     \"name\": \"${APP_NAME}\",
     \"slug\": \"${APP_NAME}\",
@@ -135,7 +154,7 @@ If the application creation fails with a "slug already exists" error, the app al
 curl -s -X PATCH \
   -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
   -H "Content-Type: application/json" \
-  "https://auth.thegeekybits.com/api/v3/core/applications/${APP_SLUG}/" \
+  "https://${AUTHENTIK_HOST}/api/v3/core/applications/${APP_SLUG}/" \
   -d "{\"provider\": ${PROVIDER_PK}}"
 ```
 
@@ -143,12 +162,12 @@ curl -s -X PATCH \
 
 Check if item already exists:
 ```bash
-op item get "${APP_NAME}" --vault homeops 2>/dev/null | head -5
+op item get "${APP_NAME}" --vault "${VAULT}" 2>/dev/null | head -5
 ```
 
 If item exists, add/update OIDC fields:
 ```bash
-op item edit "${APP_NAME}" --vault homeops \
+op item edit "${APP_NAME}" --vault "${VAULT}" \
   "oidc_client_id[text]=${CLIENT_ID}" \
   "oidc_client_secret[password]=${CLIENT_SECRET}"
 ```
@@ -156,7 +175,7 @@ op item edit "${APP_NAME}" --vault homeops \
 If item doesn't exist, create it:
 ```bash
 op item create \
-  --vault homeops \
+  --vault "${VAULT}" \
   --category login \
   --title "${APP_NAME}" \
   "oidc_client_id[text]=${CLIENT_ID}" \
@@ -223,19 +242,19 @@ OIDC_CLIENT_SECRET:
       key: OIDC_CLIENT_SECRET
 ```
 
-Add to `configmap.yaml` in the Gatus config YAML:
+Add to `configmap.yaml` in the Gatus config YAML (replace `${AUTHENTIK_HOST}` and `${HOSTNAME}` with resolved values):
 ```yaml
 security:
   oidc:
-    issuer-url: https://auth.thegeekybits.com/application/o/gatus/
-    redirect-url: https://gatus.thegeekybits.com/authorization-code/callback
+    issuer-url: https://${AUTHENTIK_HOST}/application/o/${APP_NAME}/
+    redirect-url: https://${HOSTNAME}/authorization-code/callback
     client-id: ${OIDC_CLIENT_ID}
     client-secret: ${OIDC_CLIENT_SECRET}
     scopes: [openid, email, profile]
 ```
 
 ### Grafana (native OAuth)
-Add to `helmrelease.yaml` in `grafana.ini` section:
+Add to `helmrelease.yaml` in `grafana.ini` section (replace `${AUTHENTIK_HOST}` with resolved value):
 ```yaml
 grafana.ini:
   auth.generic_oauth:
@@ -245,9 +264,9 @@ grafana.ini:
     client_id: $__env{OIDC_CLIENT_ID}
     client_secret: $__env{OIDC_CLIENT_SECRET}
     scopes: openid email profile
-    auth_url: https://auth.thegeekybits.com/application/o/authorize/
-    token_url: https://auth.thegeekybits.com/application/o/token/
-    api_url: https://auth.thegeekybits.com/application/o/userinfo/
+    auth_url: https://${AUTHENTIK_HOST}/application/o/authorize/
+    token_url: https://${AUTHENTIK_HOST}/application/o/token/
+    api_url: https://${AUTHENTIK_HOST}/application/o/userinfo/
     role_attribute_path: contains(groups[*], 'authentik Admins') && 'Admin' || 'Viewer'
 ```
 
@@ -276,10 +295,10 @@ OAuth2 Provider:
   Name: <APP_NAME>-provider
   Client ID: <client_id>
   Redirect URI: <redirect_uri>
-  Discovery URL: https://auth.thegeekybits.com/application/o/<APP_NAME>/.well-known/openid-configuration
+  Discovery URL: https://${AUTHENTIK_HOST}/application/o/<APP_NAME>/.well-known/openid-configuration
 
 1Password:
-  Vault: homeops
+  Vault: <vault>
   Item: <APP_NAME>
   Fields: oidc_client_id, oidc_client_secret
 
