@@ -41,7 +41,7 @@ spec:
         auth_url: https://auth.thegeekybits.com/application/o/authorize/
         token_url: https://auth.thegeekybits.com/application/o/token/
         api_url: https://auth.thegeekybits.com/application/o/userinfo
-        role_attribute_path: contains(groups[*], 'authentik Admins') && 'Admin' || 'Viewer'
+        role_attribute_path: contains(groups[*], 'home-admins') && 'Admin' || contains(groups[*], 'home-users') && 'Editor' || 'Viewer'
         role_attribute_strict: false
 
     persistence:
