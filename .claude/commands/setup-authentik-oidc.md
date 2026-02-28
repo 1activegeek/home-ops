@@ -95,10 +95,19 @@ AUTH_FLOW=$(curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
 ```
 
 Get the invalidation flow ID:
+
 ```bash
 INVAL_FLOW=$(curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
   "https://${AUTHENTIK_HOST}/api/v3/flows/instances/?designation=invalidation" \
   | python3 -c "import sys,json; data=json.load(sys.stdin); print(data['results'][0]['pk']) if data['results'] else print('')")
+```
+
+Get the RSA signing key (required — providers default to HS256 which OIDC clients reject):
+```bash
+SIGNING_KEY=$(curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
+  "https://${AUTHENTIK_HOST}/api/v3/crypto/certificatekeypairs/?has_key=true&ordering=name" \
+  | python3 -c "import sys,json; certs=json.load(sys.stdin)['results']; rsa=[c for c in certs if 'Self-signed' in c['name'] or 'JWT' in c['name']]; print(rsa[0]['pk'] if rsa else certs[0]['pk'])")
+echo "Using signing key: $SIGNING_KEY"
 ```
 
 Generate client credentials:
@@ -123,7 +132,7 @@ PROVIDER_RESPONSE=$(curl -s -X POST \
     \"authorization_flow\": \"${AUTH_FLOW}\",
     \"sub_mode\": \"hashed_user_id\",
     \"include_claims_in_id_token\": true,
-    \"signing_key\": null
+    \"signing_key\": \"${SIGNING_KEY}\"
   }")
 
 PROVIDER_PK=$(echo "$PROVIDER_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['pk'])")
@@ -266,8 +275,9 @@ grafana.ini:
     scopes: openid email profile
     auth_url: https://${AUTHENTIK_HOST}/application/o/authorize/
     token_url: https://${AUTHENTIK_HOST}/application/o/token/
-    api_url: https://${AUTHENTIK_HOST}/application/o/userinfo/
+    api_url: https://${AUTHENTIK_HOST}/application/o/userinfo
     role_attribute_path: contains(groups[*], 'authentik Admins') && 'Admin' || 'Viewer'
+    role_attribute_strict: false
 ```
 
 Add `envFrom` in the HelmRelease:
