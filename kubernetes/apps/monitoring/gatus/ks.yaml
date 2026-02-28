@@ -10,6 +10,9 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
+      - name: gatus-secret
+        kind: Secret
+        optional: true
   prune: true
   sourceRef:
     kind: GitRepository
