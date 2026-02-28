@@ -33,6 +33,23 @@ spec:
                     name: zipline-secret
                     key: POSTGRES_PASSWORD
               INIT_POSTGRES_DBNAME: zipline
+          init-schema:
+            image:
+              repository: postgres
+              tag: "17-alpine"
+            env:
+              PGHOST: zipline-postgresql
+              PGUSER: postgres
+              PGPASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: zipline-secret
+                    key: POSTGRES_PASSWORD
+              PGDATABASE: zipline
+            command:
+              - /bin/sh
+              - -c
+              - psql -c "GRANT ALL ON SCHEMA public TO zipline;"
         containers:
           app:
             image:
