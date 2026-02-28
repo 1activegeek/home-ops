@@ -9,3 +9,4 @@ components:
 resources:
   - ./namespace.yaml
   - ./kms/ks.yaml
+  - ./forgejo/ks.yaml
