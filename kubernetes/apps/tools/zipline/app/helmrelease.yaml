@@ -147,5 +147,5 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: zipline
+              - name: zipline-app
                 port: 3000
