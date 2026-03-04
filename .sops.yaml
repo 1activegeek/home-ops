@@ -10,3 +10,4 @@ creation_rules:
 stores:
   yaml:
     indent: 2
+key_file: ~/.config/sops/age/home-ops.key
