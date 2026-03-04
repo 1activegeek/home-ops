@@ -11,8 +11,6 @@ spec:
   values:
     controllers:
       qbittorrent:
-        annotations:
-          reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
@@ -44,27 +42,6 @@ spec:
                 cpu: 100m
               limits:
                 memory: 1Gi
-          gluetun:
-            image:
-              repository: ghcr.io/qdm12/gluetun
-              tag: v3.40.0
-            envFrom:
-              - secretRef:
-                  name: qbittorrent-secret
-            env:
-              TZ: America/New_York
-              FIREWALL_INPUT_PORTS: *port
-              FIREWALL_VPN_INPUT_PORTS: *port-bt
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                add: ["NET_ADMIN"]
-                drop: ["ALL"]
-            resources:
-              requests:
-                cpu: 50m
-              limits:
-                memory: 256Mi
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
@@ -93,26 +70,14 @@ spec:
         storageClass: longhorn
         accessMode: ReadWriteOnce
         size: 1Gi
-        advancedMounts:
-          qbittorrent:
-            app:
-              - path: /config
-      # NFS media mount - single root for hardlink support
+        globalMounts:
+          - path: /config
       media:
         type: nfs
         server: ${NFS_SERVER}
         path: /volume1/media
-        advancedMounts:
-          qbittorrent:
-            app:
-              - path: /data/media
-      # Gluetun needs /tmp writable
-      gluetun-tmp:
-        type: emptyDir
-        advancedMounts:
-          qbittorrent:
-            gluetun:
-              - path: /tmp
+        globalMounts:
+          - path: /data/media
     route:
       app:
         hostnames: ["qbit.${SECRET_DOMAIN}"]
