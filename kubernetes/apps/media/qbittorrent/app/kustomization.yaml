@@ -4,3 +4,5 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+  # Uncomment to enable Gluetun VPN sidecar (populate 1Password item first):
+  # - ./externalsecret.yaml
