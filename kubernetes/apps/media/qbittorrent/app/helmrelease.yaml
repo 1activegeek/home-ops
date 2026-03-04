@@ -115,3 +115,7 @@ spec:
           - name: envoy-internal
             namespace: network
             sectionName: https
+        rules:
+          - backendRefs:
+              - name: qbittorrent
+                port: 8080
