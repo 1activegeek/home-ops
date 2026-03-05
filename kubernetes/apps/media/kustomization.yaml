@@ -9,4 +9,5 @@ components:
 resources:
   - ./namespace.yaml
   - ./metube/ks.yaml
+  - ./plex/ks.yaml
   - ./sabnzbd/ks.yaml
