@@ -10,3 +10,5 @@ resources:
   - ./namespace.yaml
   - ./metube/ks.yaml
   - ./qbittorrent/ks.yaml
+  - ./plex/ks.yaml
+  - ./sabnzbd/ks.yaml
