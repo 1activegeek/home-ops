@@ -11,8 +11,8 @@ data:
 
     security:
       oidc:
-        issuer-url: https://auth.literal:${SECRET_DOMAIN}/application/o/gatus/
-        redirect-url: https://gatus.literal:${SECRET_DOMAIN}/authorization-code/callback
+        issuer-url: https://auth.${SECRET_DOMAIN}/application/o/gatus/
+        redirect-url: https://gatus.${SECRET_DOMAIN}/authorization-code/callback
         client-id: "${OIDC_CLIENT_ID}"
         client-secret: "${OIDC_CLIENT_SECRET}"
         scopes: ["openid", "email", "profile"]
