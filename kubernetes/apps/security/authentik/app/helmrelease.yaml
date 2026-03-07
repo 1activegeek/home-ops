@@ -41,6 +41,10 @@ spec:
       name: authentik-secret
       valuesKey: SMTP_PASSWORD
       targetPath: authentik.email.password
+    - kind: Secret
+      name: authentik-secret
+      valuesKey: SMTP_FROM
+      targetPath: authentik.email.from
     # - kind: Secret
     #   name: authentik-secret
     #   valuesKey: AUTHENTIK_DB_PASSWORD
@@ -60,7 +64,6 @@ spec:
         use_tls: true
         use_ssl: false
         timeout: 30
-        from: admin@literal:${SECRET_DOMAIN}
 
     # Authentik Server Configuration
     server:
