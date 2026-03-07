@@ -19,33 +19,33 @@ spec:
               repository: ghcr.io/home-operations/postgres-init
               tag: "18"
             env:
-              INIT_POSTGRES_HOST: zipline-postgresql
-              INIT_POSTGRES_SUPER_USER: postgres
+              INIT_POSTGRES_HOST: zipline-postgresql #remediate
+              INIT_POSTGRES_SUPER_USER: postgres #remediate
               INIT_POSTGRES_SUPER_PASS:
                 valueFrom:
                   secretKeyRef:
                     name: zipline-secret
                     key: POSTGRES_PASSWORD
-              INIT_POSTGRES_USER: zipline
+              INIT_POSTGRES_USER: zipline #remediate
               INIT_POSTGRES_PASS:
                 valueFrom:
                   secretKeyRef:
                     name: zipline-secret
                     key: POSTGRES_PASSWORD
-              INIT_POSTGRES_DBNAME: zipline
+              INIT_POSTGRES_DBNAME: zipline #remediate
           init-schema:
             image:
               repository: postgres
               tag: "18-alpine"
             env:
-              PGHOST: zipline-postgresql
-              PGUSER: postgres
+              PGHOST: zipline-postgresql #remediate
+              PGUSER: postgres #remediate
               PGPASSWORD:
                 valueFrom:
                   secretKeyRef:
                     name: zipline-secret
                     key: POSTGRES_PASSWORD
-              PGDATABASE: zipline
+              PGDATABASE: zipline #remediate
             command:
               - /bin/sh
               - -c
@@ -87,8 +87,8 @@ spec:
               repository: postgres
               tag: "18-alpine"
             env:
-              POSTGRES_USER: postgres
-              POSTGRES_DB: zipline
+              POSTGRES_USER: postgres #remediate
+              POSTGRES_DB: zipline #remediate
               POSTGRES_PASSWORD:
                 valueFrom:
                   secretKeyRef:

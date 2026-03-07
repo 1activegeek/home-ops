@@ -59,7 +59,7 @@ spec:
     authentik:
       log_level: info
       email:
-        host: "smtp.mail.me.com"
+        host: "smtp.mail.me.com" #remediate
         port: 587
         use_tls: true
         use_ssl: false
@@ -92,8 +92,8 @@ spec:
     postgresql:
       enabled: true
       auth:
-        username: authentik
-        database: authentik
+        username: authentik #remediate
+        database: authentik #remediate
       primary:
         persistence:
           enabled: true

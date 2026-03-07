@@ -10,7 +10,7 @@ spec:
       # renovate: enabled=false
       # Chart 2.3.0 changed credentials mounting from OP_SESSION env var (base64)
       # to file-based (raw JSON). Our SOPS secret stores credentials as base64,
-      # causing Connect to fail. Needs SOPS secret re-encoding before upgrading.
+      # causing Connect to fail. Needs SOPS secret re-encoding before upgrading. #remediate
       version: "=2.2.1"
       sourceRef:
         kind: HelmRepository

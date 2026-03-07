@@ -22,7 +22,7 @@ spec:
       name: nfs-slow
       parameters:
         server: ${NFS_SERVER}
-        share: /volume2/kubes
+        share: /volume2/kubes #remediate
       mountOptions:
         - nfsvers=4.1
         - nconnect=16

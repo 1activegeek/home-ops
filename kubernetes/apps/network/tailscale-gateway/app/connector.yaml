@@ -11,5 +11,5 @@ spec:
     advertiseRoutes:
       - "10.42.0.0/16"
       - "10.43.0.0/16"
-      - "10.0.3.0/24"
+      - "10.0.3.0/24" #remediate
   exitNode: true

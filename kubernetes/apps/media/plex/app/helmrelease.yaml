@@ -21,7 +21,7 @@ spec:
             env:
               TZ: America/New_York
               PLEX_ADVERTISE_URL: "https://plex.${SECRET_DOMAIN}:443"
-              PLEX_NO_AUTH_NETWORKS: "10.0.0.0/8"
+              PLEX_NO_AUTH_NETWORKS: "10.0.0.0/8" #remediate
             envFrom:
               - secretRef:
                   name: plex-secret
@@ -75,7 +75,7 @@ spec:
       media:
         type: nfs
         server: ${NFS_SERVER}
-        path: /volume1/media
+        path: /volume1/media #remediate
         globalMounts:
           - path: /media
             readOnly: true
