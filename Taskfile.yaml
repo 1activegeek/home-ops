@@ -20,6 +20,7 @@ env:
 includes:
   bootstrap: .taskfiles/bootstrap
   talos: .taskfiles/talos
+  validate: .taskfiles/validate
 
 tasks:
 
@@ -33,14 +34,9 @@ tasks:
       - which flux
 
   validate:
-    desc: Run local flux-local validation to catch configuration errors before committing
-    cmd: |
-      echo "Running flux-local validation..."
-      flux-local test --enable-helm --all-namespaces --path ./kubernetes/flux/cluster -v
-      flux-local diff kustomization --path ./kubernetes/flux/cluster --all-namespaces --sources flux-system
-      flux-local diff helmrelease --path ./kubernetes/flux/cluster --all-namespaces --sources flux-system
-    preconditions:
-      - which flux-local
+    desc: Run all validation checks (static + flux-local + integration pre-flight)
+    cmds:
+      - task: validate:all
 
   validate-security:
     desc: Validate external HTTPRoute security configurations

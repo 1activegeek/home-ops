@@ -61,13 +61,48 @@ grep -l "sops:" kubernetes/**/*.sops.yaml talos/**/*.sops.yaml
 
 ### 3. Validate Before Committing
 
+**Always run `task validate:preflight` before opening a PR.** This catches the most common deployment failures before they reach the cluster.
+
 ```bash
-# Run flux-local validation
+# Full validation pipeline (runs everything)
 task validate
 
-# Or manually:
-flux-local test --enable-helm --all-namespaces --path ./kubernetes/flux/cluster -v
+# Quick pre-flight for new/changed apps (secrets + images + routes + substitutions)
+task validate:preflight
+
+# Run individual checks
+task validate:secrets       # 1Password fields match ExternalSecret template refs
+task validate:secret-keys   # existingSecret key references exist in the secret
+task validate:images        # image tags exist in their registries
+task validate:nfs           # NFS exports are accessible
+task validate:routes        # HTTPRoute backendRefs match actual service names
+task validate:substitutions # ${VAR} patterns won't be silently stripped by Flux
+task validate:flux          # flux-local rendering (always run this)
+task validate:security      # external route security posture
+task validate:security-ctx  # UID/security context compatibility warnings
 ```
+
+#### What each check catches
+
+| Check | Common failure it prevents |
+|---|---|
+| `validate:secrets` | 1Password field missing or misnamed (ExternalSecret never syncs) |
+| `validate:secret-keys` | Chart `existingSecret` references a key the secret doesn't have |
+| `validate:images` | Non-existent image tag causes ImagePullBackOff |
+| `validate:nfs` | NFS path not exported → pod stuck pending |
+| `validate:routes` | HTTPRoute backendRef wrong service name → 502 from gateway |
+| `validate:substitutions` | `${VAR}` in ConfigMap/values silently emptied by Flux |
+| `validate:flux` | Helm template errors, invalid schema, rendering failures |
+
+#### Known patterns that cause failures
+
+**bjw-s app-template service naming** — HTTPRoute backendRefs must match the rendered service name:
+- App with **1 service** → service name is `<release-name>` (e.g., `esphome`, not `esphome-app`)
+- App with **2+ services** → service names are `<release-name>-<service-key>` (e.g., `home-assistant-app`, `home-assistant-code-server`)
+
+**Flux variable substitution** — Flux replaces `${VAR}` with values from `cluster-secrets`. Known cluster variables: `SECRET_DOMAIN`, `NFS_SERVER`, `CLUSTER_DOMAIN`, etc. Any `${VAR}` NOT in that list will be silently replaced with an empty string. Escape app-level variables as `$${VAR}`.
+
+**ExternalSecret field references** — Template values use `{{ .field_name }}` referencing 1Password field labels. Field names in 1Password use hyphens (`db-password`) while templates use underscores (`db_password`) — both forms are checked.
 
 ## Directory Structure
 

@@ -1,0 +1,140 @@
+---
+version: '3'
+
+vars:
+  VALIDATE_SCRIPTS: '{{.ROOT_DIR}}/.taskfiles/validate/scripts'
+  KUBERNETES_DIR: '{{.ROOT_DIR}}/kubernetes'
+
+tasks:
+
+  default:
+    desc: Run all validation checks
+    cmds:
+      - task: all
+
+  all:
+    desc: Run all validation checks (static + rendered + integration)
+    cmds:
+      - task: static
+      - task: flux
+      - task: rendered
+      - task: routes
+      - task: substitutions
+      - task: secrets
+      - task: secret-keys
+      - task: images
+      - task: nfs
+      - task: security-ctx
+
+  preflight:
+    desc: Run integration pre-flight checks (secrets, secret-keys, images, nfs, substitutions)
+    cmds:
+      - task: secrets
+      - task: secret-keys
+      - task: images
+      - task: nfs
+      - task: substitutions
+
+  static:
+    desc: Run yamllint and kubeconform on static manifest files
+    cmds:
+      - |
+        echo "=== Running yamllint ==="
+        yamllint -c {{.ROOT_DIR}}/.yamllint.yaml {{.KUBERNETES_DIR}}/
+      - |
+        echo "=== Running kubeconform on static manifests ==="
+        find {{.KUBERNETES_DIR}}/apps -name "*.yaml" \
+          ! -name "helmrelease.yaml" \
+          ! -name "ocirepository.yaml" \
+          ! -name "kustomization.yaml" \
+          ! -name "*.sops.yaml" \
+          -print0 | \
+          xargs -0 kubeconform \
+            --ignore-missing-schemas \
+            --schema-location default \
+            --schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            --summary
+    preconditions:
+      - which yamllint
+      - which kubeconform
+      - test -f {{.ROOT_DIR}}/.yamllint.yaml
+
+  rendered:
+    desc: Build flux-local output and validate with kubeconform
+    cmd: |
+      echo "=== Validating rendered Helm output with kubeconform ==="
+      flux-local build kustomization \
+        --path {{.KUBERNETES_DIR}}/flux/cluster \
+        --all-namespaces \
+        --sources flux-system \
+        --enable-helm 2>/dev/null | \
+        kubeconform \
+          --ignore-missing-schemas \
+          --schema-location default \
+          --schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+          --summary
+    preconditions:
+      - which flux-local
+      - which kubeconform
+
+  flux:
+    desc: Run flux-local test (HelmRelease rendering + Kustomize validation)
+    cmd: |
+      echo "=== Running flux-local validation ==="
+      flux-local test --enable-helm --all-namespaces --path {{.KUBERNETES_DIR}}/flux/cluster -v
+    preconditions:
+      - which flux-local
+
+  secrets:
+    desc: Validate 1Password items match ExternalSecret template field references
+    cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-secrets.sh"
+    preconditions:
+      - which op
+      - which yq
+      - sh: op account list 2>/dev/null | grep -q .
+        msg: "Not signed in to 1Password CLI. Run: op signin"
+
+  secret-keys:
+    desc: Cross-reference rendered Secret keys against workload secretKeyRef/envFrom references
+    cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-secret-keys.sh"
+    preconditions:
+      - which flux-local
+      - which yq
+
+  images:
+    desc: Validate container image tags exist in their registries
+    cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-images.sh"
+    preconditions:
+      - which curl
+      - which yq
+
+  nfs:
+    desc: Validate NFS exports are accessible from this host
+    cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-nfs.sh"
+    preconditions:
+      - which showmount
+      - which yq
+
+  routes:
+    desc: Cross-reference HTTPRoute backendRefs against rendered Service names
+    cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-routes.sh"
+    preconditions:
+      - which yq
+
+  substitutions:
+    desc: Detect Flux variable substitution collisions (app vars that need $${} escaping)
+    cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-substitutions.sh"
+    preconditions:
+      - which yq
+
+  security:
+    desc: Validate external HTTPRoute security configurations
+    cmd: bash "{{.ROOT_DIR}}/.taskfiles/kubernetes/scripts/validate-external-routes.sh"
+    preconditions:
+      - which yq
+
+  security-ctx:
+    desc: Flag images running as UID 65534 that may require a different UID
+    cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-security-context.sh"
+    preconditions:
+      - which yq

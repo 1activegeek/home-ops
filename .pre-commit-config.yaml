@@ -1,0 +1,39 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.sops\.yaml$
+      - id: end-of-file-fixer
+        exclude: \.sops\.yaml$
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        exclude: \.sops\.yaml$
+      - id: check-merge-conflict
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.0
+    hooks:
+      - id: yamllint
+        args: [-c, .yamllint.yaml]
+        exclude: \.sops\.yaml$
+
+  - repo: https://github.com/yannh/kubeconform
+    rev: v0.6.7
+    hooks:
+      - id: kubeconform
+        # Only validate standalone K8s resources (not Helm templates or Flux CRDs)
+        files: kubernetes/apps/.*\.yaml$
+        exclude: >
+          (?x)^(
+            .*helmrelease\.yaml|
+            .*ocirepository\.yaml|
+            .*kustomization\.yaml|
+            .*\.sops\.yaml
+          )$
+        args:
+          - --ignore-missing-schemas
+          - --schema-location=default
+          - --schema-location=https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
+          - --summary

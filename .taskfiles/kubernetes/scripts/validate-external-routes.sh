@@ -1,100 +1,108 @@
 #!/usr/bin/env bash
+# Validates external HTTPRoute security posture.
+#
+# Security model in this cluster:
+# - envoy-external gateway has a default SecurityPolicy enforcing Authentik forward-auth
+# - ALL routes through envoy-external are protected by default (correct/safe)
+# - Apps that are intentionally PUBLIC (Authentik login page, webhooks) need an
+#   explicit HTTPRoute-level SecurityPolicy to opt out of the gateway-level auth
+#
+# This script:
+# 1. Finds all HTTPRoutes referencing envoy-external
+# 2. Checks for any HTTPRoute-level SecurityPolicy overrides (public opt-outs)
+# 3. Reports the security posture of each external route
 set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+KUBERNETES_DIR="${REPO_ROOT}/kubernetes"
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# Track validation status
-VALIDATION_FAILED=false
-
-echo "🔍 Validating external HTTPRoute security configurations..."
+echo "=== Validating external HTTPRoute security configurations ==="
+echo ""
+echo "Security model: envoy-external gateway enforces Authentik forward-auth by default."
+echo "All external routes are protected unless an explicit SecurityPolicy opts them out."
 echo ""
 
-# Find all YAML files and extract HTTPRoutes using envoy-external
-TEMP_FILE=$(mktemp)
+# Collect any SecurityPolicy resources that override auth (opt-out = public routes)
+declare -A PUBLIC_ROUTES  # "namespace/route-name" -> file
 
-find kubernetes/apps -name "*.yaml" -type f -print0 | while IFS= read -r -d '' file; do
-  # Check if file contains HTTPRoute with envoy-external
-  if grep -q "kind: HTTPRoute" "$file" 2>/dev/null && \
-     grep -q "name: envoy-external" "$file" 2>/dev/null; then
+while IFS= read -r -d '' file; do
+  doc_count=$(yq eval-all '[select(.kind == "SecurityPolicy")] | length' "$file" 2>/dev/null || echo 0)
+  for ((i = 0; i < doc_count; i++)); do
+    sp_ns=$(yq eval-all "select(.kind == \"SecurityPolicy\") | select(document_index == $i) | .metadata.namespace" "$file" 2>/dev/null | head -1)
+    # Look for SecurityPolicies targeting HTTPRoutes (not Gateways)
+    target_kind=$(yq eval-all "select(.kind == \"SecurityPolicy\") | select(document_index == $i) | .spec.targetRefs[].kind" "$file" 2>/dev/null | head -1)
+    target_name=$(yq eval-all "select(.kind == \"SecurityPolicy\") | select(document_index == $i) | .spec.targetRefs[].name" "$file" 2>/dev/null | head -1)
 
-    # Extract HTTPRoute resources from the file
-    yq eval-all 'select(.kind == "HTTPRoute")' "$file" 2>/dev/null | \
-      yq eval-all -o=json '.' 2>/dev/null | \
-      jq -r --arg file "$file" '
-        select(.spec.parentRefs[]? | select(.name == "envoy-external")) |
-        {
-          name: .metadata.name,
-          namespace: .metadata.namespace,
-          auth_required: (.metadata.labels["security.home-ops/auth-required"] // ""),
-          public: (.metadata.labels["security.home-ops/public"] // ""),
-          file: $file
-        } | @json
-      ' 2>/dev/null >> "$TEMP_FILE"
-  fi
-done
+    [[ "$target_kind" != "HTTPRoute" ]] && continue
+    [[ -z "$target_name" || "$target_name" == "null" ]] && continue
 
-# Process the collected routes
-declare -A CHECKED_ROUTES
+    route_key="${sp_ns:-unknown}/${target_name}"
+    PUBLIC_ROUTES["$route_key"]="${file#"$REPO_ROOT/"}"
+  done
+done < <(find "$KUBERNETES_DIR/apps" -name "*.yaml" ! -name "*.sops.yaml" -print0)
 
-while IFS= read -r route_json; do
-  if [[ -z "$route_json" ]]; then
-    continue
-  fi
+# Find all HTTPRoutes using envoy-external
+ROUTE_COUNT=0
+PROTECTED_COUNT=0
+PUBLIC_COUNT=0
 
-  route_name=$(echo "$route_json" | jq -r '.name // empty')
-  route_namespace=$(echo "$route_json" | jq -r '.namespace // empty')
-  auth_required=$(echo "$route_json" | jq -r '.auth_required // empty')
-  public=$(echo "$route_json" | jq -r '.public // empty')
-  route_file=$(echo "$route_json" | jq -r '.file // empty')
+while IFS= read -r -d '' file; do
+  rel_file="${file#"$REPO_ROOT/"}"
 
-  # Skip invalid entries
-  if [[ -z "$route_name" || -z "$route_namespace" ]]; then
-    continue
-  fi
+  doc_count=$(yq eval-all '[select(.kind == "HTTPRoute")] | length' "$file" 2>/dev/null || echo 0)
+  for ((i = 0; i < doc_count; i++)); do
+    # Check if this HTTPRoute uses envoy-external
+    uses_external=$(yq eval-all "
+      select(.kind == \"HTTPRoute\") |
+      select(document_index == $i) |
+      .spec.parentRefs[]? | select(.name == \"envoy-external\") |
+      \"yes\"
+    " "$file" 2>/dev/null | head -1)
 
-  # Skip if we've already checked this route
-  route_key="${route_namespace}/${route_name}"
-  if [[ -n "${CHECKED_ROUTES[$route_key]:-}" ]]; then
-    continue
-  fi
-  CHECKED_ROUTES[$route_key]=1
+    [[ "$uses_external" != "yes" ]] && continue
 
-  # Validate security labels
-  if [[ "$auth_required" == "true" ]]; then
-    echo -e "${GREEN}✓${NC} ${route_namespace}/${route_name} - Protected (auth-required: true)"
-    echo "   File: $route_file"
-  elif [[ "$public" == "true" ]]; then
-    echo -e "${YELLOW}⚠${NC}  ${route_namespace}/${route_name} - Public (verify opt-out SecurityPolicy exists)"
-    echo "   File: $route_file"
-    echo "   Note: Ensure public-access component is included in kustomization.yaml"
-  else
-    echo -e "${RED}✗${NC} ${route_namespace}/${route_name} - MISSING SECURITY LABEL"
-    echo "   File: $route_file"
-    echo "   Action: Add one of these labels:"
-    echo "     - security.home-ops/auth-required: \"true\"  (for protected routes)"
-    echo "     - security.home-ops/public: \"true\"          (for public routes)"
+    route_name=$(yq eval-all "select(.kind == \"HTTPRoute\") | select(document_index == $i) | .metadata.name" "$file" 2>/dev/null | head -1)
+    route_ns=$(yq eval-all "select(.kind == \"HTTPRoute\") | select(document_index == $i) | .metadata.namespace" "$file" 2>/dev/null | head -1)
+    hostnames=$(yq eval-all "select(.kind == \"HTTPRoute\") | select(document_index == $i) | .spec.hostnames[]" "$file" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+
+    [[ -z "$route_name" || "$route_name" == "null" ]] && continue
+
+    ((ROUTE_COUNT++)) || true
+    route_key="${route_ns:-unknown}/${route_name}"
+
+    if [[ -n "${PUBLIC_ROUTES[$route_key]:-}" ]]; then
+      echo -e "${YELLOW}⚠${NC}  [PUBLIC] ${route_key}"
+      echo "   Hostnames: ${hostnames}"
+      echo "   Has SecurityPolicy override at: ${PUBLIC_ROUTES[$route_key]}"
+      echo "   File: ${rel_file}"
+      ((PUBLIC_COUNT++)) || true
+    else
+      echo -e "${GREEN}✓${NC}  [PROTECTED] ${route_key}"
+      echo "   Hostnames: ${hostnames}"
+      echo "   Protected by gateway-level Authentik forward-auth (default)"
+      ((PROTECTED_COUNT++)) || true
+    fi
     echo ""
-    VALIDATION_FAILED=true
-  fi
-done < "$TEMP_FILE"
+  done
 
-rm -f "$TEMP_FILE"
+done < <(find "$KUBERNETES_DIR/apps" -name "*.yaml" ! -name "*.sops.yaml" -print0)
 
+echo "---"
+echo "Summary: ${ROUTE_COUNT} external route(s) — ${PROTECTED_COUNT} protected, ${PUBLIC_COUNT} public opt-out"
 echo ""
 
-if [[ "$VALIDATION_FAILED" == "true" ]]; then
-  echo -e "${RED}❌ Validation failed!${NC}"
-  echo ""
-  echo "External routes must have explicit security configuration:"
-  echo "  1. Add security.home-ops/auth-required: \"true\" to rely on gateway default auth"
-  echo "  2. Add security.home-ops/public: \"true\" AND include public-access component to opt-out"
-  echo ""
-  exit 1
+if [[ $ROUTE_COUNT -eq 0 ]]; then
+  echo -e "${CYAN}No external HTTPRoutes found.${NC}"
 else
-  echo -e "${GREEN}✅ All external routes have proper security configuration${NC}"
-  exit 0
+  echo -e "${GREEN}✅ All external routes have documented security posture${NC}"
+  if [[ $PUBLIC_COUNT -gt 0 ]]; then
+    echo ""
+    echo "Public routes above bypass Authentik auth. Verify each one is intentionally public."
+    echo "If an app has OIDC built-in (Authentik itself, etc.), this is expected."
+  fi
 fi

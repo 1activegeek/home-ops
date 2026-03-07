@@ -1,0 +1,31 @@
+---
+extends: default
+
+rules:
+  # K8s YAML frequently has long lines (base64, URLs, etc.)
+  line-length: disable
+  # K8s manifests don't use document-start (---) consistently
+  document-start: disable
+  # Comment indentation is fine as-is in K8s manifests
+  comments-indentation: disable
+  # Allow both styles
+  comments:
+    min-spaces-from-content: 1
+  # K8s uses truthy values like 'true'/'false' freely
+  truthy:
+    allowed-values: ['true', 'false']
+    check-keys: false
+  # Allow empty values
+  empty-values:
+    forbid-in-block-mappings: false
+    forbid-in-flow-mappings: false
+  # K8s uses octal values for permissions
+  octal-values:
+    forbid-implicit-octal: false
+    forbid-explicit-octal: false
+
+ignore: |
+  *.sops.yaml
+  talos/clusterconfig/
+  .venv/
+  .pre-commit-config.yaml
