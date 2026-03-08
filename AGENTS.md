@@ -94,6 +94,15 @@ task validate:security-ctx  # UID/security context compatibility warnings
 | `validate:substitutions` | `${VAR}` in ConfigMap/values silently emptied by Flux |
 | `validate:flux` | Helm template errors, invalid schema, rendering failures |
 
+### 4. Authentication And Documentation Governance
+
+Before adding or changing any routed application, read `docs/architecture/authentication.md`.
+
+- `envoy-external` apps must always have an explicit auth decision documented.
+- `envoy-internal` apps may remain open by default, but the chosen auth mode should still be recorded.
+- Public docs must not include sensitive operational details such as private IPs, storage mount paths, private email addresses, secret names, or redirect URIs.
+- After each completed phase or deployable change, update `docs/deployment-plan.md` and `.private/deployment-plan.md`.
+
 #### Known patterns that cause failures
 
 **bjw-s app-template service naming** — HTTPRoute backendRefs must match the rendered service name:
