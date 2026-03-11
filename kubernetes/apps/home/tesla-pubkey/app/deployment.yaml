@@ -1,0 +1,36 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tesla-pubkey
+  namespace: home
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tesla-pubkey
+  template:
+    metadata:
+      labels:
+        app: tesla-pubkey
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 5m
+              memory: 16Mi
+          volumeMounts:
+            - name: pubkey
+              mountPath: /usr/share/nginx/html/.well-known/appspecific/com.tesla.3p.public-key.pem
+              subPath: public-key.pem
+      volumes:
+        - name: pubkey
+          configMap:
+            name: tesla-pubkey
