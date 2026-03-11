@@ -7,6 +7,19 @@ metadata:
   name: tesla-pubkey
   namespace: home
 data:
+  nginx.conf: |
+    server_tokens off;
+    server {
+      listen 80;
+      location = /.well-known/appspecific/com.tesla.3p.public-key.pem {
+        root /usr/share/nginx/html;
+        default_type application/x-pem-file;
+        add_header Cache-Control "public, max-age=3600";
+      }
+      location / {
+        return 404;
+      }
+    }
   public-key.pem: |
     -----BEGIN PUBLIC KEY-----
     MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcA5m0kUyrcPBsbGw4FGmIgWQYwzN

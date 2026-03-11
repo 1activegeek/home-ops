@@ -30,6 +30,9 @@ spec:
             - name: pubkey
               mountPath: /usr/share/nginx/html/.well-known/appspecific/com.tesla.3p.public-key.pem
               subPath: public-key.pem
+            - name: pubkey
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: nginx.conf
       volumes:
         - name: pubkey
           configMap:
