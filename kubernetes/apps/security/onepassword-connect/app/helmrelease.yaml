@@ -23,7 +23,7 @@ spec:
         name: connect-api
         image:
           repository: ghcr.io/1password/connect-api
-          tag: "1.8.1"
+          tag: "1.8.2"
           pullPolicy: IfNotPresent
         resources:
           requests:
