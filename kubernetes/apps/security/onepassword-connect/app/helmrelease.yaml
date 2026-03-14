@@ -38,7 +38,7 @@ spec:
         name: connect-sync
         image:
           repository: ghcr.io/1password/connect-sync
-          tag: "1.8.1"
+          tag: "1.8.2"
           pullPolicy: IfNotPresent
         resources:
           requests:
