@@ -11,7 +11,7 @@ spec:
       # Chart 2.3.0 changed credentials mounting from OP_SESSION env var (base64)
       # to file-based (raw JSON). Our SOPS secret stores credentials as base64,
       # causing Connect to fail. Needs SOPS secret re-encoding before upgrading. #remediate
-      version: "=2.2.1"
+      version: "=2.4.0"
       sourceRef:
         kind: HelmRepository
         name: onepassword-connect
