@@ -549,6 +549,10 @@ persistence:
     size: 1Gi
 ```
 
+## Migration Project
+
+For active deployment work (migrating apps from Synology NAS to this cluster), also read `.private/AGENTS-NEW.md` for session workflow instructions. That file references `.private/PRD.md` (project plan and task board) and `.private/SESSION_STATE.md` (session continuity).
+
 ## Version Management
 
 | Component | Location | Update Method |
