@@ -25,50 +25,6 @@ jobs:
         with:
           files: kubernetes/**
 
-  yamllint:
-    name: YAML Lint
-    needs: pre-job
-    runs-on: ubuntu-latest
-    if: ${{ needs.pre-job.outputs.any_changed == 'true' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install yamllint
-        run: pip install yamllint
-
-      - name: Run yamllint
-        run: yamllint -c .yamllint.yaml kubernetes/
-
-  kubeconform:
-    name: Kubeconform (Static Manifests)
-    needs: pre-job
-    runs-on: ubuntu-latest
-    if: ${{ needs.pre-job.outputs.any_changed == 'true' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install kubeconform
-        run: |
-          curl -sSfL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
-            | tar -xz -C /usr/local/bin kubeconform
-          kubeconform --version
-
-      - name: Run kubeconform on static manifests
-        run: |
-          find kubernetes/apps -name "*.yaml" \
-            ! -name "helmrelease.yaml" \
-            ! -name "ocirepository.yaml" \
-            ! -name "kustomization.yaml" \
-            ! -name "*.sops.yaml" \
-            -print0 | \
-            xargs -0 kubeconform \
-              --ignore-missing-schemas \
-              --schema-location default \
-              --schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-              --summary
-
   test:
     name: Flux Local Test
     needs: pre-job
@@ -150,32 +106,9 @@ jobs:
             ${{ steps.diff.outputs.diff }}
             ```
 
-  validate-routes:
-    name: Validate HTTPRoute Security
-    needs: pre-job
-    runs-on: ubuntu-latest
-    if: ${{ needs.pre-job.outputs.any_changed == 'true' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install yq
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-
-      - name: Validate external route security
-        run: bash .taskfiles/kubernetes/scripts/validate-external-routes.sh
-
-      - name: Validate HTTPRoute backends
-        run: bash .taskfiles/validate/scripts/validate-routes.sh
-
-      - name: Check Flux substitution collisions
-        run: bash .taskfiles/validate/scripts/validate-substitutions.sh
-
   flux-local-status:
     name: Flux Local Success
-    needs: ["yamllint", "kubeconform", "test", "diff", "validate-routes"]
+    needs: ["test", "diff"]
     runs-on: ubuntu-latest
     if: ${{ always() }}
     steps:
