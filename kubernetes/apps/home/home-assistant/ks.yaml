@@ -18,6 +18,6 @@ spec:
   targetNamespace: home
   wait: false
   dependsOn:
-    - name: mosquitto
     - name: zwave-js-ui
     - name: matter-server
+    # - name: mosquitto ## Disabling for now, likely to archive later
