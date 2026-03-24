@@ -8,6 +8,6 @@ components:
 
 resources:
   - ./namespace.yaml
-  - ./kms/ks.yaml
   - ./forgejo/ks.yaml
-  - ./zipline/ks.yaml
+  # - ./zipline/ks.yaml ## Disabling temporarily
+  # - ./kms/ks.yaml ## Disabling for now, likely to archive later

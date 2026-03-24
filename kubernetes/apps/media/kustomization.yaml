@@ -9,6 +9,6 @@ components:
 resources:
   - ./namespace.yaml
   - ./metube/ks.yaml
-  - ./qbittorrent/ks.yaml
-  - ./plex/ks.yaml
-  - ./sabnzbd/ks.yaml
+  # - ./plex/ks.yaml ## Disabling temporarily
+  # - ./sabnzbd/ks.yaml ## Disabling temporarily
+  # - ./qbittorrent/ks.yaml ## Disabling temporarily

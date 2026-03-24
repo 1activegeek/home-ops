@@ -8,9 +8,9 @@ components:
 
 resources:
   - ./namespace.yaml
-  - ./mosquitto/ks.yaml
   - ./zwave-js-ui/ks.yaml
   - ./matter-server/ks.yaml
   - ./home-assistant/ks.yaml
-  - ./esphome/ks.yaml
   - ./tesla-pubkey/ks.yaml
+  # - ./mosquitto/ks.yaml ## Disabling for now, likely to archive later
+  # - ./esphome/ks.yaml ## Disabling for now, likely to archive later
