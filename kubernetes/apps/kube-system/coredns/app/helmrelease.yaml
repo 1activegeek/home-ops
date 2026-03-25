@@ -38,6 +38,14 @@ spec:
               fallthrough in-addr.arpa ip6.arpa
           - name: autopath
             parameters: "@kubernetes"
+          - name: hosts
+            configBlock: |-
+              10.0.3.2 radarr.thegeekybits.com
+              10.0.3.2 radarr4k.thegeekybits.com
+              10.0.3.2 sonarr.thegeekybits.com
+              10.0.3.2 tautulli.thegeekybits.com
+              10.0.3.2 plex.thegeekybits.com
+              fallthrough
           - name: forward
             parameters: . /etc/resolv.conf
           - name: cache
