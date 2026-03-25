@@ -12,7 +12,7 @@ spec:
       sectionName: https
   rules:
     - backendRefs:
-        - name: seerr-app
+        - name: seerr
           port: 5055
 ---
 apiVersion: gateway.envoyproxy.io/v1alpha1
