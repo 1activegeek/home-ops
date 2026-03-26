@@ -21,6 +21,8 @@ spec:
               - /data
               - --paa-root-cert-dir
               - /data/credentials
+              - --primary-interface
+              - enp2s0
             env:
               TZ: America/New_York
             securityContext:
@@ -34,6 +36,8 @@ spec:
 
     defaultPodOptions:
       hostNetwork: true  # Matter requires host networking
+      nodeSelector:
+        kubernetes.io/hostname: asgard-mpc-01
 
     service:
       app:
