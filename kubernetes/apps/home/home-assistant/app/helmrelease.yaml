@@ -72,11 +72,8 @@ spec:
         runAsUser: 0 # HA needs root for some integrations
         runAsGroup: 0
         fsGroup: 0
-
-    # Uncomment and set hostname when USB devices are attached
-    # defaultPodOptions:
-    #   nodeSelector:
-    #     kubernetes.io/hostname: <node-with-usb>
+      nodeSelector:
+        kubernetes.io/hostname: asgard-mpc-01
 
     service:
       app:
@@ -98,12 +95,11 @@ spec:
         size: 25Gi
         globalMounts:
           - path: /config
-      # Uncomment for AlarmDecoder USB device
-      # alarmdecoder-usb:
-      #   type: hostPath
-      #   hostPath: /dev/serial/by-id/<alarmdecoder-device-id>
-      #   globalMounts:
-      #     - path: /dev/ttyUSB0
+      alarmdecoder-usb:
+        type: hostPath
+        hostPath: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A1018WZB-if00-port0
+        globalMounts:
+          - path: /dev/ttyUSB0
 
     route:
       app:

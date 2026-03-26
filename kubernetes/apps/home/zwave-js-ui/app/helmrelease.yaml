@@ -25,14 +25,12 @@ spec:
                 memory: 256Mi
               limits:
                 memory: 512Mi
-            # Uncomment for USB access
-            # securityContext:
-            #   privileged: true
+            securityContext:
+              privileged: true
 
-    # Uncomment and set hostname when USB device is attached
-    # defaultPodOptions:
-    #   nodeSelector:
-    #     kubernetes.io/hostname: <node-with-zwave>
+    defaultPodOptions:
+      nodeSelector:
+        kubernetes.io/hostname: asgard-mpc-01
 
     service:
       app:
@@ -51,12 +49,11 @@ spec:
         size: 1Gi
         globalMounts:
           - path: /usr/src/app/store
-      # Uncomment for Z-Wave USB device
-      # zwave-usb:
-      #   type: hostPath
-      #   hostPath: /dev/serial/by-id/<zwave-device-id>
-      #   globalMounts:
-      #     - path: /dev/zwave
+      zwave-usb:
+        type: hostPath
+        hostPath: /dev/serial/by-id/usb-Silicon_Labs_Zooz_ZST10_700_Z-Wave_Stick_0001-if00-port0
+        globalMounts:
+          - path: /dev/zwave
 
     route:
       app:
