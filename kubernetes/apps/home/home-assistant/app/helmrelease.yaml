@@ -40,6 +40,8 @@ spec:
                     port: 8123
                   initialDelaySeconds: 10
                   periodSeconds: 10
+            securityContext:
+              privileged: true  # Required for AlarmDecoder USB serial access
             resources:
               requests:
                 cpu: 100m
