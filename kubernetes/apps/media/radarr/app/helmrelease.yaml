@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/radarr
-              tag: 5.19.3.9730
+              tag: rolling
             env:
               TZ: America/New_York
               RADARR__APP__INSTANCENAME: Radarr
