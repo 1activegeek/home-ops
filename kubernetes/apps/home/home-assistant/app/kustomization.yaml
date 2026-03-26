@@ -5,3 +5,20 @@ resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./httproute-external.yaml
+components:
+  - ../../../../components/public-access
+replacements:
+  - source:
+      kind: HTTPRoute
+      name: home-assistant-external
+      fieldPath: metadata.name
+    targets:
+      - select:
+          kind: SecurityPolicy
+          name: public-access
+        fieldPaths:
+          - spec.targetRefs.0.name
+          - metadata.name
+        options:
+          delimiter: '-'
+          index: 1
