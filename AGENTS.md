@@ -101,7 +101,7 @@ Before adding or changing any routed application, read `docs/architecture/authen
 - `envoy-external` apps must always have an explicit auth decision documented.
 - `envoy-internal` apps may remain open by default, but the chosen auth mode should still be recorded.
 - Public docs must not include sensitive operational details such as private IPs, storage mount paths, private email addresses, secret names, or redirect URIs.
-- After each completed phase or deployable change, update `docs/deployment-plan.md` and `.private/deployment-plan.md`.
+- After each completed phase or deployable change, update `docs/deployment-plan.md` and `.private/PRD.md`.
 
 #### Known patterns that cause failures
 
@@ -551,7 +551,7 @@ persistence:
 
 ## Migration Project
 
-For active deployment work (migrating apps from Synology NAS to this cluster), also read `.private/AGENTS-NEW.md` for session workflow instructions. That file references `.private/PRD.md` (project plan and task board) and `.private/SESSION_STATE.md` (session continuity).
+For active deployment work (migrating apps from Synology NAS to this cluster), also read `.private/SESSION_WORKFLOW.md` for session workflow instructions. That file references `.private/PRD.md` (project plan and task board) and `.private/migration-state.md` (session continuity).
 
 ## Version Management
 

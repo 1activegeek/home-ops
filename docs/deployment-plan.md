@@ -1,6 +1,6 @@
 # Cluster Application Deployment Plan
 
-> **Note:** Sensitive details (network topology, internal service URLs, secret naming, migration commands, storage paths, redirect URIs, and private contact details) are stored in `.private/deployment-plan.md` (gitignored). This public version covers architecture, phases, auth policy, and status tracking.
+> **Note:** Sensitive details (network topology, internal service URLs, secret naming, migration commands, storage paths, redirect URIs, and private contact details) are stored in `.private/PRD.md` (gitignored). This public version covers architecture, phases, auth policy, and status tracking.
 
 ## Context
 
@@ -186,7 +186,7 @@ Apps migrating from Docker follow this general process:
 
 **Apps being migrated:** Prowlarr, Sonarr, Radarr, Radarr-4K, Autoscan, Overseerr (to Seerr), Tautulli, Teslamate
 
-See `.private/deployment-plan.md` for detailed migration commands, path mappings, and secret extraction steps.
+See `.private/PRD.md` for detailed migration commands, path mappings, and secret extraction steps.
 
 ---
 

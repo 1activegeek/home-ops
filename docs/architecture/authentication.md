@@ -43,7 +43,7 @@ When adding or changing a routed app:
 1. Record its exposure (`external`, `internal`, or `cluster_internal`) and auth mode in the relevant plan docs.
 2. Update `docs/deployment-plan.md` with the high-level decision.
 3. Keep sensitive operational details out of public docs. Do not commit IPs, storage paths, private email addresses, secret names, redirect URIs, or other near-secret deployment details unless they are already intentionally public.
-4. Update `.private/deployment-plan.md` only when private operational detail is truly required.
+4. Update `.private/PRD.md` only when private operational detail is truly required.
 5. Update the deployment status and session log when the phase changes.
 
 ## Validation Rules
