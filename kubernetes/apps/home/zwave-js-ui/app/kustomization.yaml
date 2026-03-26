@@ -4,4 +4,4 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
-  - ./httproute-external.yaml
+  # - ./httproute-external.yaml ##Disabling for now
