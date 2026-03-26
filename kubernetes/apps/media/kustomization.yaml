@@ -13,7 +13,7 @@ resources:
   - ./prowlarr/ks.yaml
   - ./sonarr/ks.yaml
   - ./radarr/ks.yaml
-  - ./radarr-4k/ks.yaml
+  - ./radarr4k/ks.yaml
   # - ./plex/ks.yaml ## Disabling temporarily
   # - ./sabnzbd/ks.yaml ## Disabling temporarily
   # - ./qbittorrent/ks.yaml ## Disabling temporarily
