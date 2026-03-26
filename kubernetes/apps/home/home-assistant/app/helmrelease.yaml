@@ -99,7 +99,7 @@ spec:
         type: hostPath
         hostPath: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A1018WZB-if00-port0
         globalMounts:
-          - path: /dev/ttyUSB0
+          - path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A1018WZB-if00-port0
 
     route:
       app:
