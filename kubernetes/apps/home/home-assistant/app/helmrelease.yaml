@@ -70,6 +70,7 @@ spec:
                 memory: 512Mi
 
     defaultPodOptions:
+      hostNetwork: true
       securityContext:
         runAsUser: 0 # HA needs root for some integrations
         runAsGroup: 0
