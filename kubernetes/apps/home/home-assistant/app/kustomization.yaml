@@ -15,10 +15,9 @@ replacements:
     targets:
       - select:
           kind: SecurityPolicy
-          name: public-access
         fieldPaths:
           - spec.targetRefs.0.name
           - metadata.name
         options:
           delimiter: '-'
-          index: 1
+          index: 0
