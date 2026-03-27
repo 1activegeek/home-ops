@@ -12,5 +12,6 @@ resources:
   - ./matter-server/ks.yaml
   - ./home-assistant/ks.yaml
   - ./tesla-pubkey/ks.yaml
-  # - ./mosquitto/ks.yaml ## Disabling for now, likely to archive later
+  - ./mosquitto/ks.yaml
+  - ./teslamate/ks.yaml
   # - ./esphome/ks.yaml ## Disabling for now, likely to archive later
