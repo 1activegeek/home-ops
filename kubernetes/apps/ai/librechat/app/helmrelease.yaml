@@ -36,6 +36,11 @@ spec:
                   secretKeyRef:
                     name: librechat-secret
                     key: jwt_secret
+              JWT_REFRESH_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: librechat-secret
+                    key: jwt_refresh_secret
               CREDS_KEY:
                 valueFrom:
                   secretKeyRef:
