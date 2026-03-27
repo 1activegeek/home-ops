@@ -1,0 +1,22 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: librechat-config
+data:
+  librechat.yaml: |
+    version: 1.1.5
+    cache: true
+    endpoints:
+      custom:
+        - name: "Ollama (via LiteLLM)"
+          apiKey: "${LITELLM_MASTER_KEY}"
+          baseURL: "http://litellm-main.ai.svc.cluster.local:4000"
+          models:
+            default: ["llama3.2", "phi3"]
+            fetch: false
+          titleConvo: true
+          titleModel: "llama3.2"
+          summarize: false
+          summaryModel: "llama3.2"
+          modelDisplayLabel: "Ollama"

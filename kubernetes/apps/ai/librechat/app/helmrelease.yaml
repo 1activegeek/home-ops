@@ -1,0 +1,151 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: librechat
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: librechat
+  interval: 1h
+  values:
+    controllers:
+      main:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/danny-avila/librechat
+              tag: latest
+            env:
+              HOST: "0.0.0.0"
+              PORT: "3080"
+              NODE_ENV: "production"
+              ALLOW_REGISTRATION: "true"
+              ALLOW_EMAIL_LOGIN: "true"
+              ALLOW_SOCIAL_LOGIN: "false"
+              ALLOW_SOCIAL_REGISTRATION: "false"
+              MONGO_URI:
+                valueFrom:
+                  secretKeyRef:
+                    name: librechat-secret
+                    key: mongo_uri
+              JWT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: librechat-secret
+                    key: jwt_secret
+              CREDS_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: librechat-secret
+                    key: creds_key
+              CREDS_IV:
+                valueFrom:
+                  secretKeyRef:
+                    name: librechat-secret
+                    key: creds_iv
+              LITELLM_MASTER_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: litellm-secret
+                    key: master_key
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/health
+                    port: &port 3080
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+              readiness: *probes
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+
+      mongodb:
+        containers:
+          mongodb:
+            image:
+              repository: mongo
+              tag: "7"
+            env:
+              MONGO_INITDB_ROOT_USERNAME: librechat
+              MONGO_INITDB_ROOT_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: librechat-secret
+                    key: mongo_password
+              MONGO_INITDB_DATABASE: LibreChat
+            resources:
+              requests:
+                cpu: 50m
+                memory: 256Mi
+              limits:
+                memory: 512Mi
+        pod:
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+
+    service:
+      main:
+        controller: main
+        ports:
+          http:
+            port: *port
+      mongodb:
+        controller: mongodb
+        ports:
+          mongodb:
+            port: 27017
+
+    persistence:
+      uploads:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        advancedMounts:
+          main:
+            app:
+              - path: /app/uploads
+      config:
+        type: configMap
+        name: librechat-config
+        advancedMounts:
+          main:
+            app:
+              - path: /app/librechat.yaml
+                subPath: librechat.yaml
+                readOnly: true
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        advancedMounts:
+          mongodb:
+            mongodb:
+              - path: /data/db
+
+    route:
+      app:
+        hostnames: ["librechat.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: librechat-main
+                port: 3080
