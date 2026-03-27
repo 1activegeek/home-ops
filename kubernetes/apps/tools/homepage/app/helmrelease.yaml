@@ -20,6 +20,7 @@ spec:
               tag: latest
             env:
               TZ: America/New_York
+              HOMEPAGE_ALLOWED_HOSTS: "home.${SECRET_DOMAIN}"
               HOMEPAGE_VAR_TAUTULLI_API_KEY:
                 valueFrom:
                   secretKeyRef:
