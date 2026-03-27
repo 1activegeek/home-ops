@@ -16,13 +16,13 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/booklore-app/booklore
+              repository: booklore/booklore
               tag: latest
             env:
               TZ: America/New_York
-              SPRING_DATASOURCE_URL: "jdbc:mariadb://booklore-mariadb:3306/booklore"
-              SPRING_DATASOURCE_USERNAME: booklore
-              SPRING_DATASOURCE_PASSWORD:
+              DATABASE_URL: "jdbc:mariadb://booklore-mariadb:3306/booklore"
+              DATABASE_USERNAME: booklore
+              DATABASE_PASSWORD:
                 valueFrom:
                   secretKeyRef:
                     name: booklore-secret
