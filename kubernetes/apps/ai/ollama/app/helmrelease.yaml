@@ -1,0 +1,43 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ollama
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: ollama
+  interval: 1h
+  values:
+    controllers:
+      main:
+        containers:
+          app:
+            image:
+              repository: ollama/ollama
+              tag: latest
+            env:
+              OLLAMA_HOST: "0.0.0.0"
+            resources:
+              requests:
+                cpu: 2000m
+                memory: 4Gi
+              limits:
+                memory: 8Gi
+
+    service:
+      main:
+        controller: main
+        type: ClusterIP
+        ports:
+          http:
+            port: &port 11434
+
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 50Gi
+        globalMounts:
+          - path: /root/.ollama
