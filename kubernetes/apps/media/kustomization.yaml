@@ -17,6 +17,8 @@ resources:
   - ./tautulli/ks.yaml
   - ./autoscan/ks.yaml
   - ./recyclarr/ks.yaml
+  - ./bazarr/ks.yaml
+  - ./unpackerr/ks.yaml
   # - ./plex/ks.yaml ## Disabling temporarily
   # - ./sabnzbd/ks.yaml ## Disabling temporarily
   # - ./qbittorrent/ks.yaml ## Disabling temporarily

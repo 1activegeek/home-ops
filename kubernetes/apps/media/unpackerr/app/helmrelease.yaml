@@ -1,0 +1,55 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: unpackerr
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: unpackerr
+  interval: 1h
+  values:
+    controllers:
+      unpackerr:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        strategy: Recreate
+        containers:
+          app:
+            image:
+              repository: ghcr.io/unpackerr/unpackerr
+              tag: latest
+            env:
+              TZ: America/New_York
+              UN_SONARR_0_URL: http://sonarr.media.svc.cluster.local:8989
+              UN_SONARR_0_PATHS_0: /data/downloads/complete/sonarr
+              UN_RADARR_0_URL: http://radarr.media.svc.cluster.local:7878
+              UN_RADARR_0_PATHS_0: /data/downloads/complete/radarr
+              UN_RADARR_1_URL: http://radarr4k.media.svc.cluster.local:7878
+              UN_RADARR_1_PATHS_0: /data/downloads/complete/radarr4k
+            envFrom:
+              - secretRef:
+                  name: unpackerr-secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 256Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: ${MEDIA_UID}
+        runAsGroup: ${MEDIA_GID}
+        fsGroup: ${MEDIA_GID}
+    persistence:
+      downloads:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/downloads
+        globalMounts:
+          - path: /data/downloads
