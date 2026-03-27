@@ -15,6 +15,7 @@ resources:
   - ./radarr/ks.yaml
   - ./radarr4k/ks.yaml
   - ./tautulli/ks.yaml
+  - ./autoscan/ks.yaml
   # - ./plex/ks.yaml ## Disabling temporarily
   # - ./sabnzbd/ks.yaml ## Disabling temporarily
   # - ./qbittorrent/ks.yaml ## Disabling temporarily
