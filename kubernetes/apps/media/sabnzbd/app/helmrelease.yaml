@@ -55,9 +55,9 @@ spec:
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 65534
-        runAsGroup: 65534
-        fsGroup: 65534
+        runAsUser: ${MEDIA_UID}
+        runAsGroup: ${MEDIA_GID}
+        fsGroup: ${MEDIA_GID}
     service:
       app:
         controller: sabnzbd
