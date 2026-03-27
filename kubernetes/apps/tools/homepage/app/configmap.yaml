@@ -93,9 +93,6 @@ data:
             icon: gatus.svg
             href: https://status.${SECRET_DOMAIN}
             description: Uptime Monitoring
-            widget:
-              type: gatus
-              url: http://gatus.monitoring.svc.cluster.local:8080
         - Authentik:
             icon: authentik.svg
             href: https://auth.${SECRET_DOMAIN}
