@@ -1,0 +1,128 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-config
+data:
+  settings.yaml: |
+    title: Home Ops
+    theme: dark
+    color: slate
+    headerStyle: clean
+    layout:
+      Media:
+        style: row
+        columns: 4
+      Home:
+        style: row
+        columns: 2
+      Infrastructure:
+        style: row
+        columns: 3
+      Tools:
+        style: row
+        columns: 4
+
+  widgets.yaml: |
+    - kubernetes:
+        cluster:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+        nodes:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+    - datetime:
+        text_size: xl
+        format:
+          dateStyle: long
+          timeStyle: short
+
+  services.yaml: |
+    - Media:
+        - Seerr:
+            icon: overseerr.svg
+            href: https://requests.${SECRET_DOMAIN}
+            description: Media Requests
+            widget:
+              type: overseerr
+              url: http://seerr.media.svc.cluster.local:5055
+              key: "{{HOMEPAGE_VAR_SEERR_API_KEY}}"
+        - Radarr:
+            icon: radarr.svg
+            href: https://radarr.${SECRET_DOMAIN}
+            description: Movies
+            widget:
+              type: radarr
+              url: http://radarr.media.svc.cluster.local:7878
+              key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
+        - Sonarr:
+            icon: sonarr.svg
+            href: https://sonarr.${SECRET_DOMAIN}
+            description: TV Shows
+            widget:
+              type: sonarr
+              url: http://sonarr.media.svc.cluster.local:8989
+              key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
+        - Tautulli:
+            icon: tautulli.svg
+            href: https://tautulli.${SECRET_DOMAIN}
+            description: Plex Stats
+            widget:
+              type: tautulli
+              url: http://tautulli.media.svc.cluster.local:8181
+              key: "{{HOMEPAGE_VAR_TAUTULLI_API_KEY}}"
+    - Home:
+        - Home Assistant:
+            icon: home-assistant.svg
+            href: https://ha.${SECRET_DOMAIN}
+            description: Home Automation
+        - TeslaMate:
+            icon: teslamate.svg
+            href: https://teslamate.${SECRET_DOMAIN}
+            description: Tesla Tracking
+    - Infrastructure:
+        - Grafana:
+            icon: grafana.svg
+            href: https://grafana.${SECRET_DOMAIN}
+            description: Monitoring Dashboards
+        - Gatus:
+            icon: gatus.svg
+            href: https://status.${SECRET_DOMAIN}
+            description: Uptime Monitoring
+            widget:
+              type: gatus
+              url: http://gatus.monitoring.svc.cluster.local:8080
+        - Authentik:
+            icon: authentik.svg
+            href: https://auth.${SECRET_DOMAIN}
+            description: Identity Provider
+    - Tools:
+        - Forgejo:
+            icon: gitea.svg
+            href: https://git.${SECRET_DOMAIN}
+            description: Git Repos
+        - Shlink:
+            icon: shlink.svg
+            href: https://shlink.${SECRET_DOMAIN}
+            description: URL Shortener
+        - Zipline:
+            icon: zipline.svg
+            href: https://zipline.${SECRET_DOMAIN}
+            description: File Sharing
+        - Apprise:
+            icon: apprise.svg
+            href: https://apprise.${SECRET_DOMAIN}
+            description: Notifications
+
+  bookmarks.yaml: |
+    - Developer:
+        - GitHub:
+            - icon: github.svg
+              href: https://github.com
+        - Claude:
+            - icon: claude.svg
+              href: https://claude.ai

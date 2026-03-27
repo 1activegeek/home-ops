@@ -12,4 +12,5 @@ resources:
   - ./shlink/ks.yaml
   - ./apprise/ks.yaml
   - ./zipline/ks.yaml
+  - ./homepage/ks.yaml
   # - ./kms/ks.yaml ## Disabling for now, likely to archive later
