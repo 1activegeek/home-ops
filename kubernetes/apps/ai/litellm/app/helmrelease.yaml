@@ -20,16 +20,6 @@ spec:
               tag: main-latest
             args: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1"]
             env:
-              ANTHROPIC_API_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: litellm-secret
-                    key: anthropic_api_key
-              OPENAI_API_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: litellm-secret
-                    key: openai_api_key
               LITELLM_MASTER_KEY:
                 valueFrom:
                   secretKeyRef:
