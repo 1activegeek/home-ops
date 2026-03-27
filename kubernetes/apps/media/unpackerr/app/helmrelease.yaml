@@ -22,11 +22,11 @@ spec:
             env:
               TZ: America/New_York
               UN_SONARR_0_URL: http://sonarr.media.svc.cluster.local:8989
-              UN_SONARR_0_PATHS_0: /data/downloads/complete/sonarr
+              UN_SONARR_0_PATHS_0: /data/media/downloads/complete/sonarr
               UN_RADARR_0_URL: http://radarr.media.svc.cluster.local:7878
-              UN_RADARR_0_PATHS_0: /data/downloads/complete/radarr
+              UN_RADARR_0_PATHS_0: /data/media/downloads/complete/radarr
               UN_RADARR_1_URL: http://radarr4k.media.svc.cluster.local:7878
-              UN_RADARR_1_PATHS_0: /data/downloads/complete/radarr4k
+              UN_RADARR_1_PATHS_0: /data/media/downloads/complete/radarr4k
             envFrom:
               - secretRef:
                   name: unpackerr-secret
@@ -47,9 +47,9 @@ spec:
         runAsGroup: ${MEDIA_GID}
         fsGroup: ${MEDIA_GID}
     persistence:
-      downloads:
+      media:
         type: nfs
         server: ${NFS_SERVER}
-        path: /volume1/downloads
+        path: /volume1/media
         globalMounts:
-          - path: /data/downloads
+          - path: /data/media
