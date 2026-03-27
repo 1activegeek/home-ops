@@ -57,5 +57,5 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: apprise-main
+              - name: apprise
                 port: 8000
