@@ -16,7 +16,7 @@ spec:
         containers:
           app:
             image:
-              repository: booklore/booklore
+              repository: booklore/booklore-app
               tag: latest
             env:
               TZ: America/New_York
