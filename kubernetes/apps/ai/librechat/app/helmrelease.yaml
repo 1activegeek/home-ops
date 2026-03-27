@@ -22,7 +22,7 @@ spec:
               HOST: "0.0.0.0"
               PORT: "3080"
               NODE_ENV: "production"
-              ALLOW_REGISTRATION: "true"
+              ALLOW_REGISTRATION: "false"
               ALLOW_EMAIL_LOGIN: "true"
               ALLOW_SOCIAL_LOGIN: "false"
               ALLOW_SOCIAL_REGISTRATION: "false"
