@@ -15,7 +15,7 @@ data:
         database: teslamate
         user: teslamate
         secureJsonData:
-          password: "${db_password}"
+          password: "${TESLAMATE_DB_PASSWORD}"
         jsonData:
           sslmode: disable
           postgresVersion: 1700

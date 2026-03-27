@@ -10,9 +10,8 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
-      - name: teslamate-secret
+      - name: teslamate-grafana-vars
         kind: Secret
-        namespace: home
         optional: false
   prune: true
   sourceRef:

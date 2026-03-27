@@ -14,5 +14,6 @@ resources:
   - ./tesla-pubkey/ks.yaml
   - ./mosquitto/ks.yaml
   - ./teslamate/ks.yaml
+  - ./teslamate/grafana-externalsecret.yaml
   - ./teslamate/grafana-ks.yaml
   # - ./esphome/ks.yaml ## Disabling for now, likely to archive later
