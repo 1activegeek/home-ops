@@ -11,14 +11,6 @@ data:
         api_key: !env_var SONARR_API_KEY
         quality_definition:
           type: series
-        quality_profiles:
-          - name: WEB-DL (1080p)
-            reset_unmatched_scores:
-              enabled: true
-        custom_formats:
-          - trash_ids: []
-            assign_scores_to:
-              - name: WEB-DL (1080p)
 
     radarr:
       radarr:
@@ -26,25 +18,9 @@ data:
         api_key: !env_var RADARR_API_KEY
         quality_definition:
           type: movie
-        quality_profiles:
-          - name: HD Bluray + WEB
-            reset_unmatched_scores:
-              enabled: true
-        custom_formats:
-          - trash_ids: []
-            assign_scores_to:
-              - name: HD Bluray + WEB
 
       radarr-4k:
         base_url: http://radarr4k.media.svc.cluster.local:7878
         api_key: !env_var RADARR_4K_API_KEY
         quality_definition:
           type: movie
-        quality_profiles:
-          - name: UHD Bluray + WEB
-            reset_unmatched_scores:
-              enabled: true
-        custom_formats:
-          - trash_ids: []
-            assign_scores_to:
-              - name: UHD Bluray + WEB
