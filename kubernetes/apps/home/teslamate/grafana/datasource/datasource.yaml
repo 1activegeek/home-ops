@@ -10,6 +10,7 @@ data:
     apiVersion: 1
     datasources:
       - name: TeslaMate
+        uid: TeslaMate
         type: postgres
         url: teslamate-postgres.home.svc.cluster.local:5432
         database: teslamate
