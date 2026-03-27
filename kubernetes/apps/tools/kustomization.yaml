@@ -10,5 +10,6 @@ resources:
   - ./namespace.yaml
   - ./forgejo/ks.yaml
   - ./shlink/ks.yaml
-  # - ./zipline/ks.yaml ## Disabling temporarily
+  - ./apprise/ks.yaml
+  - ./zipline/ks.yaml
   # - ./kms/ks.yaml ## Disabling for now, likely to archive later

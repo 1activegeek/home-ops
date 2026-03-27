@@ -1,0 +1,61 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: apprise
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: apprise
+  interval: 1h
+  values:
+    controllers:
+      main:
+        containers:
+          app:
+            image:
+              repository: linuxserver/apprise-api
+              tag: latest
+            env:
+              TZ: America/New_York
+              PUID: "1027"
+              PGID: "100"
+            probes:
+              liveness:
+                enabled: true
+              readiness:
+                enabled: true
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
+    service:
+      main:
+        controller: main
+        ports:
+          http:
+            port: 8000
+
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 256Mi
+        globalMounts:
+          - path: /config
+
+    route:
+      app:
+        hostnames: ["apprise.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: apprise-main
+                port: 8000
