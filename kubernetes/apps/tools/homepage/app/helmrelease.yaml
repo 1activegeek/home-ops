@@ -9,9 +9,6 @@ spec:
     name: homepage
   interval: 1h
   values:
-    defaultPodOptions:
-      serviceAccountName: homepage
-
     controllers:
       main:
         annotations:
