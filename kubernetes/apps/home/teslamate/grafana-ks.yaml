@@ -1,0 +1,25 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: teslamate-grafana
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/home/teslamate/grafana
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+      - name: teslamate-secret
+        kind: Secret
+        namespace: home
+        optional: false
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: home
+  wait: false
+  dependsOn:
+    - name: teslamate
