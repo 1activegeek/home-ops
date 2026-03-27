@@ -90,5 +90,5 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: homepage-main
+              - name: homepage
                 port: 3000
