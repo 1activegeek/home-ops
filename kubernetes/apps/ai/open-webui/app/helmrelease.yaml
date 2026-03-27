@@ -19,7 +19,7 @@ spec:
             env:
               OLLAMA_BASE_URL: "http://ollama.ai.svc.cluster.local:11434"
               WEBUI_AUTH: "true"
-              ENABLE_SIGNUP: "true"
+              ENABLE_SIGNUP: "false"
             probes:
               liveness: &probes
                 enabled: true
