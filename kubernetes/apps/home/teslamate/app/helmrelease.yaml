@@ -21,7 +21,7 @@ spec:
             env:
               DATABASE_USER: teslamate
               DATABASE_NAME: teslamate
-              DATABASE_HOST: localhost
+              DATABASE_HOST: teslamate-postgres
               DATABASE_PORT: "5432"
               DATABASE_PASS:
                 valueFrom:

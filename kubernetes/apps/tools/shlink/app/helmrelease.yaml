@@ -24,7 +24,7 @@ spec:
               DB_DRIVER: postgres
               DB_NAME: shlink
               DB_USER: shlink
-              DB_HOST: localhost
+              DB_HOST: shlink-postgres
               DB_PORT: "5432"
               DB_PASSWORD:
                 valueFrom:
