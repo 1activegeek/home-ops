@@ -13,6 +13,9 @@ data:
       Media:
         style: row
         columns: 4
+      Downloads:
+        style: row
+        columns: 4
       Home:
         style: row
         columns: 2
@@ -43,6 +46,14 @@ data:
 
   services.yaml: |
     - Media:
+        - Plex:
+            icon: plex.svg
+            href: https://plex.${SECRET_DOMAIN}
+            description: Media Server
+            widget:
+              type: plex
+              url: http://plex.media.svc.cluster.local:32400
+              key: "{{HOMEPAGE_VAR_PLEX_TOKEN}}"
         - Seerr:
             icon: overseerr.svg
             href: https://requests.${SECRET_DOMAIN}
@@ -59,6 +70,14 @@ data:
               type: radarr
               url: http://radarr.media.svc.cluster.local:7878
               key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
+        - Radarr 4K:
+            icon: radarr.svg
+            href: https://radarr4k.${SECRET_DOMAIN}
+            description: Movies (4K)
+            widget:
+              type: radarr
+              url: http://radarr4k.media.svc.cluster.local:7878
+              key: "{{HOMEPAGE_VAR_RADARR4K_API_KEY}}"
         - Sonarr:
             icon: sonarr.svg
             href: https://sonarr.${SECRET_DOMAIN}
@@ -75,6 +94,35 @@ data:
               type: tautulli
               url: http://tautulli.media.svc.cluster.local:8181
               key: "{{HOMEPAGE_VAR_TAUTULLI_API_KEY}}"
+        - Audiobookshelf:
+            icon: audiobookshelf.svg
+            href: https://audiobooks.${SECRET_DOMAIN}
+            description: Audiobooks & Podcasts
+        - Bazarr:
+            icon: bazarr.svg
+            href: https://bazarr.${SECRET_DOMAIN}
+            description: Subtitles
+    - Downloads:
+        - Prowlarr:
+            icon: prowlarr.svg
+            href: https://prowlarr.${SECRET_DOMAIN}
+            description: Indexer Manager
+            widget:
+              type: prowlarr
+              url: http://prowlarr.media.svc.cluster.local:9696
+              key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
+        - qBittorrent:
+            icon: qbittorrent.svg
+            href: https://qbit.${SECRET_DOMAIN}
+            description: Torrent Client
+        - SABnzbd:
+            icon: sabnzbd.svg
+            href: https://sabnzbd.${SECRET_DOMAIN}
+            description: Usenet Client
+        - MeTube:
+            icon: metube.svg
+            href: https://metube.${SECRET_DOMAIN}
+            description: YouTube Downloader
     - Home:
         - Home Assistant:
             icon: home-assistant.svg
