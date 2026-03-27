@@ -2,17 +2,10 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: teslamate-grafana
+  name: teslamate-grafana-dashboards
 spec:
   interval: 1h
-  path: ./kubernetes/apps/home/teslamate/grafana/datasource
-  postBuild:
-    substituteFrom:
-      - name: cluster-secrets
-        kind: Secret
-      - name: teslamate-grafana-vars
-        kind: Secret
-        optional: false
+  path: ./kubernetes/apps/home/teslamate/grafana/dashboards
   prune: true
   sourceRef:
     kind: GitRepository
