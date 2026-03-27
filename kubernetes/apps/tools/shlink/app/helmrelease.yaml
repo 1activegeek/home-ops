@@ -1,0 +1,159 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: shlink
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: shlink
+  interval: 1h
+  values:
+    controllers:
+      main:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: shlinkio/shlink
+              tag: "5"
+            env:
+              DEFAULT_DOMAIN: "s.${SECRET_DOMAIN}"
+              IS_HTTPS_ENABLED: "true"
+              DB_DRIVER: postgres
+              DB_NAME: shlink
+              DB_USER: shlink
+              DB_HOST: localhost
+              DB_PORT: "5432"
+              DB_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: shlink-secret
+                    key: db_password
+              INITIAL_API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: shlink-secret
+                    key: initial_api_key
+              GEOLITE_LICENSE_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: shlink-secret
+                    key: geolite_license_key
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /rest/health
+                    port: 8080
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+
+      web:
+        containers:
+          app:
+            image:
+              repository: shlinkio/shlink-web-client
+              tag: "4"
+            env:
+              SHLINK_SERVER_URL: "https://s.${SECRET_DOMAIN}"
+            probes:
+              liveness:
+                enabled: true
+              readiness:
+                enabled: true
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+
+      postgres:
+        containers:
+          postgres:
+            image:
+              repository: postgres
+              tag: 17-alpine
+            env:
+              POSTGRES_DB: shlink
+              POSTGRES_USER: shlink
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: shlink-secret
+                    key: db_password
+              PGDATA: /var/lib/postgresql/data/pgdata
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 256Mi
+        pod:
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+
+    service:
+      main:
+        controller: main
+        ports:
+          http:
+            port: 8080
+      web:
+        controller: web
+        ports:
+          http:
+            port: 8080
+      postgres:
+        controller: postgres
+        ports:
+          postgres:
+            port: 5432
+
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        advancedMounts:
+          postgres:
+            postgres:
+              - path: /var/lib/postgresql/data
+
+    route:
+      api:
+        hostnames: ["s.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-external
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: shlink-main
+                port: 8080
+      web:
+        hostnames: ["shlink.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: shlink-web
+                port: 8080
