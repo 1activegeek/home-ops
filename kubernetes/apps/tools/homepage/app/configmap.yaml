@@ -259,7 +259,7 @@ data:
 
     /* Progress bar fill */
     .dark .dark\:bg-theme-900\/40 {
-      background-color: #89b4fa;
+      background-color: rgba(137, 180, 250, 0.3);
     }
 
     /* Section names + service descriptions */
