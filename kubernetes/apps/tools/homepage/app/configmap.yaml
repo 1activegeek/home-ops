@@ -51,7 +51,7 @@ data:
     - Media:
         - Plex:
             icon: plex.svg
-            href: https://plex.${SECRET_DOMAIN}
+            href: "{{HOMEPAGE_VAR_PLEX_URL}}"
             description: Media Server
             widget:
               type: plex
@@ -183,7 +183,7 @@ data:
             href: https://n8n.${SECRET_DOMAIN}
             description: Automation
         - LiteLLM:
-            icon: litellm.svg
+            icon: sh-litellm
             href: https://llm.${SECRET_DOMAIN}
             description: LLM Proxy
 
@@ -323,5 +323,5 @@ data:
             - icon: github.svg
               href: https://github.com
         - Claude:
-            - icon: claude.svg
+            - icon: si-claude
               href: https://claude.ai
