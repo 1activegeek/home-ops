@@ -126,7 +126,7 @@ data:
     - Home:
         - Home Assistant:
             icon: home-assistant.svg
-            href: https://ha.${SECRET_DOMAIN}
+            href: https://hass.${SECRET_DOMAIN}
             description: Home Automation
         - TeslaMate:
             icon: teslamate.svg
@@ -139,7 +139,7 @@ data:
             description: Monitoring Dashboards
         - Gatus:
             icon: gatus.svg
-            href: https://status.${SECRET_DOMAIN}
+            href: https://gatus.${SECRET_DOMAIN}
             description: Uptime Monitoring
         - Authentik:
             icon: authentik.svg
@@ -162,6 +162,136 @@ data:
             icon: apprise.svg
             href: https://apprise.${SECRET_DOMAIN}
             description: Notifications
+
+  custom.css: |
+    /* Catppuccin Mocha — Mauve accent */
+
+    .dark {
+      --bg-color: #1e1e2e;
+      --scrollbar-thumb: #cba6f7;
+      --scrollbar-track: #181825;
+    }
+
+    /* Page background */
+    .dark .dark\:bg-theme-800 {
+      background-color: #1e1e2e;
+    }
+
+    /* Info widget progress bar background */
+    .dark .dark\:bg-theme-200\/20 {
+      background-color: #6c7086;
+    }
+
+    /* Info widget progress bar value */
+    .dark .dark\:bg-theme-200\/50 {
+      background-color: #cdd6f4;
+    }
+
+    /* Search bar border */
+    .border-theme-300 {
+      border-color: #313244 !important;
+    }
+
+    /* Search bar background */
+    .dark .dark\:bg-white\/10 {
+      background-color: #1e1e2e;
+    }
+
+    /* Search bar focus ring */
+    .dark .dark\:focus\:ring-white\/50:focus {
+      --tw-ring-color: #cdd6f4;
+    }
+
+    /* Search bar text + icon accent */
+    .dark .dark\:text-white {
+      color: #cba6f7;
+    }
+
+    /* Service card background */
+    .dark .dark\:bg-white\/5 {
+      background-color: #181825;
+    }
+
+    /* Service card shadow */
+    .dark .dark\:shadow-theme-900\/20 {
+      --tw-shadow-color: #181825;
+      --tw-shadow: var(--tw-shadow-colored);
+    }
+
+    /* Service card hover */
+    .dark .dark\:hover\:bg-white\/10:hover {
+      background-color: #45475a;
+    }
+
+    /* Ping / docker stats box */
+    .dark .dark\:bg-theme-900\/50 {
+      background-color: #11111b;
+    }
+
+    /* Stats background */
+    .dark .dark\:bg-theme-900\/20 {
+      background-color: #313244;
+    }
+
+    /* Progress bar fill */
+    .dark .dark\:bg-theme-900\/40 {
+      background-color: #cba6f7;
+    }
+
+    /* Section names + service descriptions */
+    .dark .dark\:text-theme-300 {
+      color: #cdd6f4;
+    }
+
+    /* API error text */
+    .text-theme-900 {
+      color: #1e1e2e;
+    }
+
+    /* API error box */
+    .bg-rose-900\/80 {
+      background-color: #f38ba8;
+    }
+
+    /* Version / update text */
+    .dark .dark\:text-theme-400 {
+      color: #cdd6f4;
+    }
+
+    /* Search bar icon (non-dark variant) */
+    .text-white {
+      color: #bac2de;
+    }
+
+    /* Top separator */
+    .dark .dark\:border-theme-200\/50 {
+      border-color: #585b70;
+    }
+
+    /* Section / description hover */
+    .dark .dark\:hover\:text-theme-300:hover {
+      color: #af77f3;
+    }
+
+    /* Service names + widget stats */
+    .dark .dark\:text-theme-200 {
+      color: #cdd6f4;
+    }
+
+    /* Status: running / healthy */
+    .text-emerald-500\/80 {
+      color: #c2ebbf;
+    }
+
+    /* Status: unhealthy */
+    .text-orange-400\/50 {
+      color: #fbeece;
+    }
+
+    /* Status: down / bad ping */
+    .text-rose-500\/80 {
+      color: #ec5d80;
+    }
 
   bookmarks.yaml: |
     - Developer:
