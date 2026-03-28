@@ -15,4 +15,7 @@ resources:
   - ./homepage/ks.yaml
   - ./glance/ks.yaml
   - ./rackpeek/ks.yaml
+  - ./atuin/ks.yaml
+  - ./code-server/ks.yaml
+  - ./webtop/ks.yaml
   # - ./kms/ks.yaml ## Disabling for now, likely to archive later
