@@ -192,7 +192,7 @@ data:
 
     .dark {
       --bg-color: #1e1e2e;
-      --scrollbar-thumb: #cba6f7;
+      --scrollbar-thumb: #89b4fa;
       --scrollbar-track: #181825;
     }
 
@@ -228,7 +228,7 @@ data:
 
     /* Search bar text + icon accent */
     .dark .dark\:text-white {
-      color: #cba6f7;
+      color: #89b4fa;
     }
 
     /* Service card background */
@@ -259,7 +259,7 @@ data:
 
     /* Progress bar fill */
     .dark .dark\:bg-theme-900\/40 {
-      background-color: #cba6f7;
+      background-color: #89b4fa;
     }
 
     /* Section names + service descriptions */
@@ -294,7 +294,7 @@ data:
 
     /* Section / description hover */
     .dark .dark\:hover\:text-theme-300:hover {
-      color: #af77f3;
+      color: #5e97f3;
     }
 
     /* Service names + widget stats */
