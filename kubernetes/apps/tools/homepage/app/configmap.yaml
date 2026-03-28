@@ -19,9 +19,12 @@ data:
       Home:
         style: row
         columns: 2
+      AI:
+        style: row
+        columns: 4
       Infrastructure:
         style: row
-        columns: 3
+        columns: 4
       Tools:
         style: row
         columns: 4
@@ -52,7 +55,7 @@ data:
             description: Media Server
             widget:
               type: plex
-              url: http://plex.media.svc.cluster.local:32400
+              url: "{{HOMEPAGE_VAR_PLEX_URL}}"
               key: "{{HOMEPAGE_VAR_PLEX_TOKEN}}"
         - Seerr:
             icon: overseerr.svg
@@ -145,6 +148,10 @@ data:
             icon: authentik.svg
             href: https://auth.${SECRET_DOMAIN}
             description: Identity Provider
+        - Longhorn:
+            icon: longhorn.svg
+            href: https://longhorn.${SECRET_DOMAIN}
+            description: Storage
     - Tools:
         - Forgejo:
             icon: gitea.svg
@@ -159,9 +166,26 @@ data:
             href: https://zipline.${SECRET_DOMAIN}
             description: File Sharing
         - Apprise:
-            icon: apprise.svg
+            icon: sh-apprise
             href: https://apprise.${SECRET_DOMAIN}
             description: Notifications
+    - AI:
+        - LibreChat:
+            icon: librechat.svg
+            href: https://librechat.${SECRET_DOMAIN}
+            description: AI Chat
+        - Open WebUI:
+            icon: open-webui.svg
+            href: https://chat.${SECRET_DOMAIN}
+            description: Chat UI
+        - N8N:
+            icon: n8n.svg
+            href: https://n8n.${SECRET_DOMAIN}
+            description: Automation
+        - LiteLLM:
+            icon: litellm.svg
+            href: https://llm.${SECRET_DOMAIN}
+            description: LLM Proxy
 
   custom.css: |
     /* Catppuccin Mocha — Mauve accent */

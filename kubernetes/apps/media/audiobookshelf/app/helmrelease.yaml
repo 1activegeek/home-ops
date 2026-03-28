@@ -76,5 +76,5 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: audiobookshelf-main
+              - name: audiobookshelf
                 port: 80

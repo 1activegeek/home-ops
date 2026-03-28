@@ -56,6 +56,11 @@ spec:
                   secretKeyRef:
                     name: homepage-secret
                     key: plex_token
+              HOMEPAGE_VAR_PLEX_URL:
+                valueFrom:
+                  secretKeyRef:
+                    name: homepage-secret
+                    key: plex_url
             probes:
               liveness: &probes
                 enabled: true
