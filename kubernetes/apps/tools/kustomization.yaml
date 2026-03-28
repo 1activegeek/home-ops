@@ -13,4 +13,6 @@ resources:
   - ./apprise/ks.yaml
   - ./zipline/ks.yaml
   - ./homepage/ks.yaml
+  - ./glance/ks.yaml
+  - ./rackpeek/ks.yaml
   # - ./kms/ks.yaml ## Disabling for now, likely to archive later

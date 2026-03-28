@@ -1,0 +1,58 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: glance-config
+data:
+  glance.yml: |
+    server:
+      host: 0.0.0.0
+      port: 8080
+
+    pages:
+      - name: Home
+        columns:
+          - size: small
+            widgets:
+              - type: clock
+                hour-format: 12h
+                timezones:
+                  - timezone: America/Denver
+                    label: Denver
+
+              - type: weather
+                location: Denver, Colorado, USA
+                units: imperial
+                hour-format: 12h
+
+          - size: full
+            widgets:
+              - type: rss
+                title: Tech News
+                style: horizontal-cards
+                feeds:
+                  - url: https://feeds.arstechnica.com/arstechnica/index
+                    title: Ars Technica
+                  - url: https://www.theverge.com/rss/index.xml
+                    title: The Verge
+                  - url: https://www.wired.com/feed/rss
+                    title: Wired
+
+              - type: bookmarks
+                groups:
+                  - title: Home Lab
+                    links:
+                      - title: Forgejo
+                        url: https://git.${SECRET_DOMAIN}
+                      - title: Grafana
+                        url: https://grafana.${SECRET_DOMAIN}
+                      - title: Homepage
+                        url: https://home.${SECRET_DOMAIN}
+                      - title: n8n
+                        url: https://n8n.${SECRET_DOMAIN}
+                  - title: Media
+                    links:
+                      - title: Plex
+                        url: https://app.plex.tv
+                      - title: Seerr
+                        url: https://requests.${SECRET_DOMAIN}
