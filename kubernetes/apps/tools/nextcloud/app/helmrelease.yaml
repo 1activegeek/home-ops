@@ -1,0 +1,203 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nextcloud
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: nextcloud
+  interval: 1h
+  values:
+    controllers:
+      main:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: nextcloud
+              tag: latest
+            env:
+              POSTGRES_HOST: nextcloud-postgres
+              POSTGRES_DB: nextcloud
+              POSTGRES_USER: nextcloud
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: nextcloud-secret
+                    key: db_password
+              REDIS_HOST: nextcloud-redis
+              REDIS_HOST_PORT: "6379"
+              NEXTCLOUD_ADMIN_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: nextcloud-secret
+                    key: admin_user
+              NEXTCLOUD_ADMIN_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: nextcloud-secret
+                    key: admin_password
+              NEXTCLOUD_TRUSTED_DOMAINS: "cloud.${SECRET_DOMAIN}"
+              TRUSTED_PROXIES: 10.0.0.0/8
+              OVERWRITEPROTOCOL: https
+              OVERWRITECLIURL: "https://cloud.${SECRET_DOMAIN}"
+              PHP_MEMORY_LIMIT: 512M
+              PHP_UPLOAD_LIMIT: 16G
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /status.php
+                    port: 80
+                  initialDelaySeconds: 60
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /status.php
+                    port: 80
+                  initialDelaySeconds: 60
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+
+      postgres:
+        containers:
+          postgres:
+            image:
+              repository: postgres
+              tag: 17-alpine
+            env:
+              POSTGRES_DB: nextcloud
+              POSTGRES_USER: nextcloud
+              POSTGRES_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: nextcloud-secret
+                    key: db_password
+              PGDATA: /var/lib/postgresql/data/pgdata
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+        pod:
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+
+      redis:
+        containers:
+          redis:
+            image:
+              repository: redis
+              tag: 7-alpine
+            args:
+              - redis-server
+              - --save
+              - "60"
+              - "1"
+              - --loglevel
+              - warning
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+
+      cron:
+        type: cronjob
+        cronjob:
+          schedule: "*/5 * * * *"
+          concurrencyPolicy: Forbid
+          successfulJobsHistory: 1
+          failedJobsHistory: 1
+        containers:
+          cron:
+            image:
+              repository: curlimages/curl
+              tag: latest
+            command:
+              - curl
+              - -s
+              - http://nextcloud-main:80/cron.php
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+
+    service:
+      main:
+        controller: main
+        ports:
+          http:
+            port: 80
+      postgres:
+        controller: postgres
+        ports:
+          postgres:
+            port: 5432
+      redis:
+        controller: redis
+        ports:
+          redis:
+            port: 6379
+
+    persistence:
+      app:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        advancedMounts:
+          main:
+            app:
+              - path: /var/www/html
+      data:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/nextcloud
+        advancedMounts:
+          main:
+            app:
+              - path: /var/www/html/data
+      postgres-data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        advancedMounts:
+          postgres:
+            postgres:
+              - path: /var/lib/postgresql/data
+
+    route:
+      app:
+        hostnames: ["cloud.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: nextcloud-main
+                port: 80
