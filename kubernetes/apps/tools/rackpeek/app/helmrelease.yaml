@@ -15,9 +15,9 @@ spec:
           app:
             image:
               repository: aptacode/rackpeek
-              tag: latest
+              tag: v1.3.0
             env:
-              RPK_YAML_DIR: /config
+              RPK_YAML_DIR: /app/config
             probes:
               liveness:
                 enabled: true
@@ -44,6 +44,13 @@ spec:
               limits:
                 memory: 256Mi
 
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: ${MEDIA_UID}
+        runAsGroup: ${MEDIA_GID}
+        fsGroup: ${MEDIA_GID}
+
     service:
       main:
         controller: main
@@ -58,7 +65,7 @@ spec:
         accessMode: ReadWriteOnce
         size: 1Gi
         globalMounts:
-          - path: /config
+          - path: /app/config
 
     route:
       app:
