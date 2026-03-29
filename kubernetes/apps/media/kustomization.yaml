@@ -20,7 +20,6 @@ resources:
   - ./bazarr/ks.yaml
   - ./unpackerr/ks.yaml
   - ./grimmory/ks.yaml
-  # - ./booklore/ks.yaml ## FUP: BookLore image gone (org deleted); evaluate Grimmory (grimmory/grimmory) as successor
   - ./audiobookshelf/ks.yaml
   # - ./plex/ks.yaml ## Disabling temporarily
   # - ./sabnzbd/ks.yaml ## Disabling temporarily

@@ -31,14 +31,14 @@ Rationale:
 | rTorrent | **qBittorrent** | Modern REST API, built-in web UI, Gluetun VPN sidecar support |
 | Overseerr | **Seerr** | Overseerr being deprecated; Seerr is the unified successor supporting Plex+Jellyfin |
 | Gitea | **Forgejo** | 2.5x more commits, fully open-source, OCI Helm chart, non-profit governance |
-| Calibre + Calibre-web | **BookLore** (ebooks) + **Audiobookshelf** (audiobooks) | BookLore has native OIDC, modern UI; Audiobookshelf for audiobooks |
+| Calibre + Calibre-web | **Grimmory** (ebooks) + **Audiobookshelf** (audiobooks) | Grimmory is the BookLore successor; Audiobookshelf remains the audiobook app |
 | transfer.sh | **Zipline** | Zipline has native OIDC, URL shortening, rich upload features; transfer.sh is effectively abandoned |
 
 ### Namespace Organization
 
 | Namespace | Apps |
 |-----------|------|
-| `media` | Plex, SABnzbd, qBittorrent+Gluetun, Prowlarr, Radarr, Radarr-4K, Sonarr, Autoscan, Seerr, Tautulli, MeTube, Bazarr, Recyclarr, Unpackerr, Notifiarr, BookLore, Audiobookshelf |
+| `media` | Plex, SABnzbd, qBittorrent+Gluetun, Prowlarr, Radarr, Radarr-4K, Sonarr, Autoscan, Seerr, Tautulli, MeTube, Bazarr, Recyclarr, Unpackerr, Notifiarr, Grimmory, Audiobookshelf |
 | `ai` | Ollama, OpenWebUI, n8n, Qdrant |
 | `tools` | Shlink, Shlink-web, Forgejo, KMS, Zipline |
 | `monitoring` | Gatus, Grafana |
@@ -166,7 +166,7 @@ Can deploy in parallel with other phases.
 
 | App | Namespace | Notes |
 |-----|-----------|-------|
-| 9a. BookLore | media | eBook management, MariaDB sidecar, Native OIDC |
+| 9a. Grimmory | media | eBook management, MariaDB sidecar, internal-only for now |
 | 9b. Audiobookshelf | media | Audiobook management, Forward-auth |
 
 ---
@@ -216,7 +216,7 @@ Phase 0 (namespaces) ───────────────────�
     +-- Phase 6 (Shlink) -------------------------------------- independent
     +-- Phase 7 (Teslamate) ------------------------------------ after Grafana
     +-- Phase 8a (Ollama) -> 8b-d (Qdrant, OpenWebUI, n8n) ---- sequential
-    +-- Phase 9a-b (BookLore, Audiobookshelf) ------------------ independent
+    +-- Phase 9a-b (Grimmory, Audiobookshelf) ------------------ independent
 ```
 
 ---

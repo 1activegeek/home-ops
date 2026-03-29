@@ -74,7 +74,7 @@ Validation is required for auth changes, route changes, new apps, and app remova
 | Tautulli | internal | `forward_auth` | No native OIDC |
 | Bazarr | internal | `forward_auth` | No native OIDC |
 | Audiobookshelf | internal | `forward_auth` | Built-in auth exists, but no native OIDC |
-| BookLore | internal | `native_oidc` | Native OIDC support |
+| Grimmory | internal | `none` | Deployed internal-only first; auth deferred to a follow-up change |
 | OpenWebUI | internal | `native_oidc` | Native OIDC support |
 | n8n | internal | `native_oidc` | Prefer Authentik-backed OIDC when configured |
 | Teslamate | internal | `forward_auth` | No native OIDC |
