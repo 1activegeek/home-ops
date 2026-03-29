@@ -20,6 +20,9 @@ spec:
               PUID: "1000"
               PGID: "1000"
               TZ: America/Denver
+              MAX_RESOLUTION: 1920x1080
+              SELKIES_MANUAL_WIDTH: "1920"
+              SELKIES_MANUAL_HEIGHT: "1080"
               CUSTOM_USER: admin
               PASSWORD:
                 valueFrom:
