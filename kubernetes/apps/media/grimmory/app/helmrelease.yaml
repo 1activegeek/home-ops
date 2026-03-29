@@ -1,0 +1,155 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grimmory
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: grimmory
+  interval: 1h
+  values:
+    controllers:
+      main:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        pod:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1027
+            runAsGroup: 100
+            fsGroup: 100
+        containers:
+          app:
+            image:
+              repository: grimmory/grimmory
+              tag: v2.3.0
+            env:
+              TZ: America/New_York
+              USER_ID: "1027"
+              GROUP_ID: "100"
+              DATABASE_URL: "jdbc:mariadb://grimmory-mariadb:3306/grimmory"
+              DATABASE_USERNAME: grimmory
+              DATABASE_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-secret
+                    key: DB_PASSWORD
+              DISK_TYPE: NETWORK
+              SWAGGER_ENABLED: "false"
+              FORCE_DISABLE_OIDC: "true"
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/v1/healthcheck
+                    port: &port 6060
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+
+      mariadb:
+        pod:
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+        containers:
+          mariadb:
+            image:
+              repository: mariadb
+              tag: "11"
+            env:
+              MYSQL_ROOT_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-secret
+                    key: DB_ROOT_PASSWORD
+              MYSQL_DATABASE: grimmory
+              MYSQL_USER: grimmory
+              MYSQL_PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-secret
+                    key: DB_PASSWORD
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+
+    service:
+      main:
+        controller: main
+        ports:
+          http:
+            port: *port
+      mariadb:
+        controller: mariadb
+        ports:
+          mysql:
+            port: 3306
+
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        advancedMounts:
+          main:
+            app:
+              - path: /app/data
+      db-data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        advancedMounts:
+          mariadb:
+            mariadb:
+              - path: /var/lib/mysql
+      bookdrop:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        advancedMounts:
+          main:
+            app:
+              - path: /bookdrop
+      books:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/media
+        advancedMounts:
+          main:
+            app:
+              - path: /books
+
+    route:
+      app:
+        hostnames: ["books.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: grimmory-main
+                port: 6060
