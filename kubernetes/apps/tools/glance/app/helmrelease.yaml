@@ -15,7 +15,7 @@ spec:
           app:
             image:
               repository: glanceapp/glance
-              tag: latest
+              tag: v0.8.4
             probes:
               liveness:
                 enabled: true
@@ -54,7 +54,7 @@ spec:
         type: configMap
         name: glance-config
         globalMounts:
-          - path: /app/glance.yml
+          - path: /app/config/glance.yml
             subPath: glance.yml
 
     route:
