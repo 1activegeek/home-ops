@@ -41,8 +41,8 @@ while IFS= read -r -d '' file; do
       continue
     fi
 
-    # Extract field references: {{ .field_name }} patterns
-    referenced_fields=$(echo "$template_data" | grep -oP '\{\{\s*\.\K[a-zA-Z0-9_]+' | sort -u)
+    # Extract field references: {{ .field_name }} patterns in a way that works on macOS/BSD tools too.
+    referenced_fields=$(echo "$template_data" | perl -nle 'while(/\{\{\s*\.([a-zA-Z0-9_]+)/g){print $1}' | sort -u)
     if [[ -z "$referenced_fields" ]]; then
       echo -e "${YELLOW}⚠${NC}  ${es_name}: no {{ .field }} references found in template.data — skipping"
       ((WARNINGS++)) || true

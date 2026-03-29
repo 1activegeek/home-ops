@@ -35,7 +35,7 @@ while IFS= read -r -d '' file; do
     [[ -z "$target_name" || "$target_name" == "null" ]] && continue
 
     # Extract all keys from template.data
-    keys=$(yq eval-all "select(.kind == \"ExternalSecret\") | select(document_index == $i) | .spec.target.template.data | keys | .[]" "$file" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    keys=$(yq eval-all "select(.kind == \"ExternalSecret\") | select(document_index == $i) | .spec.target.template.data | keys | .[]" "$file" 2>/dev/null | tr '\n' ',' | sed 's/,$//' || true)
     [[ -z "$keys" ]] && continue
 
     map_key="${app_dir}::${target_name}"
