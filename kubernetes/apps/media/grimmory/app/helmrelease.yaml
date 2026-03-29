@@ -126,7 +126,7 @@ spec:
       books:
         type: nfs
         server: ${NFS_SERVER}
-        path: /volume1/media/ebook
+        path: /volume1/media
         advancedMounts:
           main:
             app:
