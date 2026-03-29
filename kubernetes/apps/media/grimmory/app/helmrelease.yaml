@@ -13,12 +13,6 @@ spec:
       main:
         annotations:
           reloader.stakater.com/auto: "true"
-        pod:
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 1027
-            runAsGroup: 100
-            fsGroup: 100
         containers:
           app:
             image:
