@@ -19,6 +19,7 @@ spec:
             env:
               TZ: America/New_York
               DEFAULT_THEME: auto
+              MAX_CONCURRENT_DOWNLOADS: "3"
               DOWNLOAD_DIR: /downloads
               STATE_DIR: /downloads/.metube
             probes:
@@ -41,8 +42,9 @@ spec:
             resources:
               requests:
                 cpu: 10m
-              limits:
                 memory: 512Mi
+              limits:
+                memory: 3Gi
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true

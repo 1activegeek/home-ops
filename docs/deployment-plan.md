@@ -284,7 +284,7 @@ This section is the **source of truth** for tracking progress across sessions. U
 |-----|--------|--------|-------|
 | 1a. KMS | `deployed` | `main` | HelmRelease healthy; app running |
 | 1b. Gatus | `deployed` | `main` | HelmRelease healthy; app running |
-| 1c. MeTube | `deployed` | `main` | HelmRelease healthy; app running |
+| 1c. MeTube | `deployed` | `main` | HelmRelease deployed; 2026-03-30 tuned to `MAX_CONCURRENT_DOWNLOADS=3` and `3Gi` memory limit after OOMKills under queued batch processing |
 | 1d. Grafana | `deployed` | `main` | HelmRelease healthy; app running |
 
 ### Phases 2-9
@@ -325,4 +325,5 @@ This section is the **source of truth** for tracking progress across sessions. U
 | 2026-02-12 | Branch split | Split monolithic branch into per-app branches for independent PRs |
 | 2026-02-15 | Security cleanup | Moved sensitive details to `.private/deployment-plan.md`, created redacted public version |
 | 2026-03-07 | Reconciliation and auth governance | Reconciled the tracker against the live cluster, documented the auth standard, and removed Uptime Kuma from the planned stack in favor of Gatus. |
+| 2026-03-30 | MeTube stability tuning | Confirmed `OOMKilled` restarts during queued download processing and raised MeTube memory limit to `3Gi` while keeping concurrent downloads at `3` to preserve throughput. |
 | | | *Next: Continue with Phase 4 and remaining auth cleanup.* |
