@@ -1,0 +1,104 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pai-entrypoint
+data:
+  entrypoint.sh: |
+    #!/bin/bash
+    set -e
+
+    PAI_HOME="/home/pai"
+    SETUP_MARKER="${PAI_HOME}/.setup-complete"
+
+    # --- Always required (system packages don't persist across restarts) ---
+
+    # Install openssh-server and sudo
+    apt-get update -qq && apt-get install -y -qq openssh-server sudo > /dev/null 2>&1
+
+    # Create pai user if not exists (system user records don't persist)
+    if ! id pai &>/dev/null; then
+        groupadd -g 100 users 2>/dev/null || true
+        useradd -m -s /bin/bash -u 1027 -g 100 -d "${PAI_HOME}" pai 2>/dev/null || true
+        echo "pai ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/pai
+        chmod 0440 /etc/sudoers.d/pai
+    fi
+
+    # Configure SSHD
+    mkdir -p /run/sshd
+    sed -i 's/#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+    sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+
+    # Use host keys from PVC (persistent across restarts)
+    HOST_KEY_DIR="${PAI_HOME}/.ssh-host-keys"
+    mkdir -p "${HOST_KEY_DIR}"
+
+    # Add HostKey directives if not already present
+    grep -q "HostKey ${HOST_KEY_DIR}" /etc/ssh/sshd_config || {
+        echo "HostKey ${HOST_KEY_DIR}/ssh_host_ed25519_key" >> /etc/ssh/sshd_config
+        echo "HostKey ${HOST_KEY_DIR}/ssh_host_rsa_key" >> /etc/ssh/sshd_config
+    }
+
+    # Generate host keys if not present
+    if [ ! -f "${HOST_KEY_DIR}/ssh_host_ed25519_key" ]; then
+        ssh-keygen -t ed25519 -f "${HOST_KEY_DIR}/ssh_host_ed25519_key" -N ""
+        ssh-keygen -t rsa -b 4096 -f "${HOST_KEY_DIR}/ssh_host_rsa_key" -N ""
+    fi
+
+    # Set up SSH authorized keys from secret mount
+    SSH_DIR="${PAI_HOME}/.ssh"
+    mkdir -p "${SSH_DIR}"
+    if [ -f /secrets/authorized_keys ]; then
+        cp /secrets/authorized_keys "${SSH_DIR}/authorized_keys"
+        chmod 600 "${SSH_DIR}/authorized_keys"
+    fi
+    chown -R 1027:100 "${SSH_DIR}"
+
+    # --- First boot only ---
+
+    if [ ! -f "${SETUP_MARKER}" ]; then
+        echo "=== PAI First Boot Setup ==="
+
+        # Install full toolchain
+        apt-get install -y -qq git curl wget unzip jq htop tmux vim nano \
+            build-essential python3 python3-pip python3-venv \
+            ca-certificates gnupg > /dev/null 2>&1
+
+        # Copy skeleton files (PVC mount overwrites /home/pai on first use)
+        if [ ! -f "${PAI_HOME}/.bashrc" ]; then
+            cp /etc/skel/.bashrc /etc/skel/.profile "${PAI_HOME}/" 2>/dev/null || true
+        fi
+
+        # Install Node.js 22 via nvm (persists at /home/pai/.nvm/)
+        su - pai -c 'curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash'
+        su - pai -c '. ~/.nvm/nvm.sh && nvm install 22 && nvm use 22 && nvm alias default 22'
+
+        # Install Bun (persists at /home/pai/.bun/)
+        su - pai -c 'curl -fsSL https://bun.sh/install | bash'
+
+        # Install Claude Code globally for pai user
+        su - pai -c '. ~/.nvm/nvm.sh && npm install -g @anthropic-ai/claude-code'
+
+        # Install kubectl (persists at /home/pai/.local/bin/)
+        su - pai -c 'mkdir -p ~/.local/bin && curl -Lo ~/.local/bin/kubectl "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x ~/.local/bin/kubectl'
+
+        # Add PATH entries to .bashrc
+        su - pai -c 'cat >> ~/.bashrc << "PATHS"
+
+    # PAI toolchain paths
+    export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+    PATHS'
+
+        # Auto-install PAI framework (version from PAI_VERSION env var)
+        PAI_VER="${PAI_VERSION:-v4.0.3}"
+        su - pai -c "cd ~ && git clone https://github.com/danielmiessler/Personal_AI_Infrastructure.git"
+        su - pai -c "cd ~/Personal_AI_Infrastructure/Releases/${PAI_VER} && cp -r .claude ~/ && cd ~/.claude && bash install.sh"
+
+        chown -R 1027:100 "${PAI_HOME}"
+        touch "${SETUP_MARKER}"
+        echo "=== PAI First Boot Setup Complete ==="
+    fi
+
+    # Start SSHD
+    exec /usr/sbin/sshd -D -e

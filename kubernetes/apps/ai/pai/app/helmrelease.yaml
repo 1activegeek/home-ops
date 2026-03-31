@@ -1,0 +1,96 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: pai
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: pai
+  interval: 1h
+  values:
+    controllers:
+      main:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ubuntu
+              tag: "24.04"
+            command: ["/bin/bash", "/entrypoint/entrypoint.sh"]
+            env:
+              TZ: America/Denver
+              PAI_VERSION: "v4.0.3"
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 22
+                  periodSeconds: 30
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 22
+                  periodSeconds: 10
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket:
+                    port: 22
+                  initialDelaySeconds: 10
+                  periodSeconds: 5
+                  failureThreshold: 60
+            resources:
+              requests:
+                cpu: 2000m
+                memory: 4Gi
+              limits:
+                memory: 8Gi
+        pod:
+          securityContext:
+            fsGroup: 100
+
+    serviceAccount:
+      name: pai
+      create: false
+
+    service:
+      main:
+        controller: main
+        type: LoadBalancer
+        ports:
+          ssh:
+            port: 22
+
+    persistence:
+      home:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 50Gi
+        globalMounts:
+          - path: /home/pai
+      ssh-keys:
+        type: secret
+        name: pai-secret
+        globalMounts:
+          - path: /secrets
+            readOnly: true
+      entrypoint:
+        type: configMap
+        name: pai-entrypoint
+        globalMounts:
+          - path: /entrypoint
+            readOnly: true
+      syncthing:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/syncthing
+        globalMounts:
+          - path: /data/syncthing
