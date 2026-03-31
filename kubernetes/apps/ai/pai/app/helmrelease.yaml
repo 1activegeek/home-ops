@@ -52,13 +52,11 @@ spec:
                 memory: 4Gi
               limits:
                 memory: 8Gi
+        serviceAccount:
+          name: pai
         pod:
           securityContext:
             fsGroup: 100
-
-    serviceAccount:
-      name: pai
-      create: false
 
     service:
       main:
