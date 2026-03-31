@@ -65,10 +65,11 @@ data:
             build-essential python3 python3-pip python3-venv \
             ca-certificates gnupg > /dev/null 2>&1
 
-        # Copy skeleton files (PVC mount overwrites /home/pai on first use)
+        # Copy skeleton files and fix ownership before any su - pai calls
         if [ ! -f "$${PAI_HOME}/.bashrc" ]; then
             cp /etc/skel/.bashrc /etc/skel/.profile "$${PAI_HOME}/" 2>/dev/null || true
         fi
+        chown -R 1027:100 "$${PAI_HOME}"
 
         # Install Node.js 22 via nvm (persists at /home/pai/.nvm/)
         su - pai -c 'curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash'
