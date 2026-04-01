@@ -6,6 +6,7 @@ metadata:
 data:
   kubernetes.yaml: |
     mode: cluster
+
   settings.yaml: |
     title: Home Ops
     theme: dark
