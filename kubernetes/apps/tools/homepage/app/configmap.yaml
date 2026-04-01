@@ -50,6 +50,7 @@ data:
         format:
           dateStyle: long
           timeStyle: short
+
   services.yaml: |
     - Media:
         - Plex:
