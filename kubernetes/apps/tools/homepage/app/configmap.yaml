@@ -4,11 +4,16 @@ kind: ConfigMap
 metadata:
   name: homepage-config
 data:
+  kubernetes.yaml: |
+    mode: cluster
+
   settings.yaml: |
     title: Home Ops
     theme: dark
     color: slate
     headerStyle: clean
+    statusStyle: "dot"
+    disableIndexing: true
     layout:
       Media:
         style: row
@@ -42,7 +47,7 @@ data:
           memory: true
           showLabel: true
     - datetime:
-        text_size: xl
+        text_size: 2xl
         format:
           dateStyle: long
           timeStyle: short

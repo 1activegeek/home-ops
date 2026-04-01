@@ -13,6 +13,8 @@ spec:
       main:
         annotations:
           reloader.stakater.com/auto: "true"
+        serviceAccount:
+          name: homepage
         containers:
           app:
             image:
@@ -93,6 +95,8 @@ spec:
         type: configMap
         name: homepage-config
         globalMounts:
+          - path: /app/config/kubernetes.yaml
+            subPath: kubernetes.yaml
           - path: /app/config/services.yaml
             subPath: services.yaml
           - path: /app/config/widgets.yaml
