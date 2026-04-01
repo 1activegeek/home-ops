@@ -40,15 +40,15 @@ data:
           cpu: true
           memory: true
           showLabel: true
-    - datetime:
-        text_size: 2xl
-        format:
-          dateStyle: long
-          timeStyle: short
     - search:
         provider: brave
         focus: true
         target: _blank
+    - datetime:
+        text_size: xl
+        format:
+          dateStyle: long
+          timeStyle: short
   services.yaml: |
     - Media:
         - Plex:
