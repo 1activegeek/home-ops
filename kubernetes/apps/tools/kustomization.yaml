@@ -18,6 +18,6 @@ resources:
   - ./atuin/ks.yaml
   - ./code-server/ks.yaml
   - ./webtop/ks.yaml
-  - ./syncthing/ks.yaml
   - ./nextcloud/ks.yaml
+  # - ./syncthing/ks.yaml
   # - ./kms/ks.yaml ## Disabling for now, likely to archive later
