@@ -51,6 +51,10 @@ data:
         format:
           dateStyle: long
           timeStyle: short
+    - search:
+        provider: brave
+        focus: true
+        target: _blank
 
   services.yaml: |
     - Media:
@@ -58,6 +62,7 @@ data:
             icon: plex.svg
             href: "{{HOMEPAGE_VAR_PLEX_URL}}"
             description: Media Server
+            ping: "{{HOMEPAGE_VAR_PLEX_URL}}"
             widget:
               type: plex
               url: "{{HOMEPAGE_VAR_PLEX_URL}}"
@@ -66,6 +71,7 @@ data:
             icon: overseerr.svg
             href: https://requests.${SECRET_DOMAIN}
             description: Media Requests
+            ping: seerr.media.svc.cluster.local:5055
             widget:
               type: overseerr
               url: http://seerr.media.svc.cluster.local:5055
