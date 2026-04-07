@@ -43,9 +43,9 @@ spec:
     defaultPodOptions:
       securityContext:
         runAsNonRoot: true
-        runAsUser: ${MEDIA_UID}
-        runAsGroup: ${MEDIA_GID}
-        fsGroup: ${MEDIA_GID}
+        runAsUser: 1027
+        runAsGroup: 100
+        fsGroup: 100
     persistence:
       media:
         type: nfs
