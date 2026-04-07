@@ -107,7 +107,7 @@ spec:
           redis:
             image:
               repository: redis
-              tag: 8-alpine
+              tag: 7-alpine
             args:
               - redis-server
               - --save
