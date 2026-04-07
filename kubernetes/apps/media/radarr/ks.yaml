@@ -10,8 +10,6 @@ spec:
     substituteFrom:
       - name: cluster-secrets
         kind: Secret
-      - name: cluster-1p-secrets
-        kind: Secret
   prune: true
   sourceRef:
     kind: GitRepository
