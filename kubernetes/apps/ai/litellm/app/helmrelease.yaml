@@ -55,7 +55,7 @@ spec:
           postgres:
             image:
               repository: postgres
-              tag: 18-alpine
+              tag: 17-alpine
             env:
               POSTGRES_DB: litellm
               POSTGRES_USER: litellm
