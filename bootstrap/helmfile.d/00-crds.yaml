@@ -21,7 +21,7 @@ releases:
   - name: envoy-gateway
     namespace: network
     chart: oci://mirror.gcr.io/envoyproxy/gateway-helm
-    version: v1.7.1
+    version: v1.7.2
 
   - name: kube-prometheus-stack
     namespace: observability
@@ -31,4 +31,4 @@ releases:
   - name: external-secrets
     namespace: security
     chart: oci://ghcr.io/external-secrets/charts/external-secrets
-    version: 2.2.0
+    version: 2.4.0
