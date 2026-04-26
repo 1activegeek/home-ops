@@ -17,7 +17,7 @@ spec:
           app:
             image:
               repository: ubuntu
-              tag: "24.04"
+              tag: "26.04"
             command: ["/bin/bash", "/entrypoint/entrypoint.sh"]
             env:
               TZ: America/Denver
