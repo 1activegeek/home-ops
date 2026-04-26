@@ -1,6 +1,6 @@
 ---
 # Restrict envoy-external Envoy proxy pods to only accept data-plane traffic
-# (ports 80/443) from the cloudflare-tunnel pods.
+# from the cloudflare-tunnel pods.
 #
 # This prevents a Cloudflare bypass if the LoadBalancer IP (10.0.3.54)
 # becomes directly reachable — all external traffic must flow through the
@@ -23,16 +23,19 @@ spec:
     matchLabels:
       gateway.envoyproxy.io/owning-gateway-name: envoy-external
   ingress:
-    # Data plane: only cloudflare-tunnel pods may connect on HTTP/HTTPS.
+    # Data plane: only cloudflare-tunnel pods may connect.
     # Both are in the same network namespace so no namespace label needed.
+    # NOTE: Envoy Gateway maps Service ports 80/443 to pod ports 10080/10443.
+    # Cilium enforces policy AFTER DNAT (at the pod), so the pod-level ports
+    # must be used here, not the Service-level ports.
     - fromEndpoints:
         - matchLabels:
             app.kubernetes.io/name: cloudflare-tunnel
       toPorts:
         - ports:
-            - port: "80"
+            - port: "10080"
               protocol: TCP
-            - port: "443"
+            - port: "10443"
               protocol: TCP
     # Prometheus metrics scraping (PodMonitor → port "metrics" = 19001)
     - fromEndpoints:
