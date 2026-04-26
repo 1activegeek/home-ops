@@ -1,0 +1,51 @@
+---
+# Restrict envoy-external Envoy proxy pods to only accept data-plane traffic
+# (ports 80/443) from the cloudflare-tunnel pods.
+#
+# This prevents a Cloudflare bypass if the LoadBalancer IP (10.0.3.54)
+# becomes directly reachable — all external traffic must flow through the
+# CF tunnel. Enforced at the eBPF/kernel layer, cannot be bypassed via
+# header spoofing.
+#
+# Why not SecurityPolicy.authorization.clientCIDRs with CF IP ranges?
+# With CF Tunnel, the TCP source IP at Envoy is the cloudflared pod
+# (10.42.x.x cluster CIDR), NOT Cloudflare's public IP ranges.
+# clientCIDRs checks the XFF-derived client IP (real user IP after
+# numTrustedHops processing), not the actual connection source — making
+# CiliumNetworkPolicy the correct enforcement layer for this control.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: envoy-external-restrict-ingress
+  namespace: network
+spec:
+  endpointSelector:
+    matchLabels:
+      gateway.envoyproxy.io/owning-gateway-name: envoy-external
+  ingress:
+    # Data plane: only cloudflare-tunnel pods may connect on HTTP/HTTPS.
+    # Both are in the same network namespace so no namespace label needed.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: cloudflare-tunnel
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+    # Prometheus metrics scraping (PodMonitor → port "metrics" = 19001)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "19001"
+              protocol: TCP
+    # Kubelet health probes from node host IPs (liveness/readiness on admin port)
+    - fromCIDR:
+        - 10.0.3.0/24
+      toPorts:
+        - ports:
+            - port: "19001"
+              protocol: TCP
