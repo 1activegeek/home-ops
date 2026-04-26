@@ -42,10 +42,16 @@ spec:
         - ports:
             - port: "19001"
               protocol: TCP
-    # Kubelet health probes from node host IPs (liveness/readiness on admin port)
+    # Kubelet health probes from node host IPs.
+    # EG proxy container: liveness/readiness on 19003 (/ready)
+    # EG manager sidecar: liveness/readiness on 19002 (/healthz)
     - fromCIDR:
         - 10.0.3.0/24
       toPorts:
         - ports:
             - port: "19001"
+              protocol: TCP
+            - port: "19002"
+              protocol: TCP
+            - port: "19003"
               protocol: TCP
