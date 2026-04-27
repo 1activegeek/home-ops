@@ -74,7 +74,11 @@ JSONEOF
 )
 kubectl -n "${NS}" run "pgwipe-${REL}" --restart=Never --image=alpine \
   --overrides="${WIPE_SPEC}" 2>&1
-sleep 15
+for i in $(seq 1 40); do
+  phase=$(kubectl -n "${NS}" get pod "pgwipe-${REL}" -o jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
+  if [[ "${phase}" == "Succeeded" || "${phase}" == "Failed" ]]; then break; fi
+  sleep 3
+done
 kubectl -n "${NS}" logs "pgwipe-${REL}" 2>&1 || true
 kubectl -n "${NS}" delete pod "pgwipe-${REL}" --ignore-not-found 2>&1
 

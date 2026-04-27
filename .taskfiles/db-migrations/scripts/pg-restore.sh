@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Resume Flux, wait for Postgres 18 to initdb, restore dump, then scale app up.
-# Immediately scales non-postgres deployments to 0 after resume to prevent the
-# app from running migrations before the restore completes.
+# Drops the application database before restoring so we get a clean slate
+# even if the app briefly started and ran schema migrations first.
 #
-# Usage: pg-restore.sh <REL> <NS> <PG_USER>
+# Usage: pg-restore.sh <REL> <NS> <PG_USER> [DB_NAME]
+#   DB_NAME defaults to REL if omitted.
 # Env:   BACKUP_DIR  DUMP_FILE (optional — auto-selects newest dump if unset)
 set -euo pipefail
 
-REL=$1; NS=$2; PG_USER=$3
+REL=$1; NS=$2; PG_USER=$3; DB_NAME=${4:-$REL}
 
 : "${BACKUP_DIR:?BACKUP_DIR env var required}"
 EXPLICIT_DUMP="${DUMP_FILE:-}"
@@ -26,11 +27,22 @@ fi
 
 echo "==> [${REL}] Resuming Flux HelmRelease"
 flux resume helmrelease "${REL}" -n "${NS}"
+
+# Immediately hold all non-postgres deployments at 0 before reconcile finishes.
+echo "==> [${REL}] Holding app deployments at 0 while postgres initialises"
+for deploy in $(kubectl -n "${NS}" get deploy \
+    -l "app.kubernetes.io/instance=${REL}" \
+    -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+  if [[ "${deploy}" != "${REL}-postgres" ]]; then
+    kubectl -n "${NS}" scale "deploy/${deploy}" --replicas=0 2>/dev/null || true
+  fi
+done
+
+echo "==> [${REL}] Forcing reconcile"
 flux reconcile helmrelease "${REL}" -n "${NS}" --with-source
 
-# Immediately clamp all non-postgres deployments to 0 so they don't run
-# app-level migrations (Shlink, n8n, Shlink etc.) before the restore completes.
-echo "==> [${REL}] Holding app deployments at 0 while postgres initialises"
+# Re-clamp app deployments — flux reconcile may have set them to 1.
+echo "==> [${REL}] Re-clamping app deployments to 0 after reconcile"
 for deploy in $(kubectl -n "${NS}" get deploy \
     -l "app.kubernetes.io/instance=${REL}" \
     -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
@@ -52,6 +64,14 @@ for i in $(seq 1 30); do
   echo "    (${i}/30) waiting..."
   sleep 5
 done
+
+# Drop the app database so restore gets a clean slate, even if the app briefly
+# ran migrations before we could scale it down.
+echo "==> [${REL}] Dropping database '${DB_NAME}' for clean restore"
+kubectl -n "${NS}" exec "deploy/${REL}-postgres" -c postgres -- \
+  psql -U "${PG_USER}" -d postgres \
+  -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${DB_NAME}' AND pid <> pg_backend_pid();" \
+  -c "DROP DATABASE IF EXISTS \"${DB_NAME}\";" 2>&1
 
 echo "==> [${REL}] Restoring dump from ${DUMP_FILE}"
 kubectl -n "${NS}" exec -i "deploy/${REL}-postgres" -c postgres -- \
