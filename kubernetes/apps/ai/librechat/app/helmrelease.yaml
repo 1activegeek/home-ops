@@ -76,7 +76,7 @@ spec:
           mongodb:
             image:
               repository: mongo
-              tag: "8.0"
+              tag: "8.2"
             env:
               MONGO_INITDB_ROOT_USERNAME: librechat
               MONGO_INITDB_ROOT_PASSWORD:
