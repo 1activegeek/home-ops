@@ -51,11 +51,6 @@ spec:
                   secretKeyRef:
                     name: librechat-secret
                     key: creds_iv
-              LITELLM_MASTER_KEY:
-                valueFrom:
-                  secretKeyRef:
-                    name: litellm-secret
-                    key: master_key
             probes:
               liveness: &probes
                 enabled: true
