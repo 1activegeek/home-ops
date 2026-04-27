@@ -1,0 +1,129 @@
+---
+version: '3'
+
+# DB major-version migration tasks.
+#
+# Sequence per Postgres app:
+#   task db-migrations:pg-dump    REL=shlink NS=tools PG_USER=shlink
+#   (commit tag 17-alpine->18-alpine, push)
+#   task db-migrations:pg-restore REL=shlink NS=tools PG_USER=shlink
+#
+# Apps — PVC is auto-detected; actual names are:
+#   shlink    tools   shlink      PVC: shlink
+#   atuin     tools   atuin       PVC: atuin
+#   n8n       ai      n8n         PVC: n8n
+#   nextcloud tools   nextcloud   PVC: nextcloud-postgres-data
+#   teslamate home    teslamate   PVC: teslamate
+#   (litellm not deployed)
+#
+# Mongo:
+#   task db-migrations:mongo-dump    NS=ai  REL=librechat
+#   (commit tag 7->8, push)
+#   task db-migrations:mongo-restore NS=ai  REL=librechat
+#   Mongo PVC: librechat-data
+#
+# MariaDB (in-place upgrade, no wipe needed):
+#   task db-migrations:mariadb-dump  NS=media REL=grimmory MARIADB_ROOT_PW=<pw>
+#   (commit tag 11->12, push)
+#   task db-migrations:mariadb-verify NS=media REL=grimmory
+#   MariaDB PVC: grimmory-db-data
+
+vars:
+  NAS_HOST: atlantis
+  NAS_BACKUP_PATH: /volume1/backup/db-migrations
+  BACKUP_DIR: '{{.ROOT_DIR}}/.db-migration-backups'
+  SCRIPTS: '{{.ROOT_DIR}}/.taskfiles/db-migrations/scripts'
+
+tasks:
+
+  preflight:
+    desc: Create NAS backup directory and verify kubectl/flux
+    cmds:
+      - 'mkdir -p "$BACKUP_DIR"'
+      - 'ssh "$NAS_HOST" mkdir -p "$NAS_BACKUP_PATH"'
+      - echo NAS path ready
+      - kubectl version --client
+      - flux version
+    env:
+      BACKUP_DIR: '{{.BACKUP_DIR}}'
+      NAS_HOST: '{{.NAS_HOST}}'
+      NAS_BACKUP_PATH: '{{.NAS_BACKUP_PATH}}'
+    preconditions:
+      - sh -c 'test -f "{{.ROOT_DIR}}/kubeconfig"'
+
+  pg-dump:
+    desc: "Dump Postgres 17, scale down, wipe PGDATA. Vars: REL, NS, PG_USER, [PVC]"
+    requires:
+      vars: [REL, NS, PG_USER]
+    vars:
+      PVC: '{{.PVC | default ""}}'
+    env:
+      BACKUP_DIR: '{{.BACKUP_DIR}}'
+      NAS_HOST: '{{.NAS_HOST}}'
+      NAS_BACKUP_PATH: '{{.NAS_BACKUP_PATH}}'
+    cmd: 'bash "{{.SCRIPTS}}/pg-dump-stop.sh" "{{.REL}}" "{{.NS}}" "{{.PG_USER}}" "{{.PVC}}"'
+    preconditions:
+      - sh -c 'test -f "{{.ROOT_DIR}}/kubeconfig"'
+
+  pg-restore:
+    desc: "Resume flux, wait for Postgres 18, restore dump, scale app up. Vars: REL, NS, PG_USER, [DUMP_FILE]"
+    requires:
+      vars: [REL, NS, PG_USER]
+    vars:
+      DUMP_FILE: '{{.DUMP_FILE | default ""}}'
+    env:
+      BACKUP_DIR: '{{.BACKUP_DIR}}'
+      DUMP_FILE: '{{.DUMP_FILE}}'
+    cmd: 'bash "{{.SCRIPTS}}/pg-restore.sh" "{{.REL}}" "{{.NS}}" "{{.PG_USER}}"'
+    preconditions:
+      - sh -c 'test -f "{{.ROOT_DIR}}/kubeconfig"'
+
+  mongo-dump:
+    desc: "Dump Mongo 7, scale down, wipe /data/db. Vars: NS, REL"
+    requires:
+      vars: [NS, REL]
+    env:
+      BACKUP_DIR: '{{.BACKUP_DIR}}'
+      NAS_HOST: '{{.NAS_HOST}}'
+      NAS_BACKUP_PATH: '{{.NAS_BACKUP_PATH}}'
+    cmd: 'bash "{{.SCRIPTS}}/mongo-dump-stop.sh" "{{.REL}}" "{{.NS}}"'
+    preconditions:
+      - sh -c 'test -f "{{.ROOT_DIR}}/kubeconfig"'
+
+  mongo-restore:
+    desc: "Resume flux, wait for Mongo 8, restore dump, advance FCV. Vars: NS, REL, [DUMP_FILE]"
+    requires:
+      vars: [NS, REL]
+    vars:
+      DUMP_FILE: '{{.DUMP_FILE | default ""}}'
+    env:
+      BACKUP_DIR: '{{.BACKUP_DIR}}'
+      DUMP_FILE: '{{.DUMP_FILE}}'
+    cmd: 'bash "{{.SCRIPTS}}/mongo-restore.sh" "{{.REL}}" "{{.NS}}"'
+    preconditions:
+      - sh -c 'test -f "{{.ROOT_DIR}}/kubeconfig"'
+
+  mariadb-dump:
+    desc: "Dump MariaDB 11 to safety backup. Vars: NS, REL, MARIADB_ROOT_PW"
+    requires:
+      vars: [NS, REL, MARIADB_ROOT_PW]
+    env:
+      BACKUP_DIR: '{{.BACKUP_DIR}}'
+      NAS_HOST: '{{.NAS_HOST}}'
+      NAS_BACKUP_PATH: '{{.NAS_BACKUP_PATH}}'
+    cmd: 'bash "{{.SCRIPTS}}/mariadb-dump.sh" "{{.REL}}" "{{.NS}}" "{{.MARIADB_ROOT_PW}}"'
+    preconditions:
+      - sh -c 'test -f "{{.ROOT_DIR}}/kubeconfig"'
+
+  mariadb-verify:
+    desc: "Check MariaDB version after upgrade. Vars: NS, REL"
+    requires:
+      vars: [NS, REL]
+    cmds:
+      - |
+        echo "==> MariaDB version after upgrade:"
+        kubectl -n {{.NS}} exec deploy/{{.REL}}-mariadb -- mariadb -e 'SELECT VERSION();' 2>/dev/null || \
+        kubectl -n {{.NS}} exec deploy/{{.REL}}-mariadb -- mysql -e 'SELECT VERSION();'
+      - |
+        echo "==> Pod status:"
+        kubectl -n {{.NS}} get pods -l "app.kubernetes.io/instance={{.REL}}"

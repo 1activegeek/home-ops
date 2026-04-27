@@ -21,6 +21,7 @@ includes:
   bootstrap: .taskfiles/bootstrap
   talos: .taskfiles/talos
   validate: .taskfiles/validate
+  db-migrations: .taskfiles/db-migrations
 
 tasks:
 
