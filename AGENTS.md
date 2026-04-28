@@ -564,6 +564,24 @@ For active deployment work (migrating apps from Synology NAS to this cluster), a
 
 Renovate runs weekly (weekends) and auto-merges minor/patch updates for tools and GitHub Actions.
 
+### Never Use `latest` Image Tags
+
+**Always pin container images to a specific version tag — never use `latest` or any other floating tag.**
+
+Renovate monitors all image references in this repo and opens PRs when new versions are released. Floating tags like `latest` are invisible to Renovate (it cannot detect when the upstream image changes) and bypass the GitOps audit trail entirely.
+
+```yaml
+# WRONG — Renovate cannot track this
+image:
+  tag: latest
+
+# CORRECT — Renovate will detect and bump this
+image:
+  tag: "1.2.3"
+```
+
+This applies to all image references: HelmRelease values, init containers, sidecar containers, and any other place an image tag appears.
+
 ## Important Files
 
 - **Root Kustomization:** `kubernetes/flux/cluster/ks.yaml` - Global patches for all HelmReleases
