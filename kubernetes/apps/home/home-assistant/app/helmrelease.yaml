@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-assistant/home-assistant
-              tag: stable
+              tag: 2026.4.4
             env:
               TZ: America/New_York
             probes:
