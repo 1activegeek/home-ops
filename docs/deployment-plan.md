@@ -143,6 +143,12 @@ Depends on Phase 3 (Plex) and Phase 4 (*arr apps).
 |-----|-----------|-------|
 | 6. Shlink + Web + PostgreSQL | tools | Fresh install (not migrating MySQL data), PUBLIC redirects |
 
+### Bambuddy (3D Printer Management)
+
+| App | Namespace | Exposure | Auth | Notes |
+|-----|-----------|----------|------|-------|
+| Bambuddy | home | internal | none | Self-hosted Bambu Lab printer UI; SQLite on Longhorn PVC; bridge networking (manual printer IPs). Revisit forward_auth if access widens. |
+
 ### Phase 7: Teslamate Stack
 
 | App | Namespace | Migration | Notes |
