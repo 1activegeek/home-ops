@@ -15,7 +15,7 @@ spec:
           app:
             image:
               repository: ollama/ollama
-              tag: 0.23.0
+              tag: 0.24.0
             env:
               OLLAMA_HOST: "0.0.0.0"
             resources:
