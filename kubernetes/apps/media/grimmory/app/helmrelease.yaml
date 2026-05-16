@@ -17,7 +17,7 @@ spec:
           app:
             image:
               repository: grimmory/grimmory
-              tag: v3.0.3
+              tag: v3.1.0
             env:
               TZ: America/New_York
               USER_ID: "1027"
