@@ -14,8 +14,8 @@ spec:
         containers:
           app:
             image:
-              repository: ghcr.io/home-assistant-libs/python-matter-server
-              tag: 8.1.0
+              repository: ghcr.io/matter-js/python-matter-server
+              tag: 8.1.2
             args:
               - --storage-path
               - /data
