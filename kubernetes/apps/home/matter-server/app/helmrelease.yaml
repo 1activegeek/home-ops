@@ -15,7 +15,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-assistant-libs/python-matter-server
-              tag: 8.1.0
+              tag: 8.1.2
             args:
               - --storage-path
               - /data
@@ -46,6 +46,22 @@ spec:
           matter:
             port: 5580
 
+    configMaps:
+      gai-conf:
+        data:
+          gai.conf: |
+            # Prefer IPv4 — host has no outbound IPv6 routing
+            label  ::1/128        0
+            label  ::/0           1
+            label  2002::/16      2
+            label  ::/96          3
+            label  ::ffff:0:0/96  4
+            precedence  ::1/128        50
+            precedence  ::/0           40
+            precedence  2002::/16      30
+            precedence  ::/96          20
+            precedence  ::ffff:0:0/96  100
+
     persistence:
       data:
         type: persistentVolumeClaim
@@ -54,3 +70,10 @@ spec:
         size: 1Gi
         globalMounts:
           - path: /data
+      gai-conf:
+        type: configMap
+        identifier: gai-conf
+        globalMounts:
+          - path: /etc/gai.conf
+            subPath: gai.conf
+            readOnly: true
