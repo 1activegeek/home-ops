@@ -23,9 +23,10 @@ spec:
             image:
               repository: docker.io/nousresearch/hermes-agent
               tag: v2026.5.16
-            # Bootstrap: sleep until `hermes setup` is run via kubectl exec.
-            # After setup, change command to: ["hermes", "gateway", "run"]
-            command: ["/bin/sleep", "infinity"]
+            # Bootstrap: entrypoint detects `sleep` as an executable and passes through,
+            # activating the venv and scaffolding /opt/data before sleeping.
+            # After `hermes setup`, change args to: ["gateway", "run"]
+            args: ["sleep", "infinity"]
             env:
               HERMES_HOME: /opt/data
               PLAYWRIGHT_BROWSERS_PATH: /opt/data/.playwright
@@ -45,10 +46,10 @@ spec:
             image:
               repository: docker.io/nousresearch/hermes-agent
               tag: v2026.5.16
-            # Bootstrap: sleep until `hermes setup` is run via kubectl exec.
-            # After setup, change command to: ["hermes", "dashboard", "--host", "0.0.0.0", "--no-open"]
+            # Bootstrap: same pattern — entrypoint runs, venv activated, then sleeps.
+            # After setup, change args to: ["dashboard", "--host", "0.0.0.0", "--no-open"]
             # Also add HTTP liveness/readiness probes: httpGet path: / port: 9119
-            command: ["/bin/sleep", "infinity"]
+            args: ["sleep", "infinity"]
             env:
               HERMES_HOME: /opt/data
             resources:
