@@ -103,6 +103,15 @@ spec:
         hostPath: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A1018WZB-if00-port0
         globalMounts:
           - path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A1018WZB-if00-port0
+      gai-conf:
+        type: configMap
+        name: home-assistant-gai-conf
+        advancedMounts:
+          home-assistant:
+            app:
+              - path: /etc/gai.conf
+                subPath: gai.conf
+                readOnly: true
 
     route:
       app:
