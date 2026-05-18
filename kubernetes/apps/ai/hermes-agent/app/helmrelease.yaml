@@ -1,0 +1,93 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: hermes-agent
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: hermes-agent
+  interval: 1h
+  values:
+    controllers:
+      main:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        pod:
+          securityContext:
+            runAsUser: 10000
+            runAsGroup: 10000
+            fsGroup: 10000
+        containers:
+          gateway:
+            image:
+              repository: docker.io/nousresearch/hermes-agent
+              tag: v2026.5.16
+            # Bootstrap: sleep until `hermes setup` is run via kubectl exec.
+            # After setup, change command to: ["hermes", "gateway", "run"]
+            command: ["/bin/sleep", "infinity"]
+            env:
+              HERMES_HOME: /opt/data
+              PLAYWRIGHT_BROWSERS_PATH: /opt/data/.playwright
+              PYTHONUNBUFFERED: "1"
+              TELEGRAM_BOT_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: hermes-agent-secret
+                    key: TELEGRAM_BOT_TOKEN
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                memory: 3Gi
+          dashboard:
+            image:
+              repository: docker.io/nousresearch/hermes-agent
+              tag: v2026.5.16
+            # Bootstrap: sleep until `hermes setup` is run via kubectl exec.
+            # After setup, change command to: ["hermes", "dashboard", "--host", "0.0.0.0", "--no-open"]
+            # Also add HTTP liveness/readiness probes: httpGet path: / port: 9119
+            command: ["/bin/sleep", "infinity"]
+            env:
+              HERMES_HOME: /opt/data
+            resources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+
+    service:
+      main:
+        controller: main
+        ports:
+          http:
+            port: 9119
+
+    persistence:
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 20Gi
+        globalMounts:
+          - path: /opt/data
+      shared:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: "/volume1/syncthing/ic_documents/5 Shared/hermes"
+        globalMounts:
+          - path: /opt/data/shared
+
+    route:
+      app:
+        hostnames: ["hermes.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: hermes-agent-main
+                port: 9119
