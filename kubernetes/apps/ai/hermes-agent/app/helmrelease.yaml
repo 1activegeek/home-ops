@@ -28,11 +28,19 @@ spec:
               HERMES_HOME: /opt/data
               PLAYWRIGHT_BROWSERS_PATH: /opt/data/.playwright
               PYTHONUNBUFFERED: "1"
+              API_SERVER_ENABLED: "true"
+              API_SERVER_HOST: "0.0.0.0"
+              API_SERVER_PORT: "8642"
               TELEGRAM_BOT_TOKEN:
                 valueFrom:
                   secretKeyRef:
                     name: hermes-agent-secret
                     key: TELEGRAM_BOT_TOKEN
+              API_SERVER_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: hermes-api-server-secret
+                    key: API_SERVER_KEY
             resources:
               requests:
                 cpu: 250m
@@ -72,6 +80,8 @@ spec:
         ports:
           http:
             port: 9119
+          api:
+            port: 8642
 
     persistence:
       data:
