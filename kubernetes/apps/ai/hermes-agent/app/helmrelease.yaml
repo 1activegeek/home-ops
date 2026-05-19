@@ -43,7 +43,7 @@ spec:
             image:
               repository: docker.io/nousresearch/hermes-agent
               tag: v2026.5.16
-            args: ["dashboard", "--host", "0.0.0.0", "--no-open"]
+            args: ["dashboard", "--host", "0.0.0.0", "--no-open", "--insecure"]
             env:
               HERMES_HOME: /opt/data
             probes:
@@ -53,7 +53,7 @@ spec:
                 spec:
                   httpGet:
                     path: /
-                    port: &dashport 9119
+                    port: 9119
                   initialDelaySeconds: 30
                   periodSeconds: 30
                   timeoutSeconds: 10
