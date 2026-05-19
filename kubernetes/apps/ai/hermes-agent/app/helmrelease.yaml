@@ -97,5 +97,5 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
-              - name: hermes-agent-main
+              - name: hermes-agent
                 port: 9119
