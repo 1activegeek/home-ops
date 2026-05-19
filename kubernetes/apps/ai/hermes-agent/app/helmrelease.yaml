@@ -23,10 +23,7 @@ spec:
             image:
               repository: docker.io/nousresearch/hermes-agent
               tag: v2026.5.16
-            # Bootstrap: entrypoint detects `sleep` as an executable and passes through,
-            # activating the venv and scaffolding /opt/data before sleeping.
-            # After `hermes setup`, change args to: ["gateway", "run"]
-            args: ["sleep", "infinity"]
+            args: ["gateway", "run"]
             env:
               HERMES_HOME: /opt/data
               PLAYWRIGHT_BROWSERS_PATH: /opt/data/.playwright
@@ -46,12 +43,22 @@ spec:
             image:
               repository: docker.io/nousresearch/hermes-agent
               tag: v2026.5.16
-            # Bootstrap: same pattern — entrypoint runs, venv activated, then sleeps.
-            # After setup, change args to: ["dashboard", "--host", "0.0.0.0", "--no-open"]
-            # Also add HTTP liveness/readiness probes: httpGet path: / port: 9119
-            args: ["sleep", "infinity"]
+            args: ["dashboard", "--host", "0.0.0.0", "--no-open", "--insecure"]
             env:
               HERMES_HOME: /opt/data
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 9119
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+              readiness: *probes
             resources:
               requests:
                 cpu: 50m
