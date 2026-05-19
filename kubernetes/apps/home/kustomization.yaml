@@ -18,4 +18,3 @@ resources:
   - ./teslamate/grafana-externalsecret.yaml
   - ./teslamate/grafana-ks.yaml
   - ./teslamate/grafana-dashboards-ks.yaml
-  # - ./esphome/ks.yaml ## Disabling for now, likely to archive later
