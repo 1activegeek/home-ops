@@ -11,11 +11,19 @@ spec:
   values:
     controllers:
       main:
+        annotations:
+          reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
               repository: qdrant/qdrant
-              tag: latest
+              tag: v1.18.0
+            env:
+              QDRANT__SERVICE__API_KEY:
+                valueFrom:
+                  secretKeyRef:
+                    name: qdrant-secret
+                    key: api_key
             probes:
               liveness: &probes
                 enabled: true
@@ -54,3 +62,15 @@ spec:
         size: 5Gi
         globalMounts:
           - path: /qdrant/storage
+
+    route:
+      app:
+        hostnames: ["qdrant.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: qdrant
+                port: 6333
