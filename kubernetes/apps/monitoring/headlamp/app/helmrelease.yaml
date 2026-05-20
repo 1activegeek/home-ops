@@ -47,6 +47,8 @@ spec:
                 memory: 512Mi
         serviceAccount:
           name: headlamp
+        pod:
+          automountServiceAccountToken: true
 
     service:
       main:
