@@ -41,6 +41,10 @@ spec:
           - name: hosts
             configBlock: |-
               fallthrough
+          - name: template
+            parameters: IN AAAA
+            configBlock: |-
+              rcode NOERROR
           - name: forward
             parameters: . /etc/resolv.conf
           - name: cache
