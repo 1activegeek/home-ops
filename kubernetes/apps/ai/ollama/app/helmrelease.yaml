@@ -41,3 +41,15 @@ spec:
         size: 50Gi
         globalMounts:
           - path: /root/.ollama
+
+    route:
+      app:
+        hostnames: ["ollama.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: ollama
+                port: 11434
