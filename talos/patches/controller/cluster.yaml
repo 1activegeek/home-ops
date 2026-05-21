@@ -6,6 +6,8 @@ cluster:
     extraArgs:
       # https://kubernetes.io/docs/tasks/extend-kubernetes/configure-aggregation-layer/
       enable-aggregator-routing: true
+      # Reduce per-resource watch cache from default 100 to 50 — homelab scale doesn't need full cache
+      default-watch-cache-size: "50"
   controllerManager:
     extraArgs:
       bind-address: 0.0.0.0

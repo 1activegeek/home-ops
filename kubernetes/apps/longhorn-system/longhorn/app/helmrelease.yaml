@@ -25,7 +25,7 @@ spec:
     # Set default data path for Longhorn storage
     defaultSettings:
       defaultDataPath: /var/mnt/longhorn-data
-      defaultReplicaCount: 3
+      defaultReplicaCount: 2
       defaultDataLocality: best-effort
       allowRecurringJobWhileVolumeDetached: true
       snapshotDataIntegrity: enabled
@@ -36,7 +36,7 @@ spec:
     persistence:
       defaultClass: true
       defaultFsType: ext4
-      defaultClassReplicaCount: 3
+      defaultClassReplicaCount: 2
       defaultDataLocality: best-effort
       reclaimPolicy: Delete
       volumeBindingMode: Immediate
