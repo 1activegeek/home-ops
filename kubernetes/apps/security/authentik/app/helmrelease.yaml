@@ -67,7 +67,7 @@ spec:
 
     # Authentik Server Configuration
     server:
-      replicas: 2
+      replicas: 1
       annotations:
         reloader.stakater.com/auto: "true"
       route:
