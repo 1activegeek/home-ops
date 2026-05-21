@@ -18,6 +18,15 @@ spec:
               tag: 0.24.0
             env:
               OLLAMA_HOST: "0.0.0.0"
+            lifecycle:
+              postStart:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - |
+                      until ollama list >/dev/null 2>&1; do sleep 2; done
+                      ollama pull bge-m3
             resources:
               requests:
                 cpu: 2000m
