@@ -22,4 +22,6 @@ spec:
     volumeHandle: print-library
     volumeAttributes:
       server: ${NFS_SERVER}
-      share: /volume1/syncthing/ic_documents/2 Areas/recreation/3d Print
+      # Mount the share root — paths with spaces can't be passed as NFS mount args.
+      # The subfolder is accessed via subPath in each app's volumeMount.
+      share: /volume1/syncthing

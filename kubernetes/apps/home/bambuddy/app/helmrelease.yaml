@@ -84,6 +84,7 @@ spec:
         existingClaim: print-library
         globalMounts:
           - path: /app/library
+            subPath: "ic_documents/2 Areas/Recreation/3D Print"
 
     route:
       app:
