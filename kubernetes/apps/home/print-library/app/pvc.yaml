@@ -1,4 +1,6 @@
 ---
+# storageClassName: "" and volumeName: print-library bind explicitly to the
+# static PV above, bypassing the dynamic nfs-slow provisioner.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -10,4 +12,5 @@ spec:
   resources:
     requests:
       storage: 100Gi
-  storageClassName: nfs-slow
+  storageClassName: ""
+  volumeName: print-library

@@ -1,0 +1,25 @@
+---
+# Static PV binding directly to the existing 3D print folder on Atlantis.
+# NFS export /volume1/syncthing allows 10.0.3.0/24 (k8s node subnet).
+# reclaimPolicy: Retain — deleting the PVC never touches the data on disk.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: print-library
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - noatime
+  csi:
+    driver: nfs.csi.k8s.io
+    volumeHandle: print-library
+    volumeAttributes:
+      server: ${NFS_SERVER}
+      share: /volume1/syncthing/ic_documents/2 Areas/recreation/3d Print
