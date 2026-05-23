@@ -1,0 +1,97 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: orcaslicer
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: orcaslicer
+  interval: 1h
+  values:
+    controllers:
+      main:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: lscr.io/linuxserver/orcaslicer
+              tag: v2.3.2-ls19
+            env:
+              PUID: "1000"
+              PGID: "1000"
+              TZ: America/New_York
+              CUSTOM_USER:
+                valueFrom:
+                  secretKeyRef:
+                    name: orcaslicer-secret
+                    key: username
+              PASSWORD:
+                valueFrom:
+                  secretKeyRef:
+                    name: orcaslicer-secret
+                    key: password
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 3000
+                    scheme: HTTP
+                  initialDelaySeconds: 30
+                  periodSeconds: 15
+                  failureThreshold: 5
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: 3000
+                    scheme: HTTP
+                  initialDelaySeconds: 30
+                  periodSeconds: 15
+                  failureThreshold: 5
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: "4"
+                memory: 4Gi
+
+    service:
+      main:
+        controller: main
+        ports:
+          http:
+            port: 3000
+
+    persistence:
+      config:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        globalMounts:
+          - path: /config
+      library:
+        type: persistentVolumeClaim
+        existingClaim: print-library
+        globalMounts:
+          - path: /config/library
+
+    route:
+      app:
+        hostnames: ["orcaslicer.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: orcaslicer
+                port: 3000

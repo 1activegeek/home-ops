@@ -17,9 +17,14 @@ spec:
           app:
             image:
               repository: ghcr.io/maziggy/bambuddy
-              tag: 0.2.4
+              tag: v0.2.4.2
             env:
               TZ: America/New_York
+              # VIRTUAL_PRINTER_PASV_ADDRESS: needed for FTP passive mode from OrcaSlicer (in-cluster).
+              # Set to the bambuddy Service ClusterIP:
+              #   kubectl get svc bambuddy -n home -o jsonpath='{.spec.clusterIP}'
+              # Add BAMBUDDY_PASV_ADDRESS to cluster-secrets, then uncomment:
+              # VIRTUAL_PRINTER_PASV_ADDRESS: ${BAMBUDDY_PASV_ADDRESS}
               MFA_ENCRYPTION_KEY:
                 valueFrom:
                   secretKeyRef:
@@ -44,6 +49,10 @@ spec:
                     port: 8000
                   initialDelaySeconds: 15
                   periodSeconds: 10
+            securityContext:
+              capabilities:
+                add:
+                  - NET_BIND_SERVICE
             resources:
               requests:
                 cpu: 50m
@@ -57,6 +66,10 @@ spec:
         ports:
           http:
             port: 8000
+          ftps:
+            port: 990
+          rtsps:
+            port: 322
 
     persistence:
       data:
@@ -66,6 +79,11 @@ spec:
         size: 1Gi
         globalMounts:
           - path: /app/data
+      library:
+        type: persistentVolumeClaim
+        existingClaim: print-library
+        globalMounts:
+          - path: /app/library
 
     route:
       app:

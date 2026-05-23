@@ -1,0 +1,28 @@
+---
+# Static PV — binds to a pre-created directory on the NAS.
+# Pre-step: SSH to NAS and run:
+#   mkdir -p /volume2/kubes/print-library && chown -R 1000:1000 /volume2/kubes/print-library
+# reclaimPolicy: Retain means deleting the PVC will NOT delete the data on disk.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: print-library
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+    - nconnect=16
+    - hard
+    - noatime
+  csi:
+    driver: nfs.csi.k8s.io
+    # volumeHandle must be unique cluster-wide
+    volumeHandle: print-library
+    volumeAttributes:
+      server: ${NFS_SERVER}
+      share: /volume2/kubes/print-library
