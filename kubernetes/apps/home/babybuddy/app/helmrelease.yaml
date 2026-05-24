@@ -76,3 +76,11 @@ spec:
           - backendRefs:
               - name: babybuddy
                 port: 8000
+            filters:
+              - type: ResponseHeaderModifier
+                responseHeaderModifier:
+                  remove:
+                    - X-Frame-Options
+                  set:
+                    - name: Content-Security-Policy
+                      value: "frame-ancestors https://hass.${SECRET_DOMAIN}"
