@@ -1,0 +1,47 @@
+---
+# Recurring jobs in the "default" group automatically apply to every Longhorn
+# volume that has no volume-specific recurring jobs — i.e. all current volumes
+# AND any future PVC, with zero per-app configuration.
+#
+# Layered strategy:
+#   - snapshot-hourly : fast same-cluster rollback (local, cheap)
+#   - backup-daily    : off-box DR to Synology NFS, 1 week of daily points
+#   - backup-weekly   : longer history (~1 month) via cheap incrementals
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: snapshot-hourly
+  namespace: longhorn-system
+spec:
+  cron: "0 */6 * * *"   # every 6 hours
+  task: snapshot
+  groups:
+    - default
+  retain: 8             # keep last 8 snapshots (~2 days)
+  concurrency: 2
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: backup-daily
+  namespace: longhorn-system
+spec:
+  cron: "0 3 * * *"     # daily at 03:00
+  task: backup
+  groups:
+    - default
+  retain: 7             # keep last 7 daily backups
+  concurrency: 2
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: backup-weekly
+  namespace: longhorn-system
+spec:
+  cron: "0 4 * * 0"     # weekly, Sunday 04:00
+  task: backup
+  groups:
+    - default
+  retain: 4             # keep last 4 weekly backups (~1 month)
+  concurrency: 2
