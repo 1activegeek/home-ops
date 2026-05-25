@@ -31,6 +31,15 @@ spec:
       snapshotDataIntegrity: enabled
       snapshotDataIntegrityImmediateCheckAfterSnapshotCreation: true
       fastReplicaRebuildEnabled: true
+      # Off-cluster backup target: Synology NFS (NFSv4). No credentials needed for NFS.
+      # Backups are incremental block-level; recurring schedules live in recurringjobs.yaml.
+      backupTarget: nfs://10.0.3.2:/volume2/longhorn-backup
+      backupTargetCredentialSecret: ""
+      # Cap concurrency so scheduled backups/restores never spike cluster load.
+      backupConcurrentLimit: 2
+      restoreConcurrentLimit: 2
+      # Freeze the filesystem during snapshot for a more consistent point-in-time copy.
+      freezeFilesystemForSnapshot: true
 
     # Enable persistent storage
     persistence:
