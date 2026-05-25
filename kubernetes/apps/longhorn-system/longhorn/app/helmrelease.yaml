@@ -31,15 +31,20 @@ spec:
       snapshotDataIntegrity: enabled
       snapshotDataIntegrityImmediateCheckAfterSnapshotCreation: true
       fastReplicaRebuildEnabled: true
-      # Off-cluster backup target: Synology NFS (NFSv4). No credentials needed for NFS.
-      # Backups are incremental block-level; recurring schedules live in recurringjobs.yaml.
-      backupTarget: nfs://10.0.3.2:/volume2/longhorn-backup
-      backupTargetCredentialSecret: ""
       # Cap concurrency so scheduled backups/restores never spike cluster load.
       backupConcurrentLimit: 2
       restoreConcurrentLimit: 2
       # Freeze the filesystem during snapshot for a more consistent point-in-time copy.
       freezeFilesystemForSnapshot: true
+
+    # Off-cluster backup target: Synology NFS (NFSv4). No credentials needed for NFS.
+    # In Longhorn v1.11 the backup target is the `defaultBackupStore` chart block
+    # (it populates the `default` BackupTarget CR) — NOT defaultSettings.backupTarget,
+    # which was removed as a setting in this version and is silently ignored.
+    defaultBackupStore:
+      backupTarget: nfs://10.0.3.2:/volume2/longhorn-backup
+      backupTargetCredentialSecret: ""
+      pollInterval: 300
 
     # Enable persistent storage
     persistence:

@@ -8,7 +8,7 @@ GitOps repo (Flux). Only PVC **data** needs backing up.
 ## Topology
 
 - **Backup target:** `nfs://10.0.3.2:/volume2/longhorn-backup` (Synology, NFSv4, no creds)
-- **Config:** `kubernetes/apps/longhorn-system/longhorn/app/helmrelease.yaml` (`defaultSettings.backupTarget`)
+- **Config:** `kubernetes/apps/longhorn-system/longhorn/app/helmrelease.yaml` (`defaultBackupStore.backupTarget` — Longhorn v1.11 moved this off `defaultSettings` onto the `default` BackupTarget CR)
 - **Schedules:** `kubernetes/apps/longhorn-system/longhorn/app/recurringjobs.yaml`
   - `snapshot-hourly` — local snapshot every 6h, retain 8 (fast rollback)
   - `backup-daily` — backup to NFS daily 03:00, retain 7
