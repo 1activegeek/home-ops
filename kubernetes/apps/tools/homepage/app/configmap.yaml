@@ -192,10 +192,6 @@ data:
             icon: n8n.svg
             href: https://n8n.${SECRET_DOMAIN}
             description: Automation
-        - LiteLLM:
-            icon: sh-litellm
-            href: https://llm.${SECRET_DOMAIN}
-            description: LLM Proxy
 
   custom.css: |
     /* Catppuccin Mocha — Mauve accent */

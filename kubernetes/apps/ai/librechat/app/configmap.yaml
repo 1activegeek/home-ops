@@ -9,9 +9,9 @@ data:
     cache: true
     endpoints:
       custom:
-        - name: "Ollama (via LiteLLM)"
-          apiKey: "${LITELLM_MASTER_KEY}"
-          baseURL: "http://litellm-main.ai.svc.cluster.local:4000"
+        - name: "Ollama"
+          apiKey: "ollama"
+          baseURL: "http://ollama.ai.svc.cluster.local:11434/v1"
           models:
             default: ["llama3.2", "phi3"]
             fetch: false
