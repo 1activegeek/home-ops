@@ -12,6 +12,14 @@
   dependencyDashboard: true,
   dependencyDashboardTitle: "Renovate Dashboard 🤖",
   schedule: ["every weekend"],
+  // Burn-in gate: hold every update until the upstream release is 3 days old,
+  // measured from the datasource's release timestamp (not the PR open date).
+  // internalChecksFilter: "strict" (the default) keeps the PR hidden until the
+  // release ages past this threshold, so any PR the triage routine sees is
+  // already merge-eligible on green CI. This replaces the PR-age check that
+  // scripts/renovate-triage/triage.py used to enforce.
+  minimumReleaseAge: "3 days",
+  internalChecksFilter: "strict",
   ignorePaths: ["**/*.sops.*"],
   flux: {
     managerFilePatterns: ["/(^|/)kubernetes/.+\\.ya?ml(?:\\.j2)?$/"],

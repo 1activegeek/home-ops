@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Renovate PR triage engine for 1activegeek/home-ops.
 
-Classifies open Renovate PRs by type label + CI status + age and outputs
-triage.json. Optionally approves and squash-merges the safe bucket.
+Classifies open Renovate PRs by type label + CI status and outputs triage.json.
+Optionally approves and squash-merges the safe bucket.
+
+Release-age burn-in is enforced upstream by Renovate via `minimumReleaseAge`
+(.renovaterc.json5), which measures age from the datasource's release timestamp
+and keeps a PR hidden until it ages past the threshold. So any PR this script
+sees has already passed burn-in; it only needs to gate on type + CI status.
+PR age is reported for context but is no longer a merge gate.
 
 Usage:
   triage.py                        # report mode, JSON to stdout
   triage.py --out triage.json      # write to file
   triage.py --merge-safe           # approve+merge safe PRs
   triage.py --merge-safe --dry-run # print gh commands, don't run
-  triage.py --min-age-days 5       # override age threshold
   triage.py --repo owner/repo      # override repo
 """
 
@@ -20,7 +25,6 @@ import sys
 from datetime import datetime, timezone
 
 REPO = "1activegeek/home-ops"
-MIN_AGE_DAYS = 3
 
 TYPE_LABELS = {"type/major", "type/minor", "type/patch", "type/digest"}
 SAFE_TYPES = {"type/minor", "type/patch", "type/digest"}
@@ -82,11 +86,13 @@ def checks_state(rollup):
 
 
 def pr_age_days(created_at):
+    """PR age in days. Informational only — release-age burn-in is enforced
+    upstream by Renovate's minimumReleaseAge, not by this number."""
     created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
     return (datetime.now(timezone.utc) - created).days
 
 
-def bucket_pr(pr, min_age):
+def bucket_pr(pr):
     labels = pr["labels"]
     update_type = extract_type(labels)
     source = extract_source(labels)
@@ -119,15 +125,10 @@ def bucket_pr(pr, min_age):
         return "review", entry
 
     if update_type in SAFE_TYPES:
-        if ci == "green" and age >= min_age:
-            entry["reason"] = f"{update_type}, all checks green, {age}d old"
+        if ci == "green":
+            entry["reason"] = f"{update_type}, all checks green (burn-in passed upstream)"
             return "safe", entry
-        reasons = []
-        if ci != "green":
-            reasons.append(f"checks {ci}")
-        if age < min_age:
-            reasons.append(f"age {age}d < {min_age}d minimum")
-        entry["reason"] = "; ".join(reasons)
+        entry["reason"] = f"checks {ci}"
         return "waiting", entry
 
     entry["reason"] = "unknown update type; manual review needed"
@@ -157,7 +158,6 @@ def run_gh_merge(pr_number, repo, dry_run):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", default=REPO)
-    parser.add_argument("--min-age-days", type=int, default=MIN_AGE_DAYS)
     parser.add_argument("--merge-safe", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--out", help="write triage.json to this path (default: stdout)")
@@ -168,13 +168,12 @@ def main():
 
     buckets = {"safe": [], "waiting": [], "review": [], "blocked": []}
     for pr in renovate_prs:
-        bucket, entry = bucket_pr(pr, args.min_age_days)
+        bucket, entry = bucket_pr(pr)
         buckets[bucket].append(entry)
 
     result = {
         "repo": args.repo,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "min_age_days": args.min_age_days,
         **buckets,
     }
 
