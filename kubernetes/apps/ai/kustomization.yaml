@@ -15,3 +15,4 @@ resources:
   - ./n8n/ks.yaml
   - ./librechat/ks.yaml
   - ./hermes-agent/ks.yaml
+  - ./claude-worker/ks.yaml
