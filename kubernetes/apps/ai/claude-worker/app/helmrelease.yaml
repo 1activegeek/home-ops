@@ -62,14 +62,15 @@ spec:
         fsGroup: 1000
 
     service:
-      # Cilium L2 LoadBalancer -> real LAN IP. Also reachable over Tailscale via the
-      # existing subnet router (advertises 10.0.3.0/24). Pin the IP with the
-      # lbipam.cilium.io/ips annotation if desired.
+      # Cilium L2 LoadBalancer -> pinned LAN IP. Also reachable over Tailscale via the
+      # existing subnet router (advertises 10.0.3.0/24). Pinned so SSH config can use
+      # a stable IP/host across recreations. Sequential with the gateway/envoy block
+      # (.52/.53/.54).
       ssh:
         controller: main
         type: LoadBalancer
         annotations:
-          # lbipam.cilium.io/ips: "10.0.3.60"
+          lbipam.cilium.io/ips: "10.0.3.55"
           external-dns.alpha.kubernetes.io/hostname: claude.${SECRET_DOMAIN}
         ports:
           ssh:
