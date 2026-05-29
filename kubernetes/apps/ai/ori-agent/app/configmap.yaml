@@ -108,7 +108,24 @@ data:
     export TZ="${TZ:-America/Denver}"
     export EDITOR="${EDITOR:-nano}"
     export KUBECONFIG=""   # use in-cluster ServiceAccount creds
+    # launch Ori in the LifeOS vault so it loads AGENTS.md + project context
+    ori() { cd /workspace/lifeOS && claude "\$@"; }
     EOF
+
+    # --- zellij config: OSC52 clipboard + clean scrollback copy --------------------
+    # Sends copies to the local machine's clipboard over SSH, and lets "edit
+    # scrollback" (Ctrl-s then e) open the buffer in nano where long URLs are a
+    # single logical line (no wrap-induced line breaks on copy).
+    ZJ_CONF="${HOME_DIR}/.config/zellij/config.kdl"
+    if [ ! -f "${ZJ_CONF}" ]; then
+      cat > "${ZJ_CONF}" <<'EOF'
+    copy_clipboard "system"
+    copy_on_select true
+    mouse_mode true
+    scroll_buffer_size 100000
+    scrollback_editor "nano"
+    EOF
+    fi
 
     BASHRC="${HOME_DIR}/.bashrc"
     if ! grep -q "ori-agent-login" "${BASHRC}" 2>/dev/null; then
