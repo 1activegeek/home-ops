@@ -123,6 +123,12 @@ data:
     EOF
     fi
 
+    # SSH gives a login shell, which reads .bash_profile (NOT .bashrc). The `ori`
+    # user was made with useradd (no skel), so source .bashrc explicitly.
+    if [ ! -f "${HOME_DIR}/.bash_profile" ]; then
+      printf '%s\n' '[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"' > "${HOME_DIR}/.bash_profile"
+    fi
+
     # --- ssh: persistent host keys + authorized_keys from the mounted ConfigMap ---
     if ! ls "${HOSTKEY_DIR}"/ssh_host_*_key >/dev/null 2>&1; then
       log "generating persistent SSH host keys"
