@@ -1,0 +1,51 @@
+---
+# ServiceAccount the agent pod runs as. kubectl inside the pod uses this
+# token automatically (in-cluster config), so Ori can operate its own cluster.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ori-agent
+  namespace: ai
+---
+# Read-only across the cluster (built-in "view" excludes secrets).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ori-agent-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: ori-agent
+    namespace: ai
+---
+# Troubleshooting verbs the built-in "view" role lacks: logs, exec, port-forward.
+# This matches the "ALLOWED read-only troubleshooting" set in the home-ops AGENTS.md.
+# NOTE: all mutating cluster changes go through Git (GitOps) — the agent edits the
+# repo and pushes; it deliberately does NOT get apply/patch/delete here.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ori-agent-troubleshoot
+rules:
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec", "pods/portforward"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ori-agent-troubleshoot
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ori-agent-troubleshoot
+subjects:
+  - kind: ServiceAccount
+    name: ori-agent
+    namespace: ai
