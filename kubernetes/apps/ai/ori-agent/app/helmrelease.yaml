@@ -78,9 +78,9 @@ spec:
             protocol: TCP
 
     persistence:
-      # bootstrap script + authorized_keys (your public key), mounted read-only
+      # bootstrap script + authorized_keys, SOPS-encrypted Secret, mounted read-only
       bootstrap:
-        type: configMap
+        type: secret
         name: ori-agent-bootstrap
         defaultMode: 0555
         globalMounts:
