@@ -39,21 +39,26 @@ data:
       *) log "unsupported arch $(uname -m)"; exit 1 ;;
     esac
 
+    # --- system packages (stock node:bookworm is minimal — no sshd/sudo/ssh-keygen) ---
+    # openssh-client carries ssh-keygen (host-key gen below); sudo creates /etc/sudoers.d.
+    # Must run BEFORE the user block, which writes to /etc/sudoers.d.
+    if ! command -v sshd >/dev/null 2>&1 && [ ! -x /usr/sbin/sshd ]; then
+      log "installing openssh-server + extras via apt"
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -qq
+      apt-get install -y -qq --no-install-recommends \
+        openssh-server openssh-client sudo less jq nano ca-certificates
+    fi
+
     # --- login user: free uid 1000 (taken by stock `node` user), make `ori` ---
     if ! id "${AGENT_USER}" >/dev/null 2>&1; then
       userdel node >/dev/null 2>&1 || true
       groupdel node >/dev/null 2>&1 || true
       groupadd -g 1000 "${AGENT_USER}" 2>/dev/null || true
       useradd -u 1000 -g 1000 -d "${HOME_DIR}" -s /bin/bash "${AGENT_USER}" 2>/dev/null || true
+      install -d -m 0750 /etc/sudoers.d
       echo "${AGENT_USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/ori
-    fi
-
-    # --- system packages (only the unavoidable one — node image has git/curl/etc.) ---
-    if ! command -v sshd >/dev/null 2>&1 && [ ! -x /usr/sbin/sshd ]; then
-      log "installing openssh-server + extras via apt"
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update -qq
-      apt-get install -y -qq --no-install-recommends openssh-server less jq nano ca-certificates
+      chmod 0440 /etc/sudoers.d/ori
     fi
 
     mkdir -p "${LOCAL_BIN}" "${HOSTKEY_DIR}" "${HOME_DIR}/.claude" \
