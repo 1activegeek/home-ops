@@ -14,4 +14,3 @@ resources:
   - ./qdrant/ks.yaml
   - ./n8n/ks.yaml
   - ./librechat/ks.yaml
-  - ./hermes-agent/ks.yaml
