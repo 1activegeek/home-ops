@@ -24,7 +24,7 @@ spec:
             # stock public image: Debian 12 (bookworm) + Node 22. No custom build.
             image:
               repository: docker.io/library/node
-              tag: 22-bookworm
+              tag: 24-bookworm
             # bootstrap installs sshd/zellij/claude/kubectl then exec's sshd
             command: ["/usr/bin/env", "bash", "/config/bootstrap.sh"]
             env:
