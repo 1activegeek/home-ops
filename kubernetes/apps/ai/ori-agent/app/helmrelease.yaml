@@ -55,11 +55,12 @@ spec:
               limits:
                 memory: 6Gi
 
-    # runs as root so bootstrap can apt-install + run sshd; login user is `ori` (uid 1000).
-    # fsGroup 1000 keeps the /home PVC writable by ori.
+    # runs as root so bootstrap can apt-install + run sshd; login user is `ori`
+    # (uid 114670/gid 207066 — matches the NFS lifeOS vault owner so it's writable).
+    # fsGroup must equal the bootstrap's AGENT_GID so the /home PVC stays ori-writable.
     defaultPodOptions:
       securityContext:
-        fsGroup: 1000
+        fsGroup: 207066
 
     service:
       # Cilium L2 LoadBalancer -> pinned LAN IP. Also reachable over Tailscale via the
