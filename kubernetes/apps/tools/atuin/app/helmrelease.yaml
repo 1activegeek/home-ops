@@ -23,7 +23,7 @@ spec:
             env:
               ATUIN_HOST: 0.0.0.0
               ATUIN_PORT: "8888"
-              ATUIN_OPEN_REGISTRATION: "true"
+              ATUIN_OPEN_REGISTRATION: "false"
               RUST_LOG: info
               ATUIN_DB_URI:
                 valueFrom:
