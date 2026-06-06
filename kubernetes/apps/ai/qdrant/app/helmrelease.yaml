@@ -17,7 +17,7 @@ spec:
           app:
             image:
               repository: qdrant/qdrant
-              tag: v1.18.1
+              tag: v1.18.2
             env:
               QDRANT__SERVICE__API_KEY:
                 valueFrom:
