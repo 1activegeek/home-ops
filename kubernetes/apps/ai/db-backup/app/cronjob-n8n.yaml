@@ -1,0 +1,72 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup-n8n
+spec:
+  schedule: "10 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dump
+              image: postgres:18-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+              env:
+              - name: PGPASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: n8n-secret
+                    key: db_password
+              - name: PGHOST
+                value: n8n-postgres.ai.svc.cluster.local
+              - name: PGUSER
+                value: n8n
+              - name: PGDATABASE
+                value: n8n
+              - name: RETENTION_DAYS
+                value: "14"
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  TS=$(date +%Y%m%d-%H%M%S)
+                  OUT="/backups/n8n-${TS}.dump"
+                  echo "[$(date -u)] pg_dump n8n -> ${OUT}"
+                  pg_dump --no-owner --no-privileges --format=custom --compress=9 --file="${OUT}"
+                  ls -lh "${OUT}"
+                  echo "Pruning n8n-*.dump older than ${RETENTION_DAYS}d"
+                  find /backups -name 'n8n-*.dump' -type f -mtime +${RETENTION_DAYS} -print -delete
+                  echo "done"
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: db-backups

@@ -8,6 +8,7 @@ components:
 
 resources:
   - ./namespace.yaml
+  - ./db-backup/ks.yaml
   - ./bambuddy/ks.yaml
   - ./babybuddy/ks.yaml
   - ./zwave-js-ui/ks.yaml

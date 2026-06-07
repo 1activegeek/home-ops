@@ -8,6 +8,7 @@ components:
 
 resources:
   - ./namespace.yaml
+  - ./db-backup/ks.yaml
   - ./metube/ks.yaml
   - ./seerr/ks.yaml
   - ./prowlarr/ks.yaml
