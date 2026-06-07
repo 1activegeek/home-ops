@@ -260,7 +260,12 @@ def notify_discord(webhook_url, title, color, description, dry_run=False):
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         webhook_url, data=data,
-        headers={"Content-Type": "application/json"}, method="POST",
+        headers={
+            "Content-Type": "application/json",
+            # Discord rejects requests with the default Python-urllib UA (403).
+            "User-Agent": "home-ops-renovate-triage/1.0 (+https://github.com/1activegeek/home-ops)",
+        },
+        method="POST",
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
