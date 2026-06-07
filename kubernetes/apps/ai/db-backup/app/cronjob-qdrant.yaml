@@ -1,0 +1,90 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup-qdrant
+spec:
+  schedule: "30 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dump
+              image: python:3.12-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+              env:
+              - name: QDRANT_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: qdrant-secret
+                    key: api_key
+              - name: RETENTION_DAYS
+                value: "14"
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  python3 - <<'PY'
+                  import os, json, glob, time, urllib.request
+                  base = "http://qdrant.ai.svc.cluster.local:6333"
+                  key = os.environ["QDRANT_API_KEY"]
+                  ret = int(os.environ.get("RETENTION_DAYS", "14"))
+                  def call(method, path, raw=False):
+                      req = urllib.request.Request(base + path, method=method, headers={"api-key": key})
+                      r = urllib.request.urlopen(req, timeout=300)
+                      return r.read() if raw else json.loads(r.read())
+                  ts = time.strftime("%Y%m%d-%H%M%S")
+                  print("Creating full Qdrant snapshot...", flush=True)
+                  res = call("POST", "/snapshots")
+                  name = res["result"]["name"]
+                  print("snapshot:", name, flush=True)
+                  data = call("GET", "/snapshots/" + name, raw=True)
+                  out = "/backups/qdrant-%s-%s" % (ts, name)
+                  with open(out, "wb") as f:
+                      f.write(data)
+                  print("wrote", out, os.path.getsize(out), "bytes", flush=True)
+                  # delete server-side snapshot so qdrant PVC does not grow
+                  try:
+                      call("DELETE", "/snapshots/" + name)
+                      print("deleted server-side snapshot", flush=True)
+                  except Exception as e:
+                      print("warn: could not delete server snapshot:", e, flush=True)
+                  # prune local
+                  cutoff = time.time() - ret * 86400
+                  for p in glob.glob("/backups/qdrant-*"):
+                      if os.path.getmtime(p) < cutoff:
+                          os.remove(p); print("pruned", p, flush=True)
+                  print("done", flush=True)
+                  PY
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: db-backups

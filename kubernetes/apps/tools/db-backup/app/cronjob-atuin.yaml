@@ -1,0 +1,66 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup-atuin
+spec:
+  schedule: "10 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dump
+              image: postgres:18-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+              env:
+              - name: DATABASE_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: atuin-secret
+                    key: database_url
+              - name: RETENTION_DAYS
+                value: "14"
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  TS=$(date +%Y%m%d-%H%M%S)
+                  OUT="/backups/atuin-${TS}.dump"
+                  echo "[$(date -u)] pg_dump atuin (url) -> ${OUT}"
+                  pg_dump --no-owner --no-privileges --format=custom --compress=9 --file="${OUT}" "${DATABASE_URL}"
+                  ls -lh "${OUT}"
+                  echo "Pruning atuin-*.dump older than ${RETENTION_DAYS}d"
+                  find /backups -name 'atuin-*.dump' -type f -mtime +${RETENTION_DAYS} -print -delete
+                  echo "done"
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: db-backups

@@ -1,0 +1,67 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup-grimmory
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dump
+              image: mariadb:12
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+              env:
+              - name: MYSQL_PWD
+                valueFrom:
+                  secretKeyRef:
+                    name: grimmory-secret
+                    key: DB_PASSWORD
+              - name: RETENTION_DAYS
+                value: "14"
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  TS=$(date +%Y%m%d-%H%M%S)
+                  OUT="/backups/grimmory-${TS}.sql.gz"
+                  echo "[$(date -u)] mariadb-dump grimmory -> ${OUT}"
+                  mariadb-dump --single-transaction --no-tablespaces --skip-lock-tables \
+                    -h grimmory-mariadb.media.svc.cluster.local -u grimmory grimmory | gzip -9 > "${OUT}"
+                  ls -lh "${OUT}"
+                  echo "Pruning grimmory-*.sql.gz older than ${RETENTION_DAYS}d"
+                  find /backups -name 'grimmory-*.sql.gz' -type f -mtime +${RETENTION_DAYS} -print -delete
+                  echo "done"
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: db-backups
