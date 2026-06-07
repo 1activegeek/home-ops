@@ -19,6 +19,13 @@ Usage:
   triage.py --verify-health        # just run the cluster health check (no triage/merge)
   triage.py --repo owner/repo      # override repo
 
+Completion notification (Discord):
+  On a real --merge-safe run, after the merge + health check settle, a summary is
+  POSTed to a Discord channel webhook (success / cluster-degraded / nothing-to-merge).
+  The webhook URL comes from --discord-webhook or the RENOVATE_DISCORD_WEBHOOK env
+  var; if neither is set the notify step is skipped (the run is unaffected).
+  --no-notify suppresses it; --dry-run prints the payload instead of POSTing.
+
 Cluster health check (after a real merge, or via --verify-health):
   Merged PRs land on main; Flux reconciles the change onto the cluster. Before
   declaring the run complete we nudge Flux and poll until the GitOps state settles:
@@ -29,9 +36,12 @@ Cluster health check (after a real merge, or via --verify-health):
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 
 REPO = "1activegeek/home-ops"
@@ -180,6 +190,91 @@ def run_gh_merge(pr_number, repo, dry_run):
         print(f"  Merge failed: {r2.stderr.strip()}", file=sys.stderr)
         return False
     return True
+
+
+# --- completion notification (Discord) -------------------------------------
+
+# Discord embed accent colors (decimal RGB).
+DISCORD_GREEN = 3066993    # merged cleanly, cluster settled
+DISCORD_ORANGE = 15105570  # merged but health check skipped
+DISCORD_RED = 15158332     # cluster did not settle
+DISCORD_BLUE = 3447003     # ran, nothing to merge
+
+
+def _pr_lines(entries, limit=12):
+    """Markdown bullet list of PRs for a Discord embed (capped)."""
+    lines = [f"• [#{e['number']}]({e['url']}) {e['title']}" for e in entries[:limit]]
+    if len(entries) > limit:
+        lines.append(f"• …and {len(entries) - limit} more")
+    return "\n".join(lines)
+
+
+def build_notification(buckets, merged, health, skip_health):
+    """Return (title, color, description) summarizing a --merge-safe run."""
+    review = buckets["review"]
+    waiting = buckets["waiting"]
+    blocked = buckets["blocked"]
+
+    if health is not None and not health.get("healthy"):
+        title = "⚠️ Renovate triage — cluster did NOT settle"
+        color = DISCORD_RED
+    elif merged:
+        title = f"✅ Renovate triage — merged {len(merged)} PR(s)"
+        color = DISCORD_ORANGE if skip_health else DISCORD_GREEN
+    else:
+        title = "ℹ️ Renovate triage — nothing to merge"
+        color = DISCORD_BLUE
+
+    parts = []
+    if merged:
+        parts.append(f"**Merged ({len(merged)})**\n{_pr_lines(merged)}")
+    if review:
+        parts.append(f"**Needs review — majors ({len(review)})**\n{_pr_lines(review)}")
+    if waiting:
+        parts.append(f"**Waiting on CI ({len(waiting)})**\n{_pr_lines(waiting)}")
+    if blocked:
+        parts.append(f"**Blocked ({len(blocked)})**\n{_pr_lines(blocked)}")
+    if health is not None:
+        if health.get("healthy"):
+            parts.append("**Cluster:** settled ✅")
+        else:
+            parts.append(f"**Cluster:** {health.get('error', 'degraded')} ⚠️")
+    elif merged and skip_health:
+        parts.append("**Cluster:** health check skipped (--skip-health-check)")
+    if not parts:
+        parts.append("No open Renovate PRs.")
+    return title, color, "\n\n".join(parts)
+
+
+def notify_discord(webhook_url, title, color, description, dry_run=False):
+    """POST a summary embed to a Discord channel webhook. Best-effort; never raises."""
+    payload = {"embeds": [{
+        "title": title,
+        "description": description[:4000],  # Discord embed description hard cap
+        "color": color,
+    }]}
+    if dry_run:
+        print("  [dry-run] would POST to Discord webhook:\n"
+              f"{json.dumps(payload, indent=2)}", file=sys.stderr)
+        return True
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        webhook_url, data=data,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if 200 <= resp.status < 300:
+                print(f"  notify: Discord notification sent ({resp.status}).",
+                      file=sys.stderr)
+                return True
+            print(f"  notify: Discord returned HTTP {resp.status}", file=sys.stderr)
+            return False
+    except OSError as e:
+        # URLError and socket TimeoutError are both OSError subclasses — catch the
+        # base so a flaky webhook never fails the triage run.
+        print(f"  notify: Discord POST failed: {e}", file=sys.stderr)
+        return False
 
 
 # --- cluster health verification -------------------------------------------
@@ -342,6 +437,11 @@ def main():
                         help="merge but don't wait for the cluster to settle")
     parser.add_argument("--health-timeout", type=int, default=HEALTH_TIMEOUT_S,
                         help=f"seconds to wait for the cluster to settle (default {HEALTH_TIMEOUT_S})")
+    parser.add_argument("--discord-webhook",
+                        help="Discord webhook URL for the completion notification "
+                             "(falls back to the RENOVATE_DISCORD_WEBHOOK env var)")
+    parser.add_argument("--no-notify", action="store_true",
+                        help="suppress the Discord completion notification")
     args = parser.parse_args()
 
     # Standalone health check — no triage, no merge.
@@ -374,7 +474,7 @@ def main():
 
     if args.merge_safe:
         safe = buckets["safe"]
-        merged_any = False
+        merged = []
         if not safe:
             print("\nNo safe PRs to merge.", file=sys.stderr)
         else:
@@ -386,14 +486,15 @@ def main():
                 print(f"  Reason: {pr['reason']}", file=sys.stderr)
                 ok = run_gh_merge(n, args.repo, args.dry_run)
                 if ok and not args.dry_run:
-                    merged_any = True
+                    merged.append(pr)
                 if not ok:
                     print(f"  WARNING: failed to merge #{n}, continuing", file=sys.stderr)
 
         # Verify the cluster settles before declaring the run complete.
         # Only after a real merge: dry-runs change nothing, and --skip-health-check
         # opts out explicitly.
-        if merged_any and not args.skip_health_check:
+        health = None
+        if merged and not args.skip_health_check:
             print("\nVerifying cluster health after merge...", file=sys.stderr)
             nudge_flux()
             health = verify_cluster_health(timeout_s=args.health_timeout)
@@ -401,12 +502,28 @@ def main():
                   file=sys.stderr)
             if not health["healthy"]:
                 print(json.dumps(health, indent=2), file=sys.stderr)
-                # Non-zero exit so the paired completion-notification step can branch
-                # on success vs. a cluster that didn't settle.
-                sys.exit(1)
-        elif merged_any and args.skip_health_check:
+        elif merged and args.skip_health_check:
             print("\nSkipping cluster health check (--skip-health-check).",
                   file=sys.stderr)
+
+        # Completion notification. Branches success vs. cluster-degraded vs.
+        # nothing-to-merge. Best-effort: a notify failure never fails the run.
+        webhook = args.discord_webhook or os.environ.get("RENOVATE_DISCORD_WEBHOOK")
+        if args.no_notify:
+            pass
+        elif not webhook:
+            print("\nnotify: no Discord webhook configured "
+                  "(--discord-webhook / RENOVATE_DISCORD_WEBHOOK); skipping.",
+                  file=sys.stderr)
+        else:
+            title, color, desc = build_notification(
+                buckets, merged, health, args.skip_health_check)
+            notify_discord(webhook, title, color, desc, dry_run=args.dry_run)
+
+        # Non-zero exit if the cluster didn't settle — after the ⚠️ notification
+        # goes out — so the routine surfaces the failure.
+        if health is not None and not health["healthy"]:
+            sys.exit(1)
 
 
 if __name__ == "__main__":
