@@ -1,0 +1,119 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cloudflare-dns-monitor
+spec:
+  # Every 30 min — poll the thegeekybits zone, alert on records not seen before.
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: check
+              image: python:3.12-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: ZONE_NAME
+                  value: "thegeekybits.com"
+                - name: APPRISE_URL
+                  value: "http://apprise.tools:8000/notify"
+                - name: CF_API_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudflare-dns-secret
+                      key: api-token
+                - name: DISCORD_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudflare-dns-monitor-secret
+                      key: DISCORD_WEBHOOK_URL
+              command: ["python3", "-c"]
+              args:
+                - |
+                  import json, os, re, sys, urllib.request, urllib.parse
+                  CF = os.environ["CF_API_TOKEN"]
+                  ZONE = os.environ["ZONE_NAME"]
+                  APPRISE = os.environ["APPRISE_URL"]
+                  WEBHOOK = os.environ["DISCORD_WEBHOOK_URL"]
+                  STATE = "/state/seen-records.json"
+                  API = "https://api.cloudflare.com/client/v4"
+
+                  def cf(path):
+                      req = urllib.request.Request(API + path, headers={"Authorization": "Bearer " + CF})
+                      with urllib.request.urlopen(req, timeout=20) as r:
+                          return json.load(r)
+
+                  zr = cf("/zones?name=" + urllib.parse.quote(ZONE)).get("result") or []
+                  if not zr:
+                      print("ERROR: zone %r not found or token lacks access" % ZONE, file=sys.stderr)
+                      sys.exit(1)
+                  zid = zr[0]["id"]
+                  recs = cf("/zones/%s/dns_records?per_page=1000" % zid).get("result", [])
+                  current = {r["id"]: "%s %s -> %s" % (r["type"], r["name"], r.get("content", "")) for r in recs}
+
+                  try:
+                      with open(STATE) as f:
+                          prior = json.load(f)
+                  except FileNotFoundError:
+                      prior = None
+
+                  if prior is None:
+                      print("Baseline established: %d records (no alert on first run)." % len(current))
+                  else:
+                      new = [i for i in current if i not in prior]
+                      if new:
+                          body = "New Cloudflare DNS record(s) in %s:\n%s" % (
+                              ZONE, "\n".join("- " + current[i] for i in new))
+                          print(body)
+                          m = re.search(r"/webhooks/(\d+)/([\w-]+)", WEBHOOK)
+                          if not m:
+                              print("ERROR: cannot parse Discord webhook URL", file=sys.stderr)
+                              sys.exit(1)
+                          data = urllib.parse.urlencode({
+                              "urls": "discord://%s/%s" % (m.group(1), m.group(2)),
+                              "title": "New DNS record in %s" % ZONE,
+                              "body": body,
+                          }).encode()
+                          with urllib.request.urlopen(urllib.request.Request(APPRISE, data=data), timeout=20) as r:
+                              r.read()
+                          print("Alert dispatched via apprise.")
+                      else:
+                          print("No new DNS records (%d total)." % len(current))
+
+                  with open(STATE, "w") as f:
+                      json.dump(current, f)
+              volumeMounts:
+                - name: state
+                  mountPath: /state
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 48Mi
+                limits:
+                  memory: 96Mi
+          volumes:
+            - name: state
+              persistentVolumeClaim:
+                claimName: cloudflare-dns-monitor-state
