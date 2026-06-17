@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/prowlarr
-              tag: rolling
+              tag: 2.4.0.5397
             env:
               TZ: America/New_York
               PROWLARR__APP__INSTANCENAME: Prowlarr
