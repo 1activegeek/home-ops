@@ -1,0 +1,17 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cloudflare-dns-monitor
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/network/cloudflare-dns-monitor/app
+  # No postBuild.substituteFrom — the job needs no cluster vars and we avoid
+  # any ${VAR} substitution surprises.
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: network
+  wait: false
