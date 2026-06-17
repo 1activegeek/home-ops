@@ -17,7 +17,7 @@ spec:
           app:
             image:
               repository: nextcloud
-              tag: latest
+              tag: 33.0.1
             env:
               POSTGRES_HOST: nextcloud-postgres
               POSTGRES_DB: nextcloud
@@ -133,7 +133,7 @@ spec:
           cron:
             image:
               repository: curlimages/curl
-              tag: latest
+              tag: 8.20.0
             command:
               - curl
               - -s

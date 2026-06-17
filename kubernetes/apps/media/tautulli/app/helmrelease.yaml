@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: ghcr.io/tautulli/tautulli
-              tag: latest
+              tag: v2.17.2
             env:
               TZ: America/New_York
             envFrom:

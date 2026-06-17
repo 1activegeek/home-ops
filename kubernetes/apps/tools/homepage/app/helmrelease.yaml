@@ -21,7 +21,7 @@ spec:
           app:
             image:
               repository: ghcr.io/gethomepage/homepage
-              tag: latest
+              tag: v1.13.2
             env:
               TZ: America/New_York
               HOMEPAGE_ALLOWED_HOSTS: "home.${SECRET_DOMAIN}"

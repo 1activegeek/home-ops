@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: ghcr.io/hotio/autoscan
-              tag: latest
+              tag: release-b2f4c22
             env:
               TZ: America/New_York
               PUID: "1000"
