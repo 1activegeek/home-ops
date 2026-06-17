@@ -1,0 +1,79 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: longhorn-backup-alert
+spec:
+  # Daily at 05:30 UTC — after the 03:00 daily + Sun 04:00 weekly Longhorn
+  # recurring backups complete. Daily cadence keeps a persistent failure to one
+  # alert/day rather than spamming.
+  schedule: "30 5 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: check
+              image: curlimages/curl:8.11.1
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: METRICS_URL
+                  value: "http://longhorn-backend.longhorn-system:9500/metrics"
+                - name: APPRISE_URL
+                  value: "http://apprise.tools:8000/notify"
+                - name: DISCORD_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: longhorn-backup-alert-secret
+                      key: DISCORD_WEBHOOK_URL
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  # Longhorn 1.11: longhorn_backup_state value 4 = Error.
+                  # Line shape: longhorn_backup_state{backup="..",volume="..",recurring_job=".."} 4
+                  BODY=$(curl -sf --max-time 20 "${METRICS_URL}")
+                  FAILED=$(printf '%s\n' "${BODY}" | awk '/^longhorn_backup_state\{/ && $NF==4 {print}')
+                  if [ -z "${FAILED}" ]; then
+                    echo "[$(date -u)] OK — no Longhorn backups in Error state."
+                    exit 0
+                  fi
+                  COUNT=$(printf '%s\n' "${FAILED}" | grep -c .)
+                  VOLS=$(printf '%s\n' "${FAILED}" | sed -n 's/.*volume="\([^"]*\)".*/\1/p' | sort -u | tr '\n' ' ')
+                  MSG="Longhorn backup failure: ${COUNT} backup(s) in Error state. Volume(s): ${VOLS}"
+                  echo "[$(date -u)] ${MSG}"
+                  # Convert https://discord.com/api/webhooks/ID/TOKEN -> apprise discord://ID/TOKEN
+                  IDTOK=$(printf '%s' "${DISCORD_WEBHOOK_URL}" | sed -n 's#.*/webhooks/\([0-9][0-9]*\)/\([A-Za-z0-9_-][A-Za-z0-9_-]*\).*#\1/\2#p')
+                  if [ -z "${IDTOK}" ]; then
+                    echo "ERROR: could not parse Discord webhook URL into apprise format" >&2
+                    exit 1
+                  fi
+                  curl -sf --max-time 20 -X POST "${APPRISE_URL}" \
+                    --data-urlencode "urls=discord://${IDTOK}" \
+                    --data-urlencode "title=Longhorn backup failure" \
+                    --data-urlencode "body=${MSG}" >/dev/null
+                  echo "[$(date -u)] Alert dispatched via apprise."
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
