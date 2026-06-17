@@ -11,6 +11,8 @@ spec:
   values:
     controllers:
       mosquitto:
+        annotations:
+          reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
@@ -48,6 +50,13 @@ spec:
         globalMounts:
           - path: /mosquitto/config/mosquitto.conf
             subPath: mosquitto.conf
+      secret-file:
+        type: secret
+        name: mosquitto-secret
+        globalMounts:
+          - path: /mosquitto/external_config/mosquitto_pwd
+            subPath: mosquitto_pwd
+            readOnly: true
       data:
         type: persistentVolumeClaim
         storageClass: longhorn
@@ -61,6 +70,7 @@ spec:
         data:
           mosquitto.conf: |
             listener 1883
-            allow_anonymous true
+            allow_anonymous false
+            password_file /mosquitto/external_config/mosquitto_pwd
             persistence true
             persistence_location /mosquitto/data/
