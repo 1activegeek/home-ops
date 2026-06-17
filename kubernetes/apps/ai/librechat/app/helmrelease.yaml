@@ -17,7 +17,7 @@ spec:
           app:
             image:
               repository: ghcr.io/danny-avila/librechat
-              tag: latest
+              tag: v0.8.6
             env:
               HOST: "0.0.0.0"
               PORT: "3080"

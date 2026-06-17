@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: ghcr.io/hotio/bazarr
-              tag: latest
+              tag: release-2665a5c
             env:
               TZ: America/New_York
               PUID: "1027"

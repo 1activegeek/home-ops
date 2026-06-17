@@ -15,7 +15,7 @@ spec:
           app:
             image:
               repository: ghcr.io/headlamp-k8s/headlamp
-              tag: latest
+              tag: v0.43.0
             args:
               - -in-cluster
               - -plugins-dir
