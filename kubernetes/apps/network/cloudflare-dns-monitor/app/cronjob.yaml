@@ -82,10 +82,20 @@ spec:
                   if prior is None:
                       print("Baseline established: %d records (no alert on first run)." % len(current))
                   else:
-                      new = [i for i in current if i not in prior]
-                      if new:
-                          body = "New Cloudflare DNS record(s) in %s:\n%s" % (
-                              ZONE, "\n".join("- " + current[i] for i in new))
+                      # Diff on record ID *and* content: catch additions, content
+                      # changes (same ID, e.g. a hijacked A/SPF/DKIM record), and
+                      # removals (e.g. a deleted SPF/DKIM record). All three matter
+                      # for "did my DNS change without me" — not just new records.
+                      added = [current[i] for i in current if i not in prior]
+                      changed = ["%s  (was: %s)" % (current[i], prior[i])
+                                 for i in current if i in prior and current[i] != prior[i]]
+                      removed = [prior[i] for i in prior if i not in current]
+                      sections = []
+                      if added:   sections.append("Added:\n%s"   % "\n".join("- " + x for x in added))
+                      if changed: sections.append("Changed:\n%s" % "\n".join("- " + x for x in changed))
+                      if removed: sections.append("Removed:\n%s" % "\n".join("- " + x for x in removed))
+                      if sections:
+                          body = "Cloudflare DNS change(s) in %s:\n\n%s" % (ZONE, "\n\n".join(sections))
                           print(body)
                           m = re.search(r"/webhooks/(\d+)/([\w-]+)", WEBHOOK)
                           if not m:
@@ -93,14 +103,15 @@ spec:
                               sys.exit(1)
                           data = urllib.parse.urlencode({
                               "urls": "discord://%s/%s" % (m.group(1), m.group(2)),
-                              "title": "New DNS record in %s" % ZONE,
+                              "title": "DNS change in %s (+%d ~%d -%d)" % (
+                                  ZONE, len(added), len(changed), len(removed)),
                               "body": body,
                           }).encode()
                           with urllib.request.urlopen(urllib.request.Request(APPRISE, data=data), timeout=20) as r:
                               r.read()
                           print("Alert dispatched via apprise.")
                       else:
-                          print("No new DNS records (%d total)." % len(current))
+                          print("No DNS changes (%d total)." % len(current))
 
                   with open(STATE, "w") as f:
                       json.dump(current, f)
