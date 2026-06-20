@@ -17,7 +17,7 @@ spec:
           app:
             image:
               repository: nextcloud
-              tag: 33.0.1
+              tag: 33.0.5
             env:
               POSTGRES_HOST: nextcloud-postgres
               POSTGRES_DB: nextcloud
