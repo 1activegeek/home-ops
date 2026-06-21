@@ -15,7 +15,7 @@ spec:
           app:
             image:
               repository: ollama/ollama
-              tag: 0.30.7
+              tag: 0.30.10
             env:
               OLLAMA_HOST: "0.0.0.0"
             lifecycle:
