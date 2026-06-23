@@ -1,0 +1,83 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agentbox-scripts
+data:
+  entrypoint.sh: |
+    #!/usr/bin/env bash
+    # agentBox boot entrypoint. Provisions tooling onto the PVC home, brings up
+    # Tailscale SSH, and starts a persistent Zellij session that auto-launches
+    # Claude. Provisioning is best-effort so the pod always reaches Running for
+    # `kubectl exec` debugging even if a download fails.
+    set -uo pipefail
+
+    export HOME=/home/pwuser
+    export BIN="$HOME/.local/bin"
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    export PATH="$BIN:$NPM_CONFIG_PREFIX/bin:$PATH"
+    mkdir -p "$BIN" "$NPM_CONFIG_PREFIX" "$HOME/.tailscale" \
+             "$HOME/.config/zellij/layouts" "$HOME/.cache/ms-playwright"
+
+    log() { echo "[agentbox $(date -u +%H:%M:%S)] $*"; }
+
+    # 1. Tailscale (static binaries -> PVC) ----------------------------------
+    if [ ! -x "$BIN/tailscaled" ]; then
+      log "provisioning tailscale"
+      curl -fsSL https://pkgs.tailscale.com/stable/tailscale_latest_amd64.tgz \
+        | tar -xz -C /tmp \
+        && cp /tmp/tailscale_*_amd64/tailscale "$BIN/" \
+        && cp /tmp/tailscale_*_amd64/tailscaled "$BIN/" \
+        || log "WARN tailscale provisioning failed"
+    fi
+
+    # 2. Zellij (static binary -> PVC) --------------------------------------
+    if [ ! -x "$BIN/zellij" ]; then
+      log "provisioning zellij"
+      curl -fsSL https://github.com/zellij-org/zellij/releases/latest/download/zellij-x86_64-unknown-linux-musl.tar.gz \
+        | tar -xz -C "$BIN" || log "WARN zellij provisioning failed"
+    fi
+
+    # 3. Agent CLIs (install/self-update onto PVC) --------------------------
+    #    Claude Code self-updates on its own; we still ensure presence here.
+    #    Antigravity (agy) is NOT on npm — installs out-of-band; added in Plan 3.
+    log "installing/updating agent CLIs"
+    npm install -g @anthropic-ai/claude-code @openai/codex >/dev/null 2>&1 \
+      || log "WARN cli install/update had issues (will retry next boot)"
+
+    # 4. Tailscale up with SSH (userspace mode -> no NET_ADMIN / tun) -------
+    if [ -x "$BIN/tailscaled" ] && [ -n "${TS_AUTHKEY:-}" ]; then
+      log "starting tailscaled (userspace) + tailscale up --ssh"
+      "$BIN/tailscaled" \
+        --tun=userspace-networking \
+        --statedir="$HOME/.tailscale" \
+        --socket="$HOME/.tailscale/tailscaled.sock" \
+        >"$HOME/.tailscale/tailscaled.log" 2>&1 &
+      sleep 3
+      "$BIN/tailscale" --socket="$HOME/.tailscale/tailscaled.sock" up \
+        --authkey="${TS_AUTHKEY}" \
+        --hostname="${TS_HOSTNAME:-agentbox}" \
+        --ssh \
+        --accept-routes \
+        || log "WARN tailscale up failed"
+    else
+      log "WARN skipping tailscale (no binary or no TS_AUTHKEY)"
+    fi
+
+    # 5. Persistent Zellij session that auto-launches Claude (respawn loop) --
+    cat > "$HOME/.config/zellij/layouts/agent.kdl" <<'KDL'
+    layout {
+        pane command="bash" {
+            args "-lc" "while true; do claude || true; echo '[claude exited — respawning in 3s]'; sleep 3; done"
+        }
+    }
+    KDL
+    if [ -x "$BIN/zellij" ]; then
+      log "starting persistent zellij session 'agentbox'"
+      setsid bash -c "$BIN/zellij --layout $HOME/.config/zellij/layouts/agent.kdl attach --create agentbox" \
+        </dev/null >"$HOME/.zellij-boot.log" 2>&1 &
+    fi
+
+    log "boot complete; holding PID 1"
+    # 6. Keep the container alive regardless of provisioning outcome.
+    exec tail -f /dev/null
