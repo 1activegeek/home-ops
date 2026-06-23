@@ -5,7 +5,7 @@ metadata:
   name: agentbox
 spec:
   interval: 1h
-  path: ./kubernetes/apps/tools/agentbox/app
+  path: ./kubernetes/apps/ai/agentbox/app
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -15,5 +15,5 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  targetNamespace: tools
+  targetNamespace: ai
   wait: false
