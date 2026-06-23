@@ -46,7 +46,11 @@ data:
       || log "WARN cli install/update had issues (will retry next boot)"
 
     # 4. Tailscale up with SSH (userspace mode -> no NET_ADMIN / tun) -------
-    if [ -x "$BIN/tailscaled" ] && [ -n "${TS_AUTHKEY:-}" ]; then
+    # NOTE: TS_* runtime vars are written $${...} so Flux's postBuild
+    # substituteFrom (cluster-secrets) does NOT rewrite them to empty strings.
+    # Flux renders $${VAR} -> ${VAR}, leaving the runtime shell to expand it.
+    # Bare $HOME/$BIN survive substitution; only brace-form ${VAR} is eaten.
+    if [ -x "$BIN/tailscaled" ] && [ -n "$${TS_AUTHKEY:-}" ]; then
       log "starting tailscaled (userspace) + tailscale up --ssh"
       "$BIN/tailscaled" \
         --tun=userspace-networking \
@@ -55,8 +59,8 @@ data:
         >"$HOME/.tailscale/tailscaled.log" 2>&1 &
       sleep 3
       "$BIN/tailscale" --socket="$HOME/.tailscale/tailscaled.sock" up \
-        --authkey="${TS_AUTHKEY}" \
-        --hostname="${TS_HOSTNAME:-agentbox}" \
+        --authkey="$${TS_AUTHKEY}" \
+        --hostname="$${TS_HOSTNAME:-agentbox}" \
         --ssh \
         --accept-routes \
         || log "WARN tailscale up failed"
