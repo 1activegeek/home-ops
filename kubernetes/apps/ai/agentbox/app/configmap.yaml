@@ -45,6 +45,20 @@ data:
     npm install -g @anthropic-ai/claude-code @openai/codex >/dev/null 2>&1 \
       || log "WARN cli install/update had issues (will retry next boot)"
 
+    # 3b. Persist PATH for interactive SSH login shells ---------------------
+    #    Tools live on the PVC under ~/.local/bin and ~/.npm-global/bin. The
+    #    entrypoint's PATH only covers its own process tree (incl. the zellij
+    #    session it launches), so a bare `ssh pwuser@agentbox` login shell
+    #    wouldn't find claude/codex/zellij. Write login + interactive rc files
+    #    so it does. $HOME is bare (Flux only rewrites brace-form ${VAR}).
+    log "writing shell rc files (PATH for SSH logins)"
+    cat > "$HOME/.bashrc" <<'BRC'
+    export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
+    BRC
+    cat > "$HOME/.bash_profile" <<'BP'
+    [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+    BP
+
     # 4. Tailscale up with SSH (userspace mode -> no NET_ADMIN / tun) -------
     # NOTE: TS_* runtime vars are written $${...} so Flux's postBuild
     # substituteFrom (cluster-secrets) does NOT rewrite them to empty strings.
