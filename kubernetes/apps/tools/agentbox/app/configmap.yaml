@@ -40,7 +40,7 @@ data:
 
     # 3. Agent CLIs (install/self-update onto PVC) --------------------------
     #    Claude Code self-updates on its own; we still ensure presence here.
-    #    Antigravity (agy) npm package name TBD — add once confirmed (watch-item).
+    #    Antigravity (agy) is NOT on npm — installs out-of-band; added in Plan 3.
     log "installing/updating agent CLIs"
     npm install -g @anthropic-ai/claude-code @openai/codex >/dev/null 2>&1 \
       || log "WARN cli install/update had issues (will retry next boot)"

@@ -18,9 +18,8 @@ spec:
         containers:
           app:
             image:
-              # NOTE: verify the current Playwright image tag before merge.
               repository: mcr.microsoft.com/playwright
-              tag: v1.49.1-jammy
+              tag: v1.61.0-jammy
             command: ["/bin/bash", "/scripts/entrypoint.sh"]
             env:
               TZ: America/Denver
@@ -49,11 +48,13 @@ spec:
 
     persistence:
       # Disposable workstation home (CLI auth, config, caches, session state).
-      # storageClass longhorn; MUST be excluded from the Longhorn backup group
-      # (auth tokens must never reach the NAS backup) — see Plan 1 task 8.
+      # Uses longhorn-nobackup (see storageclass.yaml) so the volume is NOT in
+      # the Longhorn "default" recurring-job group — no snapshots, no off-box
+      # backup. Auth tokens must never reach the NAS backup; nothing here is
+      # irreplaceable (CLIs reinstall, tokens re-login, work lives on NFS+git).
       config:
         type: persistentVolumeClaim
-        storageClass: longhorn
+        storageClass: longhorn-nobackup
         accessMode: ReadWriteOnce
         size: 20Gi
         globalMounts:

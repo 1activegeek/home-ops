@@ -1,0 +1,21 @@
+---
+# Longhorn StorageClass that opts volumes OUT of the cluster's "default"
+# recurring-job group (snapshot-hourly / backup-daily / backup-weekly).
+# recurringJobSelector points at the group "exclude", for which no RecurringJob
+# exists — so volumes provisioned here get a volume-specific recurring-job label
+# (removing them from "default") while no jobs ever run against them.
+# Used by agentbox so its disposable home (holding CLI auth tokens) is never
+# snapshotted locally nor backed up off-box to the Synology NAS.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-nobackup
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "2"
+  staleReplicaTimeout: "30"
+  fromBackup: ""
+  recurringJobSelector: '[{"name":"exclude","isGroup":true}]'
