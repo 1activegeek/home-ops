@@ -57,6 +57,12 @@ data:
     BRC
     cat > "$HOME/.bash_profile" <<'BP'
     [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+    # Auto-attach to the persistent agentbox session on interactive SSH login.
+    # $${ZELLIJ} is escaped so Flux postBuild leaves it for the runtime shell;
+    # guard skips when already inside zellij (panes) or non-interactive (scp).
+    case $- in
+      *i*) [ -z "$${ZELLIJ:-}" ] && command -v zellij >/dev/null && zellij attach -c agentbox || true ;;
+    esac
     BP
 
     # 4. Tailscale up with SSH (userspace mode -> no NET_ADMIN / tun) -------
@@ -92,8 +98,13 @@ data:
     KDL
     if [ -x "$BIN/zellij" ]; then
       log "starting persistent zellij session 'agentbox'"
-      setsid bash -c "$BIN/zellij --layout $HOME/.config/zellij/layouts/agent.kdl attach --create agentbox" \
-        </dev/null >"$HOME/.zellij-boot.log" 2>&1 &
+      # zellij needs a controlling PTY to enter raw mode; a plain
+      # `setsid bash -c` gives it none (panics "could not enable raw mode").
+      # `script` allocates a pseudo-TTY headlessly so the boot session — and
+      # the auto-respawn claude inside it — actually start (always-on relay).
+      setsid script -qfc \
+        "$BIN/zellij --layout $HOME/.config/zellij/layouts/agent.kdl attach --create agentbox" \
+        "$HOME/.zellij-boot.log" </dev/null >/dev/null 2>&1 &
     fi
 
     log "boot complete; holding PID 1"
