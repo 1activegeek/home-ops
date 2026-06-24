@@ -5,5 +5,6 @@ resources:
   - ./ocirepository.yaml
   - ./externalsecret.yaml
   - ./configmap.yaml
+  - ./dotfiles-configmap.yaml
   - ./storageclass.yaml
   - ./helmrelease.yaml
