@@ -16,8 +16,10 @@ data:
     export BIN="$HOME/.local/bin"
     export NPM_CONFIG_PREFIX="$HOME/.npm-global"
     export PATH="$BIN:$NPM_CONFIG_PREFIX/bin:$PATH"
+    export SHELL="$BIN/zsh"   # zsh provisioned below; zellij panes/new shells use it
     mkdir -p "$BIN" "$NPM_CONFIG_PREFIX" "$HOME/.tailscale" \
-             "$HOME/.config/zellij/layouts" "$HOME/.cache/ms-playwright"
+             "$HOME/.config/zellij/layouts" "$HOME/.cache/ms-playwright" \
+             "$HOME/.zshrc.d"
 
     log() { echo "[agentbox $(date -u +%H:%M:%S)] $*"; }
 
@@ -38,6 +40,37 @@ data:
         | tar -xz -C "$BIN" || log "WARN zellij provisioning failed"
     fi
 
+    # 2b. tini (static -> PVC) — PID 1 zombie reaper ------------------------
+    # The container's PID 1 is this script (later: `exec tini -- tail`).
+    # Without an init that reaps, exited grandchildren (zellij/claude/script
+    # subprocesses re-parented to PID 1) pile up as <defunct>. tini reaps them.
+    if [ ! -x "$BIN/tini" ]; then
+      log "provisioning tini"
+      curl -fsSL https://github.com/krallin/tini/releases/latest/download/tini-static-amd64 \
+        -o "$BIN/tini" && chmod +x "$BIN/tini" || log "WARN tini provisioning failed"
+    fi
+
+    # 2c. zsh (relocatable static build -> PVC) -----------------------------
+    # The Playwright image ships only bash and zsh is not apt-installable
+    # rootless. romkatv/zsh-bin is a self-contained, portable zsh that installs
+    # under a prefix without root — Shawn's interactive shell on the box.
+    if [ ! -x "$BIN/zsh" ]; then
+      log "provisioning zsh (zsh-bin)"
+      curl -fsSL https://raw.githubusercontent.com/romkatv/zsh-bin/master/install -o /tmp/zsh-bin-install \
+        && sh /tmp/zsh-bin-install -d "$HOME/.local" -e no -q \
+        || log "WARN zsh provisioning failed"
+    fi
+
+    # 2d. Vendored dotfiles (zellij config + zsh aliases) from the ConfigMap.
+    # Overwrite each boot so manifest edits propagate to the PVC.
+    if [ -d /dotfiles ]; then
+      log "installing vendored dotfiles (zellij config + zsh aliases)"
+      cp /dotfiles/config.kdl "$HOME/.config/zellij/config.kdl" 2>/dev/null \
+        || log "WARN no config.kdl in /dotfiles"
+      cp /dotfiles/aliases.zsh "$HOME/.zshrc.d/00-agentbox.zsh" 2>/dev/null \
+        || log "WARN no aliases.zsh in /dotfiles"
+    fi
+
     # 3. Agent CLIs (install/self-update onto PVC) --------------------------
     #    Claude Code self-updates on its own; we still ensure presence here.
     #    Antigravity (agy) is NOT on npm — installs out-of-band; added in Plan 3.
@@ -45,25 +78,47 @@ data:
     npm install -g @anthropic-ai/claude-code @openai/codex >/dev/null 2>&1 \
       || log "WARN cli install/update had issues (will retry next boot)"
 
-    # 3b. Persist PATH for interactive SSH login shells ---------------------
+    # 3b. Shell rc files (PATH + zsh handoff + zellij auto-attach) ----------
     #    Tools live on the PVC under ~/.local/bin and ~/.npm-global/bin. The
-    #    entrypoint's PATH only covers its own process tree (incl. the zellij
-    #    session it launches), so a bare `ssh pwuser@agentbox` login shell
-    #    wouldn't find claude/codex/zellij. Write login + interactive rc files
-    #    so it does. $HOME is bare (Flux only rewrites brace-form ${VAR}).
-    log "writing shell rc files (PATH for SSH logins)"
+    #    entrypoint's PATH only covers its own process tree, so login shells
+    #    need rc files to find claude/codex/zellij/zsh. Interactive bash logins
+    #    hand off to zsh (Shawn's shell); zsh's rc auto-attaches the persistent
+    #    zellij session. $HOME/$f are bare (survive Flux); $${ZELLIJ}/$${1} are
+    #    escaped so Flux postBuild leaves the brace-form for the runtime shell.
+    log "writing shell rc files"
     cat > "$HOME/.bashrc" <<'BRC'
     export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
     BRC
     cat > "$HOME/.bash_profile" <<'BP'
     [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
-    # Auto-attach to the persistent agentbox session on interactive SSH login.
-    # $${ZELLIJ} is escaped so Flux postBuild leaves it for the runtime shell;
-    # guard skips when already inside zellij (panes) or non-interactive (scp).
+    # Interactive login: hand off to zsh; its rc auto-attaches zellij. Fall back
+    # to direct zellij, then plain bash. Skips inside zellij / non-interactive.
     case $- in
-      *i*) [ -z "$${ZELLIJ:-}" ] && command -v zellij >/dev/null && zellij attach -c agentbox || true ;;
+      *i*)
+        if [ -z "$${ZELLIJ:-}" ]; then
+          if command -v zsh >/dev/null 2>&1; then exec zsh -l
+          elif command -v zellij >/dev/null 2>&1; then exec zellij attach -c agentbox
+          fi
+        fi
+        ;;
     esac
     BP
+    cat > "$HOME/.zshenv" <<'ZENV'
+    export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
+    export SHELL="$HOME/.local/bin/zsh"
+    ZENV
+    cat > "$HOME/.zshrc" <<'ZRC'
+    # agentbox interactive zsh
+    autoload -Uz compinit && compinit -C 2>/dev/null
+    # Modular aliases/functions (00-agentbox.zsh vendored from the ConfigMap).
+    if [ -d "$HOME/.zshrc.d" ]; then
+      for f in "$HOME"/.zshrc.d/*.zsh(N); do source "$f"; done
+    fi
+    # Auto-attach the persistent agentbox session on interactive login.
+    if [[ -o interactive && -z "$${ZELLIJ:-}" ]] && command -v zellij >/dev/null 2>&1; then
+      exec zellij attach -c agentbox
+    fi
+    ZRC
 
     # 4. Tailscale up with SSH (userspace mode -> no NET_ADMIN / tun) -------
     # NOTE: TS_* runtime vars are written $${...} so Flux's postBuild
@@ -102,11 +157,23 @@ data:
       # `setsid bash -c` gives it none (panics "could not enable raw mode").
       # `script` allocates a pseudo-TTY headlessly so the boot session — and
       # the auto-respawn claude inside it — actually start (always-on relay).
+      #
+      # Use `--session NAME --new-session-with-layout PATH`, NOT
+      # `--layout PATH attach --create`: attach --create IGNORES --layout and
+      # creates a default (bare sh) session, so the claude respawn loop never
+      # launches and the box is only "always-on" while someone is logged in.
+      # new-session-with-layout actually applies agent.kdl. (Verified live.)
       setsid script -qfc \
-        "$BIN/zellij --layout $HOME/.config/zellij/layouts/agent.kdl attach --create agentbox" \
+        "$BIN/zellij --session agentbox --new-session-with-layout $HOME/.config/zellij/layouts/agent.kdl" \
         "$HOME/.zellij-boot.log" </dev/null >/dev/null 2>&1 &
     fi
 
     log "boot complete; holding PID 1"
-    # 6. Keep the container alive regardless of provisioning outcome.
-    exec tail -f /dev/null
+    # 6. Keep the container alive regardless of provisioning outcome. Run under
+    #    tini as PID 1 so re-parented <defunct> children get reaped (falls back
+    #    to bare tail if tini provisioning failed — pod still stays up).
+    if [ -x "$BIN/tini" ]; then
+      exec "$BIN/tini" -g -- tail -f /dev/null
+    else
+      exec tail -f /dev/null
+    fi

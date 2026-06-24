@@ -25,6 +25,7 @@ spec:
               TZ: America/Denver
               TS_HOSTNAME: agentbox
               HOME: /home/pwuser
+              SHELL: /home/pwuser/.local/bin/zsh
               NPM_CONFIG_PREFIX: /home/pwuser/.npm-global
               PLAYWRIGHT_BROWSERS_PATH: /home/pwuser/.cache/ms-playwright
               TS_AUTHKEY:
@@ -73,6 +74,13 @@ spec:
         defaultMode: 0755
         globalMounts:
           - path: /scripts
+      # Vendored shell dotfiles (zellij config + zsh aliases), base64 in the
+      # ConfigMap; entrypoint copies them onto the PVC at boot.
+      dotfiles:
+        type: configMap
+        name: agentbox-dotfiles
+        globalMounts:
+          - path: /dotfiles
       # Obsidian vault (SyncThing replica). Export root verified: /volume1/syncthing.
       vault:
         type: nfs
