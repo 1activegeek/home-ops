@@ -153,6 +153,11 @@ data:
     KDL
     if [ -x "$BIN/zellij" ]; then
       log "starting persistent zellij session 'agentbox'"
+      # zellij persists session metadata on the PVC (~/.cache/zellij), so a
+      # session named 'agentbox' survives pod restarts as a dead/resurrectable
+      # entry that blocks creation ("already exists, but is dead"). Clear it
+      # first so every boot starts a clean session with the agent layout.
+      "$BIN/zellij" delete-session agentbox --force >/dev/null 2>&1 || true
       # zellij needs a controlling PTY to enter raw mode; a plain
       # `setsid bash -c` gives it none (panics "could not enable raw mode").
       # `script` allocates a pseudo-TTY headlessly so the boot session — and
