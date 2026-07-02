@@ -16,3 +16,4 @@ resources:
   - ./n8n/ks.yaml
   - ./librechat/ks.yaml
   - ./agentbox/ks.yaml
+  - ./hermes-agent/ks.yaml
