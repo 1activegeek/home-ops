@@ -83,30 +83,15 @@ spec:
         # Provider: OpenID Connect
         # Discovery URL: https://authentik.${SECRET_DOMAIN}/application/o/forgejo/.well-known/openid-configuration
 
-    # PostgreSQL subchart (Bitnami)
-    postgresql:
-      enabled: true
-      global:
-        postgresql:
-          auth:
-            existingSecret: forgejo-secret
-            secretKeys:
-              adminPasswordKey: db-password
-              userPasswordKey: db-password
-            database: forgejo
-            username: forgejo
-      primary:
-        persistence:
-          enabled: true
-          storageClass: longhorn
-          size: 5Gi
+    # Forgejo runs on its embedded SQLite database (DB_TYPE=sqlite3), which is
+    # appropriate for this single-user homelab instance. The forgejo-helm chart
+    # bundles no PostgreSQL subchart, so the previously-declared postgresql /
+    # postgresql-ha value blocks were inert (silently ignored) and never
+    # provisioned a database. Removed to end manifest-vs-reality drift.
+    # Application-consistent DB backups: see db-backup/app/cronjob-forgejo.yaml.
 
     # Disable Redis cluster (use memory for single-pod)
     redis-cluster:
-      enabled: false
-
-    # Disable HA PostgreSQL
-    postgresql-ha:
       enabled: false
 
     strategy:
