@@ -16,7 +16,6 @@ resources:
   - ./radarr/ks.yaml
   - ./radarr4k/ks.yaml
   - ./tautulli/ks.yaml
-  - ./autoscan/ks.yaml
   - ./recyclarr/ks.yaml
   - ./bazarr/ks.yaml
   - ./unpackerr/ks.yaml
