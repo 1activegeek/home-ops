@@ -1,0 +1,75 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup-forgejo
+spec:
+  schedule: "40 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: db-backup-forgejo
+          automountServiceAccountToken: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dump
+              image: docker.io/alpine/k8s:1.34.1
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: RETENTION_DAYS
+                  value: "14"
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  TS=$(date +%Y%m%d-%H%M%S)
+                  OUT="/backups/forgejo-${TS}.tar.gz"
+                  # Forgejo's SQLite DB lives on an RWO Longhorn PVC mounted only
+                  # by the running pod, so the consistent dump is taken by execing
+                  # forgejo's native `dump` inside that pod and streaming it out.
+                  POD=$(kubectl get pod -n tools -l app.kubernetes.io/name=forgejo \
+                    --field-selector status.phase=Running \
+                    -o jsonpath='{.items[0].metadata.name}')
+                  echo "[$(date -u)] forgejo dump ${POD} -> ${OUT}"
+                  # Logical dump = DB + config + attachments + packages. Git repos
+                  # and LFS are skipped; their bulk data is on the block-backed PVC.
+                  kubectl exec -n tools "${POD}" -c forgejo -- \
+                    forgejo dump --type tar.gz --quiet \
+                      --skip-repository --skip-lfs-data --skip-repo-archives \
+                      --file - > "${OUT}"
+                  ls -lh "${OUT}"
+                  echo "Pruning forgejo-*.tar.gz older than ${RETENTION_DAYS}d"
+                  find /backups -name 'forgejo-*.tar.gz' -type f -mtime +${RETENTION_DAYS} -print -delete
+                  echo "done"
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: db-backups
