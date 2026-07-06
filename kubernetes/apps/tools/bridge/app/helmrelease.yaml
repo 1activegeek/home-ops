@@ -1,0 +1,69 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: bridge
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: bridge
+  interval: 1h
+  values:
+    controllers:
+      bridge:
+        strategy: RollingUpdate
+        containers:
+          app:
+            image:
+              repository: docker.io/library/node
+              tag: 22-alpine
+            command: ["node", "/app/server.js"]
+            env:
+              PORT: &port "5100"
+              DATA_DIR: /data
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: 5100
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 25m
+              limits:
+                memory: 256Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+    service:
+      app:
+        ports:
+          http:
+            port: 5100
+    persistence:
+      app:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: "/volume1/syncthing/ic_documents/5 Shared/bridge/app"
+        globalMounts:
+          - path: /app
+            readOnly: true
+      data:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: "/volume1/syncthing/ic_documents/5 Shared/bridge/data"
+        globalMounts:
+          - path: /data
