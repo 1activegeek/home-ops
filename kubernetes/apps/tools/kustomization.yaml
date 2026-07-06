@@ -12,6 +12,7 @@ resources:
   - ./forgejo/ks.yaml
   - ./shlink/ks.yaml
   - ./apprise/ks.yaml
+  - ./artifacts/ks.yaml
   - ./zipline/ks.yaml
   - ./homepage/ks.yaml
   - ./glance/ks.yaml
