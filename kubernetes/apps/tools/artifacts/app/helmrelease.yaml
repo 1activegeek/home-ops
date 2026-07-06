@@ -1,0 +1,79 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: artifacts
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: artifacts
+  interval: 1h
+  values:
+    controllers:
+      artifacts:
+        strategy: RollingUpdate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: docker.io/library/caddy
+              tag: 2.10-alpine
+            args: ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
+            env:
+              XDG_CONFIG_HOME: /config
+              XDG_DATA_HOME: /data
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: &port 8080
+                  initialDelaySeconds: 0
+                  periodSeconds: 10
+                  timeoutSeconds: 1
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+              limits:
+                memory: 128Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+    service:
+      app:
+        ports:
+          http:
+            port: *port
+    persistence:
+      sites:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: "/volume1/syncthing/ic_documents/5 Shared/bridge/sites"
+        globalMounts:
+          - path: /srv/sites
+            readOnly: true
+      caddyfile:
+        type: configMap
+        name: artifacts-caddyfile
+        globalMounts:
+          - path: /etc/caddy
+            readOnly: true
+      config:
+        type: emptyDir
+        globalMounts:
+          - path: /config
+      data:
+        type: emptyDir
+        globalMounts:
+          - path: /data
