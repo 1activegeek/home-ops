@@ -13,6 +13,7 @@ resources:
   - ./shlink/ks.yaml
   - ./apprise/ks.yaml
   - ./artifacts/ks.yaml
+  - ./bridge/ks.yaml
   - ./zipline/ks.yaml
   - ./homepage/ks.yaml
   - ./glance/ks.yaml
