@@ -23,6 +23,14 @@ spec:
               DATA_DIR: /data
               VAULT_DELIVERABLES_DIR: /vault-deliverables
               SITES_DIR: /sites
+              VAULT_DIR: /vault
+              APPRISE_URL: http://apprise.tools:8000/notify
+              QDRANT_URL: http://qdrant.ai:6333
+              OLLAMA_URL: http://ollama.ai:11434
+            envFrom:
+              - secretRef:
+                  name: bridge-secret
+                  optional: true
             probes:
               liveness: &probes
                 enabled: true
@@ -82,4 +90,11 @@ spec:
         path: "/volume1/syncthing/ic_documents/5 Shared/bridge/sites"
         globalMounts:
           - path: /sites
+            readOnly: true
+      vault:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: "/volume1/syncthing/ic_obsidian/lifeOS"
+        globalMounts:
+          - path: /vault
             readOnly: true
