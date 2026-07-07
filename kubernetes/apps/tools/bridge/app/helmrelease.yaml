@@ -21,6 +21,8 @@ spec:
             env:
               PORT: &port "5100"
               DATA_DIR: /data
+              VAULT_DELIVERABLES_DIR: /vault-deliverables
+              SITES_DIR: /sites
             probes:
               liveness: &probes
                 enabled: true
@@ -67,3 +69,17 @@ spec:
         path: "/volume1/syncthing/ic_documents/5 Shared/bridge/data"
         globalMounts:
           - path: /data
+      vault-deliverables:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: "/volume1/syncthing/ic_obsidian/lifeOS/3 Resources/deliverables"
+        globalMounts:
+          - path: /vault-deliverables
+            readOnly: true
+      sites:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: "/volume1/syncthing/ic_documents/5 Shared/bridge/sites"
+        globalMounts:
+          - path: /sites
+            readOnly: true
