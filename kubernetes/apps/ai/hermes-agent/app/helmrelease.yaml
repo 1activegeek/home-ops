@@ -22,7 +22,7 @@ spec:
           gateway:
             image:
               repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.7.1
+              tag: v2026.7.7
             args: ["gateway", "run"]
             env:
               HERMES_HOME: /opt/data
@@ -40,7 +40,7 @@ spec:
           dashboard:
             image:
               repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.7.1
+              tag: v2026.7.7
             args: ["dashboard", "--host", "0.0.0.0", "--no-open", "--insecure"]
             env:
               HERMES_HOME: /opt/data
