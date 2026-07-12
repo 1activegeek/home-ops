@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: docker.io/library/caddy
-              tag: 2.10-alpine
+              tag: 2.11-alpine
             args: ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
             env:
               XDG_CONFIG_HOME: /config
