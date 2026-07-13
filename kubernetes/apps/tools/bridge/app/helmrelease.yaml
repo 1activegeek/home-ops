@@ -16,7 +16,7 @@ spec:
           app:
             image:
               repository: docker.io/library/node
-              tag: 22-alpine
+              tag: 24-alpine
             command: ["node", "/app/server.js"]
             env:
               PORT: &port "5100"
