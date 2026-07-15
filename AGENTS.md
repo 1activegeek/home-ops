@@ -96,6 +96,8 @@ task validate:security-ctx  # UID/security context compatibility warnings
 
 ### 4. Authentication And Documentation Governance
 
+Before deploying or changing **any** application, read `docs/architecture/deployment-standards.md` — the canonical patterns (chart sourcing, ks.yaml/HelmRelease spec, secrets, routes, storage, hygiene).
+
 Before adding or changing any routed application, read `docs/architecture/authentication.md`.
 
 - `envoy-external` apps must always have an explicit auth decision documented.
