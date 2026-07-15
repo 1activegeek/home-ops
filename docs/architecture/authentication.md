@@ -73,7 +73,7 @@ Validation is required for auth changes, route changes, new apps, and app remova
 | Shlink Web | internal | `forward_auth` | Admin UI should not be publicly exposed |
 | Tautulli | internal | `forward_auth` | No native OIDC |
 | Bazarr | internal | `forward_auth` | No native OIDC |
-| Audiobookshelf | internal | `forward_auth` | Built-in auth exists, but no native OIDC |
+| Audiobookshelf | internal | `native_oidc` | Native OIDC support since v2.6 (see authentik-sso-rollout-plan.md) |
 | Grimmory | internal | `none` | Deployed internal-only first; auth deferred to a follow-up change |
 | Bambuddy | internal | `none` | Internal-only LAN access; built-in MFA suffices. Revisit forward_auth later. |
 | Mattermost | internal | `none` | Internal-only LAN access; built-in account auth suffices. Team Edition lacks native OIDC; revisit forward_auth later. |
