@@ -30,6 +30,14 @@ data:
           - "[STATUS] == 200"
           - "[RESPONSE_TIME] < 2000"
 
+      - name: Mattermost
+        group: tools
+        url: "https://matter.${SECRET_DOMAIN}/api/v4/system/ping"
+        interval: 5m
+        conditions:
+          - "[STATUS] == 200"
+          - "[RESPONSE_TIME] < 2000"
+
       - name: Cloudflare
         group: external
         url: "https://1.1.1.1/cdn-cgi/trace"

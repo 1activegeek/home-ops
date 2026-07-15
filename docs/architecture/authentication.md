@@ -76,6 +76,7 @@ Validation is required for auth changes, route changes, new apps, and app remova
 | Audiobookshelf | internal | `forward_auth` | Built-in auth exists, but no native OIDC |
 | Grimmory | internal | `none` | Deployed internal-only first; auth deferred to a follow-up change |
 | Bambuddy | internal | `none` | Internal-only LAN access; built-in MFA suffices. Revisit forward_auth later. |
+| Mattermost | internal | `none` | Internal-only LAN access; built-in account auth suffices. Team Edition lacks native OIDC; revisit forward_auth later. |
 | OpenWebUI | internal | `native_oidc` | Native OIDC support |
 | n8n | internal | `native_oidc` | Prefer Authentik-backed OIDC when configured |
 | Teslamate | internal | `forward_auth` | No native OIDC |

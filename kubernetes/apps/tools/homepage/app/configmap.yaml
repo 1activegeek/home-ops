@@ -179,6 +179,11 @@ data:
             icon: sh-apprise
             href: https://apprise.${SECRET_DOMAIN}
             description: Notifications
+        - Mattermost:
+            icon: mattermost.svg
+            href: https://matter.${SECRET_DOMAIN}
+            description: Team Chat
+            siteMonitor: http://mattermost-main.tools.svc.cluster.local:8065
     - AI:
         - LibreChat:
             icon: librechat.svg
