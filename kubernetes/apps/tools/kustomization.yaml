@@ -22,5 +22,6 @@ resources:
   - ./code-server/ks.yaml
   - ./webtop/ks.yaml
   - ./nextcloud/ks.yaml
+  - ./mattermost/ks.yaml
   # - ./syncthing/ks.yaml
   # - ./kms/ks.yaml ## Disabling for now, likely to archive later
