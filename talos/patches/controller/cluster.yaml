@@ -8,6 +8,14 @@ cluster:
       enable-aggregator-routing: true
       # Reduce per-resource watch cache from default 100 to 50 — homelab scale doesn't need full cache
       default-watch-cache-size: "50"
+      # OIDC trust for Authentik (enables Headlamp SSO — the id_token Headlamp
+      # forwards is validated by the apiserver against this issuer). Additive:
+      # existing admin client-cert / static kubeconfig auth is unaffected.
+      # NOTE: applied out-of-band via `talosctl apply-config` (not Flux).
+      oidc-issuer-url: https://auth.thegeekybits.com/application/o/headlamp/
+      oidc-client-id: WxrKDa2ZRlFrT52GxJVz6wJuQxRSDw7RIAicrGP9
+      oidc-username-claim: email
+      oidc-groups-claim: groups
   controllerManager:
     extraArgs:
       bind-address: 0.0.0.0

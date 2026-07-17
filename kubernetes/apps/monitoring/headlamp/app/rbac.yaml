@@ -17,3 +17,19 @@ subjects:
   - kind: ServiceAccount
     name: headlamp
     namespace: monitoring
+---
+# Bind the Authentik OIDC identity (kube-apiserver oidc-username-claim=email)
+# to cluster-admin so the id_token Headlamp forwards is authorized by the API.
+# Requires the apiserver OIDC trust configured in Talos (talos/patches).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-oidc-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: User
+    name: shawnmix@gmail.com
+    apiGroup: rbac.authorization.k8s.io

@@ -22,6 +22,25 @@ spec:
             env:
               MM_SERVICESETTINGS_SITEURL: "https://matter.${SECRET_DOMAIN}"
               MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
+              # --- SSO via Authentik (Team Edition uses the GitLab OAuth slot,
+              # with endpoints overridden to point at Authentik). The custom
+              # Authentik "mattermost" scope returns GitLab-shaped claims
+              # (id/username/login/email/name) that MM's GitLab parser expects. ---
+              MM_GITLABSETTINGS_ENABLE: "true"
+              MM_GITLABSETTINGS_SCOPE: "openid email profile mattermost"
+              MM_GITLABSETTINGS_AUTHENDPOINT: "https://auth.${SECRET_DOMAIN}/application/o/authorize/"
+              MM_GITLABSETTINGS_TOKENENDPOINT: "https://auth.${SECRET_DOMAIN}/application/o/token/"
+              MM_GITLABSETTINGS_USERAPIENDPOINT: "https://auth.${SECRET_DOMAIN}/application/o/userinfo/"
+              MM_GITLABSETTINGS_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: mattermost-secret
+                    key: MM_GITLABSETTINGS_ID
+              MM_GITLABSETTINGS_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: mattermost-secret
+                    key: MM_GITLABSETTINGS_SECRET
               MM_SQLSETTINGS_DRIVERNAME: postgres
               MM_SQLSETTINGS_DATASOURCE:
                 valueFrom:
