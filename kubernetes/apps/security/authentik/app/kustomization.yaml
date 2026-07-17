@@ -16,7 +16,6 @@ resources:
 configMapGenerator:
   - name: authentik-blueprints
     files:
-      - blueprints/passwordless-passkey.yaml
       - blueprints/setup-passkey.yaml
 
 generatorOptions:
