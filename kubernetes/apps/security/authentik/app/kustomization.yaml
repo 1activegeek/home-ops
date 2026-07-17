@@ -9,6 +9,19 @@ resources:
   - httproute-external.yaml
   - referencegrant.yaml
 
+# Authentik config-as-code: passwordless passkey login + enrollment.
+# Mounted into the authentik pods via helmrelease values.blueprints.configMaps.
+# disableNameSuffixHash keeps the name stable so the Helm value can reference it;
+# reloader (annotation on the deployments) restarts pods when the content changes.
+configMapGenerator:
+  - name: authentik-blueprints
+    files:
+      - blueprints/passwordless-passkey.yaml
+      - blueprints/setup-passkey.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
 components:
   - ../../../../components/public-access
 
