@@ -26,7 +26,11 @@ spec:
               # (HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL -> -oidc-idp-issuer-url).
               # Bare OIDC_* names are silently ignored.
               HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL: https://auth.${SECRET_DOMAIN}/application/o/headlamp/
-              HEADLAMP_CONFIG_OIDC_SCOPES: openid,email,profile
+              # offline_access is required: Headlamp refreshes the id_token on
+              # every API call and hard-fails login ("refreshing token: getting
+              # refresh token: key not found") if the IdP issued no refresh
+              # token. authentik only returns one when offline_access is granted.
+              HEADLAMP_CONFIG_OIDC_SCOPES: openid,email,profile,offline_access
             envFrom:
               - secretRef:
                   name: headlamp-secret
