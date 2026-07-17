@@ -22,25 +22,26 @@ spec:
             env:
               MM_SERVICESETTINGS_SITEURL: "https://matter.${SECRET_DOMAIN}"
               MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
-              # --- SSO via Authentik (Team Edition uses the GitLab OAuth slot,
-              # with endpoints overridden to point at Authentik). The custom
-              # Authentik "mattermost" scope returns GitLab-shaped claims
-              # (id/username/login/email/name) that MM's GitLab parser expects. ---
-              MM_GITLABSETTINGS_ENABLE: "true"
-              MM_GITLABSETTINGS_SCOPE: "openid email profile mattermost"
-              MM_GITLABSETTINGS_AUTHENDPOINT: "https://auth.${SECRET_DOMAIN}/application/o/authorize/"
-              MM_GITLABSETTINGS_TOKENENDPOINT: "https://auth.${SECRET_DOMAIN}/application/o/token/"
-              MM_GITLABSETTINGS_USERAPIENDPOINT: "https://auth.${SECRET_DOMAIN}/application/o/userinfo/"
-              MM_GITLABSETTINGS_ID:
+              # --- SSO via Authentik (OpenID Connect) ---
+              # Mattermost 11 no longer registers a GitLab OAuth provider
+              # (no EnableSignUpWithGitLab in client config -> /oauth/gitlab/login
+              # returns 501), so generic OpenID Connect is the supported path.
+              # DiscoveryEndpoint lets MM auto-resolve authorize/token/userinfo,
+              # and standard OIDC claims are used (no custom scope needed).
+              MM_OPENIDSETTINGS_ENABLE: "true"
+              MM_OPENIDSETTINGS_SCOPE: "profile openid email"
+              MM_OPENIDSETTINGS_BUTTONTEXT: "Log in with Authentik"
+              MM_OPENIDSETTINGS_DISCOVERYENDPOINT: "https://auth.${SECRET_DOMAIN}/application/o/mattermost/.well-known/openid-configuration"
+              MM_OPENIDSETTINGS_ID:
                 valueFrom:
                   secretKeyRef:
                     name: mattermost-secret
-                    key: MM_GITLABSETTINGS_ID
-              MM_GITLABSETTINGS_SECRET:
+                    key: MM_OPENIDSETTINGS_ID
+              MM_OPENIDSETTINGS_SECRET:
                 valueFrom:
                   secretKeyRef:
                     name: mattermost-secret
-                    key: MM_GITLABSETTINGS_SECRET
+                    key: MM_OPENIDSETTINGS_SECRET
               MM_SQLSETTINGS_DRIVERNAME: postgres
               MM_SQLSETTINGS_DATASOURCE:
                 valueFrom:
