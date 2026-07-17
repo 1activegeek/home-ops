@@ -333,4 +333,5 @@ This section is the **source of truth** for tracking progress across sessions. U
 | 2026-03-07 | Reconciliation and auth governance | Reconciled the tracker against the live cluster, documented the auth standard, and removed Uptime Kuma from the planned stack in favor of Gatus. |
 | 2026-03-30 | MeTube stability tuning | Confirmed `OOMKilled` restarts during queued download processing and raised MeTube memory limit to `3Gi` while keeping concurrent downloads at `3` to preserve throughput. |
 | 2026-04-01 | Homepage Kubernetes widget fix | Added Homepage's missing in-cluster Kubernetes config and a dedicated service account binding so the Kubernetes status widget can authenticate against the cluster API. |
+| 2026-07-17 | Matrix stack | Deployed Synapse + Matrix Authentication Service (MAS) + Element Web (tools namespace, internal-only, `native_oidc` via MAS -> Authentik). Authentik provider codified as blueprint. DB dump cronjobs + Gatus endpoints added. |
 | | | *Next: Continue with Phase 4 and remaining auth cleanup.* |

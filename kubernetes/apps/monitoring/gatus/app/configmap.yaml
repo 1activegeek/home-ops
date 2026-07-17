@@ -38,6 +38,30 @@ data:
           - "[STATUS] == 200"
           - "[RESPONSE_TIME] < 2000"
 
+      - name: Synapse
+        group: tools
+        url: "https://synapse.${SECRET_DOMAIN}/health"
+        interval: 5m
+        conditions:
+          - "[STATUS] == 200"
+          - "[RESPONSE_TIME] < 2000"
+
+      - name: MAS
+        group: tools
+        url: "https://mas.${SECRET_DOMAIN}/"
+        interval: 5m
+        conditions:
+          - "[STATUS] == 200"
+          - "[RESPONSE_TIME] < 2000"
+
+      - name: Element
+        group: tools
+        url: "https://matrix.${SECRET_DOMAIN}/"
+        interval: 5m
+        conditions:
+          - "[STATUS] == 200"
+          - "[RESPONSE_TIME] < 2000"
+
       - name: Cloudflare
         group: external
         url: "https://1.1.1.1/cdn-cgi/trace"

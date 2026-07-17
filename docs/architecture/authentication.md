@@ -77,6 +77,9 @@ Validation is required for auth changes, route changes, new apps, and app remova
 | Grimmory | internal | `none` | Deployed internal-only first; auth deferred to a follow-up change |
 | Bambuddy | internal | `none` | Internal-only LAN access; built-in MFA suffices. Revisit forward_auth later. |
 | Mattermost | internal | `none` | Internal-only LAN access; built-in account auth suffices. Team Edition lacks native OIDC; revisit forward_auth later. |
+| Synapse | internal | `native_oidc` | Auth fully delegated to MAS, which uses Authentik as its only upstream provider. Federation disabled; no local passwords. |
+| MAS | internal | `native_oidc` | Matrix Authentication Service; login UI redirects to Authentik (sole upstream OIDC provider). Password auth disabled. |
+| Element | internal | `native_oidc` | Static client; auth flows through Synapse -> MAS -> Authentik. No auth of its own. |
 | OpenWebUI | internal | `native_oidc` | Native OIDC support |
 | n8n | internal | `native_oidc` | Prefer Authentik-backed OIDC when configured |
 | Teslamate | internal | `forward_auth` | No native OIDC |

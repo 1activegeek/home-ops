@@ -1,0 +1,60 @@
+# Matrix (MAS) OIDC SSO — config-as-code.
+#
+# Authentik side of Matrix SSO. Users log in through the Matrix Authentication
+# Service (MAS), which delegates upstream to this provider — Element/Element X
+# never talk to authentik directly. MAS's upstream_oauth2 provider config lives
+# in the mas ExternalSecret (kubernetes/apps/tools/mas/app/externalsecret.yaml).
+#
+# client_id is PINNED so it stays consistent with the MAS config and survives
+# rebuilds. The redirect URI embeds MAS's pinned upstream-provider ULID and
+# must match byte-exactly (trailing slash included/excluded exactly as below).
+#
+# client_secret is intentionally OMITTED: authentik generates one on first
+# apply — read it from Authentik > Providers > matrix and store it in the
+# 1Password `mas` item (field authentik_client_secret); the mas ExternalSecret
+# then renders it into MAS's config.
+#
+# sub_mode is user_username so the MAS<->authentik account link is stable and
+# matches the localpart claim import (preferred_username) on the MAS side.
+#
+# Signing key: the RSA "authentik Self-signed Certificate" — MAS/Synapse
+# require RS256; do not switch this provider to an ECC key.
+version: 1
+metadata:
+  name: matrix-oidc
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider-matrix
+    identifiers:
+      name: matrix
+    attrs:
+      client_type: confidential
+      client_id: uJXPSHb3y6CVGcdzy5g0LtNgQ3COZHJOFDjnw8Il
+      sub_mode: user_username
+      include_claims_in_id_token: true
+      issuer_mode: per_provider
+      grant_types:
+        - authorization_code
+        - refresh_token
+      redirect_uris:
+        - matching_mode: strict
+          url: https://mas.thegeekybits.com/upstream/callback/01K0AH2QJ4E8SNVGW5T7D9F3RB
+      authorization_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key:
+        !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-openid"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-profile"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-email"]]
+
+  - model: authentik_core.application
+    id: app-matrix
+    identifiers:
+      slug: matrix
+    attrs:
+      name: Matrix
+      provider: !KeyOf provider-matrix
+      policy_engine_mode: any
