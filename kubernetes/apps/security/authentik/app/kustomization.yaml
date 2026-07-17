@@ -17,6 +17,7 @@ configMapGenerator:
   - name: authentik-blueprints
     files:
       - blueprints/setup-passkey.yaml
+      - blueprints/headlamp-oidc.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
