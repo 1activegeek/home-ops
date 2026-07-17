@@ -22,8 +22,11 @@ spec:
               - /headlamp/plugins
             env:
               # OIDC login via Authentik. CLIENT_ID/SECRET come from headlamp-secret.
-              OIDC_IDP_ISSUER_URL: https://auth.${SECRET_DOMAIN}/application/o/headlamp/
-              OIDC_SCOPES: openid,email,profile
+              # Headlamp reads config via koanf under the HEADLAMP_CONFIG_ prefix
+              # (HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL -> -oidc-idp-issuer-url).
+              # Bare OIDC_* names are silently ignored.
+              HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL: https://auth.${SECRET_DOMAIN}/application/o/headlamp/
+              HEADLAMP_CONFIG_OIDC_SCOPES: openid,email,profile
             envFrom:
               - secretRef:
                   name: headlamp-secret
