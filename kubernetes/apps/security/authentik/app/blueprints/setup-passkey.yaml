@@ -1,0 +1,40 @@
+# Passkey ENROLLMENT (register a discoverable / resident credential).
+#
+# Usernameless login requires the passkey to be a *discoverable* credential
+# (resident_key_requirement: required). A passkey enrolled as ordinary 2FA is
+# NOT discoverable and will not work for the passwordless flow.
+#
+# This creates a standalone "setup-passkey" flow. An already-authenticated
+# user visits  https://auth.<domain>/if/flow/setup-passkey/  and registers a
+# passkey; the biometric-backed resident key is then usable at the login page.
+version: 1
+metadata:
+  name: passwordless-passkey-enrollment
+entries:
+  # Enroll stage that forces a discoverable credential + biometric verification.
+  # authenticator_attachment omitted = no preference (platform biometrics AND
+  # roaming security keys both allowed).
+  - model: authentik_stages_authenticator_webauthn.authenticatorwebauthnstage
+    id: stage-passkey-enroll
+    identifiers:
+      name: passwordless-webauthn-enroll
+    attrs:
+      resident_key_requirement: required
+      user_verification: required
+
+  # Standalone configuration flow; requires an existing session.
+  - model: authentik_flows.flow
+    id: flow-passkey-setup
+    identifiers:
+      slug: setup-passkey
+    attrs:
+      name: setup-passkey
+      title: "Register a passkey"
+      designation: stage_configuration
+      authentication: require_authenticated
+
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow-passkey-setup
+      stage: !KeyOf stage-passkey-enroll
+      order: 10
