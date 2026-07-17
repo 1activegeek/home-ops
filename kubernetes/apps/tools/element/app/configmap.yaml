@@ -1,0 +1,26 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: element-config
+data:
+  # Element Web is pinned to this homeserver: base_url points at the Synapse
+  # client API host; server_name is the Matrix server_name (user IDs).
+  # Custom homeserver URLs and guests are disabled — this is a single-server,
+  # internal-only deployment.
+  config.json: |
+    {
+      "default_server_config": {
+        "m.homeserver": {
+          "base_url": "https://synapse.${SECRET_DOMAIN}",
+          "server_name": "matrix.${SECRET_DOMAIN}"
+        }
+      },
+      "disable_custom_urls": true,
+      "disable_guests": true,
+      "default_theme": "dark",
+      "room_directory": {
+        "servers": []
+      },
+      "show_labs_settings": false
+    }

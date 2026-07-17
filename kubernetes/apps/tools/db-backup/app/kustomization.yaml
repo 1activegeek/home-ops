@@ -6,7 +6,9 @@ resources:
   - ./rbac.yaml
   - ./cronjob-atuin.yaml
   - ./cronjob-forgejo.yaml
+  - ./cronjob-mas.yaml
   - ./cronjob-mattermost.yaml
   - ./cronjob-nextcloud.yaml
   - ./cronjob-shlink.yaml
+  - ./cronjob-synapse.yaml
   - ./cronjob-zipline.yaml

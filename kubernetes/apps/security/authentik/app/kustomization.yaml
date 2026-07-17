@@ -18,6 +18,7 @@ configMapGenerator:
     files:
       - blueprints/setup-passkey.yaml
       - blueprints/headlamp-oidc.yaml
+      - blueprints/matrix-oidc.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
