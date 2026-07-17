@@ -22,26 +22,16 @@ spec:
             env:
               MM_SERVICESETTINGS_SITEURL: "https://matter.${SECRET_DOMAIN}"
               MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
-              # --- SSO via Authentik (OpenID Connect) ---
-              # Mattermost 11 no longer registers a GitLab OAuth provider
-              # (no EnableSignUpWithGitLab in client config -> /oauth/gitlab/login
-              # returns 501), so generic OpenID Connect is the supported path.
-              # DiscoveryEndpoint lets MM auto-resolve authorize/token/userinfo,
-              # and standard OIDC claims are used (no custom scope needed).
-              MM_OPENIDSETTINGS_ENABLE: "true"
-              MM_OPENIDSETTINGS_SCOPE: "profile openid email"
-              MM_OPENIDSETTINGS_BUTTONTEXT: "Log in with Authentik"
-              MM_OPENIDSETTINGS_DISCOVERYENDPOINT: "https://auth.${SECRET_DOMAIN}/application/o/mattermost/.well-known/openid-configuration"
-              MM_OPENIDSETTINGS_ID:
-                valueFrom:
-                  secretKeyRef:
-                    name: mattermost-secret
-                    key: MM_OPENIDSETTINGS_ID
-              MM_OPENIDSETTINGS_SECRET:
-                valueFrom:
-                  secretKeyRef:
-                    name: mattermost-secret
-                    key: MM_OPENIDSETTINGS_SECRET
+              # NOTE: No SSO here by design. Mattermost Team Edition v11 has no
+              # working SSO path — v11.0 removed GitLab SSO from TE, and OpenID
+              # Connect is license-gated (utils/license.go Features.OpenId). The
+              # TE image is built BuildEnterpriseReady=false, so it holds no
+              # license and the gate can never pass: MM_OPENIDSETTINGS_* load
+              # into config but EnableSignUpWithOpenId is forced false and
+              # /oauth/openid/login returns 501. Authentik SSO would require the
+              # mattermost-enterprise-edition image run unlicensed (free "Entry"
+              # tier, which carries a 10k channel-message history cap).
+              # Decision 2026-07-17: stay on TE with email/password auth.
               MM_SQLSETTINGS_DRIVERNAME: postgres
               MM_SQLSETTINGS_DATASOURCE:
                 valueFrom:
