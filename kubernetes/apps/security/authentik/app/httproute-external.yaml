@@ -1,6 +1,17 @@
 ---
-# Expose Authentik externally for user login
-# This route is public (no forward-auth) as it IS the auth provider
+# Expose Authentik externally for user login & SSO ONLY.
+# This route is public (no forward-auth) as it IS the auth provider.
+#
+# The admin (`/if/admin`) and user (`/if/user`) consoles are deliberately NOT
+# served on the internet-facing gateway — they return a fixed 404 here (see
+# httproutefilter-deny-console.yaml) and remain reachable only via the internal
+# gateway (envoy-internal / split-DNS / Tailscale), where the chart-generated
+# `authentik-server` HTTPRoute serves the full app.
+#
+# Login flows, OAuth2/OIDC endpoints, the forward-auth outpost, the flow
+# interface (`/if/flow`), static assets and the API stay public via the
+# catch-all rule so external SSO keeps working. Path matches are most-specific-
+# wins, so the two console rules take precedence over the catch-all.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -14,6 +25,30 @@ spec:
       namespace: network
       sectionName: https
   rules:
+    # Admin console — 404 at the public edge (internal-only surface)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /if/admin
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: authentik-deny-console
+    # User console — 404 at the public edge (internal-only surface)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /if/user
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: authentik-deny-console
+    # Everything else (login flows, OAuth2/OIDC, outpost, flow UI, API, static)
+    # stays public so external SSO keeps working.
     - backendRefs:
         - name: authentik-server
           port: 80
