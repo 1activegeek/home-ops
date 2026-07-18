@@ -1,0 +1,23 @@
+---
+# Public-exception override for Seerr (requests.${SECRET_DOMAIN}).
+#
+# Seerr authenticates users against Plex directly, so it must NOT sit behind the
+# gateway-level default Authentik forward-auth (envoy-external-default-auth) —
+# double auth would break the Plex OAuth flow. This SecurityPolicy has an empty
+# extAuth block, which overrides the default and disables gateway auth for THIS
+# route only. Seerr's own Plex login remains the sole gate.
+#
+# Auth mode: external_identity_exception (see docs/architecture/authentication.md).
+# Empty extAuth needs no ReferenceGrant to authentik-server.
+#
+# Targets the rendered HTTPRoute `seerr-app` (bjw-s app-template route key `app`).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: seerr-app-public
+  namespace: media
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: seerr-app
