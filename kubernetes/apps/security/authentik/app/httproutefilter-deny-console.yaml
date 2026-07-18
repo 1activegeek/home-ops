@@ -1,0 +1,19 @@
+---
+# Fixed 404 returned for the Authentik admin/user console paths on the
+# INTERNET-facing route. Envoy Gateway extension filter, referenced from
+# httproute-external.yaml via an ExtensionRef filter.
+#
+# The consoles stay fully reachable via the internal gateway (envoy-internal /
+# split-DNS / Tailscale), where the chart-generated `authentik-server` HTTPRoute
+# serves the whole app. This only removes the admin/user UI from the public edge.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: HTTPRouteFilter
+metadata:
+  name: authentik-deny-console
+  namespace: security
+spec:
+  directResponse:
+    statusCode: 404
+    body:
+      type: Inline
+      inline: "Not Found"

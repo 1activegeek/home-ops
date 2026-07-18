@@ -7,6 +7,7 @@ resources:
   - helmrepository.yaml
   - helmrelease.yaml
   - httproute-external.yaml
+  - httproutefilter-deny-console.yaml
   - referencegrant.yaml
 
 # Authentik config-as-code: passwordless passkey login + enrollment.
