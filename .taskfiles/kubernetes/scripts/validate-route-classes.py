@@ -85,16 +85,26 @@ def collect():
                 ))
             elif kind == "HelmRelease":
                 rel = doc["metadata"]["name"]
-                route_val = (doc.get("spec", {}).get("values", {}) or {}).get("route", {})
-                if isinstance(route_val, dict):
-                    for key, rt in route_val.items():
-                        if not isinstance(rt, dict):
-                            continue
-                        routes.append((
-                            f"{rel}-{key}", doc["metadata"].get("namespace"),
-                            [r.get("name") for r in rt.get("parentRefs", [])],
-                            rt.get("hostnames", []), f"{src} (values.route.{key})",
-                        ))
+                ns = doc["metadata"].get("namespace")
+                # Chart-agnostic: recurse the whole values tree and treat any dict
+                # carrying both `hostnames` and `parentRefs` as a Gateway route.
+                # Catches bjw-s `route.<key>` AND charts that nest it (authentik).
+                # `key` (parent map key, e.g. bjw-s `api`) yields the rendered
+                # name `<release>-<key>` used to match inline SecurityPolicies.
+                def walk(node, key=None):
+                    if isinstance(node, dict):
+                        if isinstance(node.get("hostnames"), list) and isinstance(node.get("parentRefs"), list):
+                            routes.append((
+                                f"{rel}-{key}" if key else rel, ns,
+                                [r.get("name") for r in node["parentRefs"]],
+                                node["hostnames"], f"{src} (helm values)",
+                            ))
+                        for k, v in node.items():
+                            walk(v, k)
+                    elif isinstance(node, list):
+                        for v in node:
+                            walk(v, key)
+                walk((doc.get("spec", {}) or {}).get("values", {}) or {})
             elif kind == "SecurityPolicy":
                 spec = doc.get("spec", {})
                 for tref in spec.get("targetRefs", []):
@@ -151,10 +161,10 @@ def main() -> int:
             tag = f"{Y}[{posture}]{N}" if "public" in posture else f"{G}[{posture}]{N}"
             print(f"  {tag} {h:34s} {names}")
 
-    ext_total = len(buckets["dual-auth"]) + len(buckets["dual-public"]) + len(buckets["external-only"])
-    print(f"\n---\nExternal-facing routes: {ext_total} "
-          f"({len(buckets['dual-public'])} public opt-out, "
-          f"{len(buckets['dual-auth']) + len(buckets['external-only'])} Authentik-default)")
+    ext_rows = buckets["dual-auth"] + buckets["dual-public"] + buckets["external-only"]
+    n_public = sum(1 for _, posture, _ in ext_rows if "public" in posture)
+    print(f"\n---\nExternal-facing routes: {len(ext_rows)} "
+          f"({n_public} public opt-out, {len(ext_rows) - n_public} Authentik forward-auth)")
 
     if violations:
         print(f"\n{R}❌ posture violations:{N}")

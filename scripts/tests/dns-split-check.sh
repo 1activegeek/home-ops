@@ -13,9 +13,9 @@
 #
 # Usage:
 #   RESOLVER=10.0.3.52 INTERNAL_IP=10.0.3.53 EXTERNAL_IP=10.0.3.54 \
-#     DUAL_HOSTS="hass requests auth" \
+#     DUAL_HOSTS="hass requests auth s echo" \
 #     INTERNAL_HOSTS="git grafana shlink" \
-#     EXTERNAL_HOSTS="s echo" \
+#     EXTERNAL_HOSTS="flux-webhook tesladev" \
 #     DOMAIN=example.com scripts/tests/dns-split-check.sh
 #
 # All hostnames are <sub>.$DOMAIN. Requires `dig`.

@@ -38,12 +38,18 @@ opt-out. Nothing in UniFi changes per app.
 
 Current members (from `task validate:security`):
 
-- **Class 3 (public):** `hass` (Home Assistant), `requests` (Seerr)
-- **Class 4 (external-only):** `auth` (Authentik IdP), `s` (Shlink redirects),
-  `flux-webhook`, `tesladev` (Tesla pubkey), `echo` (test)
+- **Class 3 (public):** `hass` (Home Assistant), `requests` (Seerr),
+  `auth` (Authentik IdP), `s` (Shlink redirects), `echo` (test)
+- **Class 4 (external-only):** `flux-webhook`, `tesladev` (Tesla pubkey)
 - **Class 1:** everything else (~46 apps)
 - **Class 2:** none currently (valid empty class — use it for an internet app
   that should sit behind Authentik forward-auth)
+
+**Class 4 is reserved for machine-to-machine endpoints** — hosts that are only
+ever called by an external service (GitHub webhooks, Tesla's fleet API fetching
+`.well-known`) and never browsed on-LAN, so the hairpin never applies to them
+and an internal route would be pure surface. Anything a human might open on-LAN
+should be dual (class 2 or 3), not external-only.
 
 ## Split DNS — how "prefer internal" is guaranteed
 
@@ -90,9 +96,11 @@ per-host entries to maintain.
 ### Tradeoff: external-only hairpins on-LAN
 
 A class-4 host resolves out to Cloudflare and back through the Tunnel when
-queried on-LAN (extra latency). These are rare and mostly machine-to-machine
-(`flux-webhook`, `tesladev`). If you ever want one LAN-direct, give it an
-internal route too — it becomes class 2 or 3.
+queried on-LAN (extra latency). By policy class 4 is reserved for
+machine-to-machine hosts (`flux-webhook`, `tesladev`) that are never queried
+on-LAN, so the hairpin does not occur in practice. If a class-4 host ever needs
+LAN-direct access, add an `envoy-internal` parentRef to its route (a second
+parentRef on the same HTTPRoute is enough) — it becomes class 2 or 3.
 
 ## How to declare each class
 
