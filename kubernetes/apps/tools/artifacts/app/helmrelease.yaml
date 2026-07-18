@@ -11,7 +11,6 @@ spec:
   values:
     controllers:
       artifacts:
-        strategy: RollingUpdate
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
@@ -77,3 +76,14 @@ spec:
         type: emptyDir
         globalMounts:
           - path: /data
+    route:
+      app:
+        hostnames: ["art.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: artifacts
+                port: 8080
