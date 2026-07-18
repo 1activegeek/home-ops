@@ -4,7 +4,7 @@
 #   - a Headlamp-scoped `email` mapping that sets email_verified=true, which the
 #     kube-apiserver REQUIRES when oidc-username-claim=email (the global default
 #     `email` mapping hardcodes email_verified=false and is intentionally left
-#     untouched — grafana/gatus/etc. share it);
+#     untouched — grafana/etc. share it);
 #   - the OIDC provider (authorization_code + refresh_token; offline_access is in
 #     property_mappings so a refresh token is issued — Headlamp hard-fails login
 #     without one);
