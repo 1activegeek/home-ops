@@ -150,10 +150,6 @@ data:
             icon: grafana.svg
             href: https://grafana.${SECRET_DOMAIN}
             description: Monitoring Dashboards
-        - Gatus:
-            icon: gatus.svg
-            href: https://gatus.${SECRET_DOMAIN}
-            description: Uptime Monitoring
         - Authentik:
             icon: authentik.svg
             href: https://auth.${SECRET_DOMAIN}
