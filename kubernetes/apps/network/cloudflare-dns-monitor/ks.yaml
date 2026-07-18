@@ -6,8 +6,12 @@ metadata:
 spec:
   interval: 1h
   path: ./kubernetes/apps/network/cloudflare-dns-monitor/app
-  # No postBuild.substituteFrom — the job needs no cluster vars and we avoid
-  # any ${VAR} substitution surprises.
+  # ${SECRET_DOMAIN} is the only substituted var (the CF zone to poll). The job
+  # scripts use no ${VAR} shell expansion, so there are no substitution surprises.
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
   prune: true
   sourceRef:
     kind: GitRepository
