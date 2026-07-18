@@ -9,7 +9,7 @@ data:
   # Custom homeserver URLs and guests are disabled — this is a single-server,
   # internal-only deployment.
   #
-  # Theme: Catppuccin (https://github.com/catppuccin/element), Peach accent.
+  # Theme: Catppuccin (https://github.com/catppuccin/element), Blue accent.
   # Registered as two selectable custom themes (Mocha = dark default, Latte =
   # light) via setting_defaults.custom_themes rather than a per-user Labs URL,
   # so it applies to every user out of the box.
@@ -23,7 +23,7 @@ data:
       },
       "disable_custom_urls": true,
       "disable_guests": true,
-      "default_theme": "custom-Catppuccin Mocha (Peach)",
+      "default_theme": "custom-Catppuccin Mocha (Blue)",
       "room_directory": {
         "servers": []
       },
@@ -31,11 +31,11 @@ data:
       "setting_defaults": {
         "custom_themes": [
           {
-            "name": "Catppuccin Mocha (Peach)",
+            "name": "Catppuccin Mocha (Blue)",
             "is_dark": true,
             "colors": {
-              "accent-color": "#fab387",
-              "primary-color": "#fab387",
+              "accent-color": "#89b4fa",
+              "primary-color": "#89b4fa",
               "warning-color": "#f38ba8",
               "alert": "#f9e2af",
               "sidebar-color": "#11111b",
@@ -232,7 +232,7 @@ data:
               "--cpd-color-text-secondary": "#a6adc8",
               "--cpd-color-text-disabled": "#6c7086",
               "--cpd-color-text-action-primary": "#cdd6f4",
-              "--cpd-color-text-action-accent": "#fab387",
+              "--cpd-color-text-action-accent": "#89b4fa",
               "--cpd-color-text-link-external": "#89b4fa",
               "--cpd-color-text-critical-primary": "#f38ba8",
               "--cpd-color-text-success-primary": "#a6e3a1",
@@ -260,10 +260,10 @@ data:
               "--cpd-color-bg-critical-subtle": "#422c3a",
               "--cpd-color-bg-success-subtle": "#313f38",
               "--cpd-color-bg-info-subtle": "#2b354c",
-              "--cpd-color-bg-accent-rest": "#fab387",
-              "--cpd-color-bg-accent-hovered": "#c99c87",
-              "--cpd-color-bg-accent-pressed": "#b39287",
-              "--cpd-color-bg-accent-selected": "#4c3a36",
+              "--cpd-color-bg-accent-rest": "#89b4fa",
+              "--cpd-color-bg-accent-hovered": "#7f9cd2",
+              "--cpd-color-bg-accent-pressed": "#7b92c0",
+              "--cpd-color-bg-accent-selected": "#2f3a53",
               "--cpd-color-bg-decorative-1": "#313f38",
               "--cpd-color-bg-decorative-2": "#2b3d49",
               "--cpd-color-bg-decorative-3": "#433848",
@@ -274,7 +274,7 @@ data:
               "--cpd-color-icon-secondary": "#a6adc8",
               "--cpd-color-icon-tertiary": "#7f849c",
               "--cpd-color-icon-quaternary": "#6c7086",
-              "--cpd-color-icon-accent-primary": "#fab387",
+              "--cpd-color-icon-accent-primary": "#89b4fa",
               "--cpd-color-icon-critical-primary": "#f38ba8",
               "--cpd-color-icon-success-primary": "#a6e3a1",
               "--cpd-color-icon-info-primary": "#89b4fa",
@@ -284,7 +284,7 @@ data:
               "--cpd-color-border-interactive-secondary": "#6c7086",
               "--cpd-color-border-interactive-hovered": "#cdd6f4",
               "--cpd-color-border-disabled": "#585b70",
-              "--cpd-color-border-focused": "#fab387",
+              "--cpd-color-border-focused": "#89b4fa",
               "--cpd-color-border-critical-primary": "#f38ba8",
               "--cpd-color-border-success-subtle": "#536e56",
               "--cpd-color-border-info-subtle": "#46597d",
@@ -292,11 +292,11 @@ data:
             }
           },
           {
-            "name": "Catppuccin Latte (Peach)",
+            "name": "Catppuccin Latte (Blue)",
             "is_dark": false,
             "colors": {
-              "accent-color": "#fe640b",
-              "primary-color": "#fe640b",
+              "accent-color": "#1e66f5",
+              "primary-color": "#1e66f5",
               "warning-color": "#d20f39",
               "alert": "#df8e1d",
               "sidebar-color": "#dce0e8",
@@ -403,7 +403,7 @@ data:
               "--cpd-color-text-secondary": "#6c6f85",
               "--cpd-color-text-disabled": "#9ca0b0",
               "--cpd-color-text-action-primary": "#4c4f69",
-              "--cpd-color-text-action-accent": "#fe640b",
+              "--cpd-color-text-action-accent": "#1e66f5",
               "--cpd-color-text-link-external": "#1e66f5",
               "--cpd-color-text-critical-primary": "#d20f39",
               "--cpd-color-text-success-primary": "#40a02b",
@@ -431,10 +431,10 @@ data:
               "--cpd-color-bg-critical-subtle": "#dab2c2",
               "--cpd-color-bg-success-subtle": "#bad2be",
               "--cpd-color-bg-info-subtle": "#b3c5eb",
-              "--cpd-color-bg-accent-rest": "#fe640b",
-              "--cpd-color-bg-accent-hovered": "#db7944",
-              "--cpd-color-bg-accent-pressed": "#cd825e",
-              "--cpd-color-bg-accent-selected": "#e5c1b1",
+              "--cpd-color-bg-accent-rest": "#1e66f5",
+              "--cpd-color-bg-accent-hovered": "#4a7adc",
+              "--cpd-color-bg-accent-pressed": "#5d83d3",
+              "--cpd-color-bg-accent-selected": "#adc2eb",
               "--cpd-color-bg-decorative-1": "#bad2be",
               "--cpd-color-bg-decorative-2": "#add3e7",
               "--cpd-color-bg-decorative-3": "#dfc9e2",
@@ -445,7 +445,7 @@ data:
               "--cpd-color-icon-secondary": "#6c6f85",
               "--cpd-color-icon-tertiary": "#8c8fa1",
               "--cpd-color-icon-quaternary": "#9ca0b0",
-              "--cpd-color-icon-accent-primary": "#fe640b",
+              "--cpd-color-icon-accent-primary": "#1e66f5",
               "--cpd-color-icon-critical-primary": "#d20f39",
               "--cpd-color-icon-success-primary": "#40a02b",
               "--cpd-color-icon-info-primary": "#1e66f5",
@@ -455,7 +455,7 @@ data:
               "--cpd-color-border-interactive-secondary": "#9ca0b0",
               "--cpd-color-border-interactive-hovered": "#4c4f69",
               "--cpd-color-border-disabled": "#acb0be",
-              "--cpd-color-border-focused": "#fe640b",
+              "--cpd-color-border-focused": "#1e66f5",
               "--cpd-color-border-critical-primary": "#d20f39",
               "--cpd-color-border-success-subtle": "#97c495",
               "--cpd-color-border-info-subtle": "#88abee",
