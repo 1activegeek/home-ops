@@ -139,7 +139,13 @@ spec:
     route:
       api:
         hostnames: ["s.${SECRET_DOMAIN}"]
+        # Dual-homed + public: internal parent so on-LAN short links resolve to
+        # the internal gateway (.53) with no hairpin; external parent for public
+        # links (auth opt-out via securitypolicy-public.yaml). Class 3.
         parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
           - name: envoy-external
             namespace: network
             sectionName: https

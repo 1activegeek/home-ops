@@ -40,5 +40,5 @@ tasks:
       - task: validate:all
 
   validate-security:
-    desc: Validate external HTTPRoute security configurations
-    cmd: bash "{{.ROOT_DIR}}/.taskfiles/kubernetes/scripts/validate-external-routes.sh"
+    desc: Classify every route into the 4 route classes and validate auth posture
+    cmd: python3 "{{.ROOT_DIR}}/.taskfiles/kubernetes/scripts/validate-route-classes.py"

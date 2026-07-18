@@ -1,0 +1,22 @@
+---
+# Public-exception override for the Shlink redirect endpoint (s.${SECRET_DOMAIN}).
+#
+# Shlink's short-link redirects are meant to be anonymous, so this route must
+# opt OUT of the gateway-level default Authentik forward-auth
+# (envoy-external-default-auth). This SecurityPolicy has an empty extAuth block,
+# which overrides the default and disables auth for THIS route only.
+#
+# Auth mode: public_exception (see docs/architecture/authentication.md).
+# Empty extAuth needs no ReferenceGrant to authentik-server.
+#
+# Targets the rendered HTTPRoute `shlink-api` (bjw-s app-template route key `api`).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: shlink-api-public
+  namespace: tools
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: shlink-api

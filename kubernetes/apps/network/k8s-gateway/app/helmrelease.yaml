@@ -19,3 +19,32 @@ spec:
         lbipam.cilium.io/ips: "10.0.3.52"
       externalTrafficPolicy: Cluster
     watchedResources: ["HTTPRoute", "Service"]
+    # Split-DNS "prefer internal": only resolve routes whose parent Gateway is
+    # the INTERNAL tier (GatewayClass `envoy`). Routes on the external tier
+    # (class `envoy-external`) are ignored here, so a host exposed on BOTH
+    # gateways resolves to the internal gateway IP (10.0.3.53) ONLY on-LAN.
+    filters:
+      gatewayClasses: ["envoy"]
+    # Hosts with NO internal-tier route (external-only apps) produce no record
+    # and fall through to the forwarder below -> public DNS -> Cloudflare Tunnel,
+    # so they stay reachable on-LAN (hairpin). See docs/architecture/routing.md.
+    fallthrough:
+      enabled: true
+    # Override default zone plugins:
+    #  - forward fallthrough queries to PUBLIC resolvers (NOT /etc/resolv.conf),
+    #    which would otherwise loop UniFi -> k8s-gateway -> cluster DNS -> UniFi.
+    #  - drop `loadbalance`: it shuffled A-record order, the root cause of the
+    #    nondeterministic .54/.53 answers for dual-homed hosts.
+    extraZonePlugins:
+      - name: log
+      - name: errors
+      - name: health
+        configBlock: |-
+          lameduck 5s
+      - name: ready
+      - name: prometheus
+        parameters: 0.0.0.0:9153
+      - name: forward
+        parameters: . 1.1.1.1 1.0.0.1
+      - name: loop
+      - name: reload

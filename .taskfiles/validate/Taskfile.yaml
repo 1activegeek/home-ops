@@ -128,10 +128,25 @@ tasks:
       - which yq
 
   security:
-    desc: Validate external HTTPRoute security configurations
-    cmd: bash "{{.ROOT_DIR}}/.taskfiles/kubernetes/scripts/validate-external-routes.sh"
+    desc: Classify every route into the 4 route classes and validate auth posture
+    cmd: python3 "{{.ROOT_DIR}}/.taskfiles/kubernetes/scripts/validate-route-classes.py"
     preconditions:
-      - which yq
+      - which kubectl
+      - which python3
+
+  dns-split:
+    desc: "Live: prove split-DNS 'prefer internal' invariant (run ON the LAN)"
+    cmd: |
+      RESOLVER="${RESOLVER:-10.0.3.52}" \
+      INTERNAL_IP="${INTERNAL_IP:-10.0.3.53}" \
+      EXTERNAL_IP="${EXTERNAL_IP:-10.0.3.54}" \
+      DUAL_HOSTS="${DUAL_HOSTS:-hass requests auth s echo}" \
+      INTERNAL_HOSTS="${INTERNAL_HOSTS:-git grafana shlink}" \
+      EXTERNAL_HOSTS="${EXTERNAL_HOSTS:-flux-webhook tesladev}" \
+      DOMAIN="${DOMAIN:?set DOMAIN, e.g. DOMAIN=example.com}" \
+        bash "{{.ROOT_DIR}}/scripts/tests/dns-split-check.sh"
+    preconditions:
+      - which dig
 
   security-ctx:
     desc: Flag images running as UID 65534 that may require a different UID
