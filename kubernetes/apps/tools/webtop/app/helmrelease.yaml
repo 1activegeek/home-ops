@@ -15,7 +15,7 @@ spec:
           app:
             image:
               repository: ghcr.io/linuxserver/webtop
-              tag: ubuntu-xfce
+              tag: ubuntu-xfce-afda9145-ls13
             env:
               PUID: "1000"
               PGID: "1000"
