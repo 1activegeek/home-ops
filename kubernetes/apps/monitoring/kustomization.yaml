@@ -13,3 +13,4 @@ resources:
   - ./kube-prometheus-stack/ks.yaml
   - ./loki/ks.yaml
   - ./alloy/ks.yaml
+  - ./uptime-kuma/ks.yaml

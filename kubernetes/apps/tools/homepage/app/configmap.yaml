@@ -146,6 +146,10 @@ data:
             href: https://teslamate.${SECRET_DOMAIN}
             description: Tesla Tracking
     - Infrastructure:
+        - Uptime Kuma:
+            icon: uptime-kuma.svg
+            href: https://uptime.${SECRET_DOMAIN}
+            description: Uptime Monitoring
         - Grafana:
             icon: grafana.svg
             href: https://grafana.${SECRET_DOMAIN}
