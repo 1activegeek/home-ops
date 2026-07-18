@@ -96,3 +96,62 @@ spec:
           - backendRefs:
               - name: headlamp
                 port: 4466
+
+    persistence:
+      # Mount the safari-oidc-fix plugin into Headlamp's -plugins-dir. The whole
+      # ConfigMap is mounted as a directory (no subPath) so both main.js and
+      # package.json land in the plugin folder; Headlamp discovers/serves the
+      # ConfigMap's symlinked files fine. The chart stamps a checksum/configMaps
+      # pod annotation, so editing the JS below rolls the pod automatically and the
+      # new plugin is picked up at startup (in-cluster live watching stays off).
+      plugin:
+        type: configMap
+        identifier: plugin
+        globalMounts:
+          - path: /headlamp/plugins/safari-oidc-fix
+            readOnly: true
+
+    configMaps:
+      # Safari-only OIDC login fix. Headlamp runs login in a popup that writes
+      # localStorage 'auth_status'='success' and closes; the opener leaves /login
+      # on a cross-window 'storage' event, which Safari drops — so login hangs on
+      # /c/<cluster>/login even though the token is already stored (Chrome works).
+      # No Headlamp flag/version/header fixes this; this opener-side plugin re-checks
+      # on focus/visibility/poll (all fire reliably in Safari after the popup closes)
+      # and navigates off /login. The devDependencies pin is LOAD-BEARING: the
+      # frontend's isCompatible gate (>=0.8.0-alpha.3) silently drops the plugin
+      # without it. Plain IIFE, no @kinvolk/headlamp-plugin build step.
+      plugin:
+        data:
+          package.json: |
+            {
+              "name": "safari-oidc-fix",
+              "version": "1.0.0",
+              "description": "Recover OIDC login navigation on Safari after the auth popup closes",
+              "devDependencies": {
+                "@kinvolk/headlamp-plugin": "^0.13.0"
+              }
+            }
+          main.js: |
+            // Headlamp Safari OIDC login recovery (side-effect-only, no build step).
+            // The OIDC popup writes localStorage 'auth_status'='success' and closes; the
+            // opener is supposed to leave /login on a cross-window 'storage' event, which
+            // Safari drops. This runs in the opener and recovers by navigating off /login
+            // once the token is present — the same effect as manually stripping /login.
+            (function () {
+              'use strict';
+              function recover() {
+                try {
+                  if (localStorage.getItem('auth_status') !== 'success') return;
+                  var path = window.location.pathname;
+                  if (!/\/login$/.test(path)) return;
+                  localStorage.removeItem('auth_status');
+                  window.location.assign(path.replace(/\/login$/, '') || '/');
+                } catch (e) { /* no-op */ }
+              }
+              window.addEventListener('focus', recover);
+              document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') recover();
+              });
+              setInterval(recover, 1000);
+            })();
