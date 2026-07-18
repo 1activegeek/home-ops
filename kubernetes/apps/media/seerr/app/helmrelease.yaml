@@ -66,7 +66,14 @@ spec:
     route:
       app:
         hostnames: ["requests.${SECRET_DOMAIN}"]
+        # Dual-homed + public: internal parent so on-LAN resolves to the internal
+        # gateway (.53) with no hairpin; external parent for public reachability
+        # (auth opt-out via securitypolicy-public.yaml). Seerr runs its own Plex
+        # login, so it sits in front of no Authentik forward-auth. Class 3.
         parentRefs:
           - name: envoy-internal
+            namespace: network
+            sectionName: https
+          - name: envoy-external
             namespace: network
             sectionName: https
