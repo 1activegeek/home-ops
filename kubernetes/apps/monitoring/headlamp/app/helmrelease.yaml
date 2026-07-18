@@ -26,11 +26,25 @@ spec:
               # (HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL -> -oidc-idp-issuer-url).
               # Bare OIDC_* names are silently ignored.
               HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL: https://auth.${SECRET_DOMAIN}/application/o/headlamp/
-              # offline_access is required: Headlamp refreshes the id_token on
+              # offline_access is required: Headlamp refreshes the token on
               # every API call and hard-fails login ("refreshing token: getting
               # refresh token: key not found") if the IdP issued no refresh
               # token. authentik only returns one when offline_access is granted.
               HEADLAMP_CONFIG_OIDC_SCOPES: openid,email,profile,offline_access
+              # Use the access_token (not the id_token) as the bearer + the key
+              # for Headlamp's in-memory refresh-token cache. Headlamp stores the
+              # refresh token at login keyed by the raw user token, then looks it
+              # up on every API-call refresh. With the id_token (default) the
+              # store-key and the bearer the SPA replays don't stay byte-identical,
+              # so the very first refresh misses -> "getting refresh token: key
+              # not found" -> login hangs at "Redirecting to main page...".
+              # Keying on the access_token keeps both sides consistent.
+              # SAFE for the apiserver: authentik's JWT access_token carries the
+              # same iss + aud(=oidc-client-id) + email/email_verified/groups
+              # claims the kube-apiserver validates (verified against the live
+              # token), so forwarded-token auth is unchanged.
+              # headlamp-k8s/headlamp#4134, #4122.
+              HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN: "true"
             envFrom:
               - secretRef:
                   name: headlamp-secret
