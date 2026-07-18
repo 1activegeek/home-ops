@@ -138,11 +138,15 @@ spec:
             // opener is supposed to leave /login on a cross-window 'storage' event, which
             // Safari drops. This runs in the opener and recovers by navigating off /login
             // once the token is present — the same effect as manually stripping /login.
+            // Polls localStorage (independent of Safari's flaky cross-window storage
+            // event) so it recovers whether or not focus/visibility fire. Loaded at
+            // app bootstrap above the auth boundary, so it runs while stuck on /login.
             (function () {
               'use strict';
               function recover() {
                 try {
-                  if (localStorage.getItem('auth_status') !== 'success') return;
+                  // truthy, not === 'success', to stay robust if the value ever changes
+                  if (!localStorage.getItem('auth_status')) return;
                   var path = window.location.pathname;
                   if (!/\/login$/.test(path)) return;
                   localStorage.removeItem('auth_status');
@@ -153,5 +157,6 @@ spec:
               document.addEventListener('visibilitychange', function () {
                 if (document.visibilityState === 'visible') recover();
               });
-              setInterval(recover, 1000);
+              setInterval(recover, 750);
+              recover(); // in case auth_status is already set when this loads
             })();
