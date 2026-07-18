@@ -6,6 +6,10 @@ This document defines the standard authentication model for routed applications 
 
 The goal is to make exposure decisions explicit, keep public services protected by default, and avoid accidental unauthenticated routes.
 
+> Routing mechanics (the four route classes, split-DNS "prefer internal", and how
+> to place an app in each class) live in [`routing.md`](./routing.md). This
+> document defines the **auth modes** an external route may declare.
+
 ## Scope
 
 This policy applies to HTTP(S) applications exposed through Envoy Gateway.

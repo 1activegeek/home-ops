@@ -27,11 +27,32 @@ spec:
       prometheus:
         compression:
           type: Gzip
+# Two GatewayClasses, one per exposure tier. They share the same EnvoyProxy
+# params but the distinct class names let k8s-gateway (internal split-DNS)
+# resolve ONLY internal-tier routes, so dual-homed hosts prefer the internal
+# gateway (.53) on-LAN. See docs/architecture/routing.md.
+#
+# class `envoy`          -> INTERNAL tier (LAN, no gateway auth). Resolved
+#                           on-LAN by k8s-gateway to 10.0.3.53.
+# class `envoy-external` -> INTERNET boundary (Cloudflare Tunnel + default
+#                           Authentik forward-auth). NOT resolved by k8s-gateway.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
   name: envoy
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: envoy
+    namespace: network
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy-external
 spec:
   controllerName: gateway.envoyproxy.io/gatewayclass-controller
   parametersRef:
@@ -47,7 +68,8 @@ metadata:
   annotations:
     external-dns.alpha.kubernetes.io/target: external.${SECRET_DOMAIN}
 spec:
-  gatewayClassName: envoy
+  # INTERNET boundary — distinct class so k8s-gateway split-DNS ignores it.
+  gatewayClassName: envoy-external
   infrastructure:
     annotations:
       external-dns.alpha.kubernetes.io/hostname: external.${SECRET_DOMAIN}
@@ -77,6 +99,7 @@ metadata:
   annotations:
     external-dns.alpha.kubernetes.io/target: internal.${SECRET_DOMAIN}
 spec:
+  # INTERNAL tier — class `envoy` is the one k8s-gateway resolves on-LAN (.53).
   gatewayClassName: envoy
   infrastructure:
     annotations:
