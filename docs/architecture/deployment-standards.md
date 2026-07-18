@@ -96,7 +96,29 @@ Rules:
 - `securityContext` — default `runAsUser/fsGroup: 65534` unless the image requires otherwise (`task validate:security-ctx` flags mismatches)
 - `reloader.stakater.com/auto: "true"` annotation on **any** app consuming an ExternalSecret or ConfigMap
 - Image tags: pinned semver only. Never `latest`, `main`, or channel tags. No digests currently — semver is the standard.
-- Monitoring: Gatus endpoints are centrally defined in the gatus configmap — when adding a routed app, add its endpoint there. Homepage entries likewise live in homepage's own config.
+- Homepage entries live in homepage's own config.
+
+## 8a. Monitoring standard (observability stack, 2026-07)
+
+The stack: **kube-prometheus-stack** (Prometheus + Alertmanager + node-exporter + kube-state-metrics), **Loki** + **Alloy** (logs), **Uptime Kuma** (uptime), existing **Grafana** — all in `monitoring`. When deploying a new app, wire it in with these standard hooks (everything is picked up automatically, no central config to edit):
+
+- **Metrics** — enable the chart's `serviceMonitor`/`metrics` values, or ship a `ServiceMonitor`/`PodMonitor` next to the app. Prometheus watches ALL monitors cluster-wide (nil selectors) — no labels or registration needed.
+- **Alerts** — ship a `PrometheusRule` CR next to the app; also auto-discovered. Alertmanager routes everything to Discord (`discord-webhook-jarvis` via ExternalSecret); severity tiers inhibit downward (critical > warning > info). `Watchdog`/`InfoInhibitor` are nulled.
+- **Logs** — automatic. Alloy (DaemonSet) tails every pod on its node and pushes to Loki with labels `namespace, pod, container, node, app`. Nothing to configure per app.
+- **Dashboards** — ConfigMap labeled `grafana_dashboard: "1"` (any namespace) with the JSON under `data:`; the Grafana sidecar auto-loads it. Datasources likewise via `grafana_datasource: "1"`.
+- **Uptime** — add a monitor in Uptime Kuma (`uptime.` internal route) for anything user-facing. Manual/API for now; declarative auto-registration is a planned follow-up.
+
+In-cluster endpoints (for automations/AI analysis):
+
+| Service | Endpoint |
+|---|---|
+| Prometheus | `http://kps-prometheus.monitoring.svc.cluster.local:9090` |
+| Alertmanager | `http://kps-alertmanager.monitoring.svc.cluster.local:9093` |
+| Loki | `http://loki.monitoring.svc.cluster.local:3100` |
+| Grafana | `http://grafana.monitoring.svc.cluster.local:80` |
+| Uptime Kuma | `http://uptime-kuma.monitoring.svc.cluster.local:3001` |
+
+Prometheus retains 14d/25GB, Loki 14d — both on `longhorn-nobackup` (rebuildable telemetry; the explicit no-backup rationale per §7). Uptime Kuma's PVC is on `longhorn` (its DB holds monitor config).
 
 ## 9. Validation & workflow
 
