@@ -26,6 +26,10 @@ spec:
             args: ["gateway", "run"]
             env:
               HERMES_HOME: /opt/data
+              # The hermes CLI ships in the image venv (/opt/hermes/.venv/bin) but
+              # that dir is not on the image's default PATH, so the agent's own
+              # shell-outs to `hermes ...` fail with "hermes: not found". Prepend it.
+              PATH: /opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
               PLAYWRIGHT_BROWSERS_PATH: /opt/data/.playwright
               PYTHONUNBUFFERED: "1"
               API_SERVER_ENABLED: "true"
@@ -44,6 +48,8 @@ spec:
             args: ["dashboard", "--host", "0.0.0.0", "--no-open", "--insecure"]
             env:
               HERMES_HOME: /opt/data
+              # Keep the hermes CLI on PATH here too (see gateway container note).
+              PATH: /opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             probes:
               liveness: &probes
                 enabled: true
