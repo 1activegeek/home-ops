@@ -9,7 +9,6 @@ components:
 resources:
   - ./namespace.yaml
   - ./db-backup/ks.yaml
-  # - ./litellm/ks.yaml
   - ./ollama/ks.yaml
   - ./open-webui/ks.yaml
   - ./qdrant/ks.yaml
