@@ -6,3 +6,4 @@ resources:
   - ./helmrepository.yaml
   - ./httproute.yaml
   - ./recurringjobs.yaml
+  - ./servicemonitor.yaml
