@@ -9,13 +9,6 @@ spec:
     name: csi-driver-nfs
   interval: 1h
   timeout: 15m
-  install:
-    remediation:
-      retries: 3
-  upgrade:
-    cleanupOnFail: true
-    remediation:
-      retries: 3
   values:
     storageClass:
       create: true
