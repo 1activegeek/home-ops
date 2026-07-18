@@ -51,7 +51,7 @@ entries:
         - refresh_token
       redirect_uris:
         - matching_mode: strict
-          url: https://headlamp.thegeekybits.com/oidc-callback
+          url: https://headlamp.${SECRET_DOMAIN}/oidc-callback
       authorization_flow:
         !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow:

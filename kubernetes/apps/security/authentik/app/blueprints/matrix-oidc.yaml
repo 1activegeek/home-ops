@@ -38,7 +38,7 @@ entries:
         - refresh_token
       redirect_uris:
         - matching_mode: strict
-          url: https://mas.thegeekybits.com/upstream/callback/01K0AH2QJ4E8SNVGW5T7D9F3RB
+          url: https://mas.${SECRET_DOMAIN}/upstream/callback/01K0AH2QJ4E8SNVGW5T7D9F3RB
       authorization_flow:
         !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow:

@@ -4,7 +4,7 @@ kind: CronJob
 metadata:
   name: cloudflare-dns-monitor
 spec:
-  # Every 30 min — poll the thegeekybits zone, alert on records not seen before.
+  # Every 30 min — poll the configured Cloudflare zone, alert on records not seen before.
   schedule: "*/30 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
@@ -36,7 +36,7 @@ spec:
                 - name: PYTHONDONTWRITEBYTECODE
                   value: "1"
                 - name: ZONE_NAME
-                  value: "thegeekybits.com"
+                  value: "${SECRET_DOMAIN}"
                 - name: APPRISE_URL
                   value: "http://apprise.tools:8000/notify"
                 - name: CF_API_TOKEN
