@@ -9,5 +9,4 @@ components:
 resources:
   - ./namespace.yaml
   - ./grafana/ks.yaml
-  - ./gatus/ks.yaml
   - ./headlamp/ks.yaml
