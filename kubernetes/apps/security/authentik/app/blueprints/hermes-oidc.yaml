@@ -1,0 +1,65 @@
+# Hermes dashboard OIDC SSO — config-as-code.
+#
+# Authentik side of Hermes dashboard SSO. The v2026.7.x hermes-agent image
+# added a hard startup gate: the dashboard container refuses to bind to
+# 0.0.0.0 unless at least one dashboard auth provider is registered (the
+# bundled `--insecure` flag no longer satisfies this). Rather than app-local
+# basic auth, this wires the bundled `self_hosted` OIDC plugin
+# (hermes plugins/dashboard_auth/self_hosted) against Authentik — a generic,
+# standards-compliant OIDC Relying Party the image ships specifically for
+# self-hosted IDPs (Authentik/Keycloak/Zitadel/Authelia/...).
+#
+# client_id is PINNED so it stays consistent with the hermes-agent
+# HERMES_DASHBOARD_OIDC_CLIENT_ID env (kubernetes/apps/ai/hermes-agent/app/helmrelease.yaml)
+# and the 1Password `hermes-dotenv` item across rebuilds.
+#
+# client_secret is intentionally OMITTED: on the live instance authentik
+# leaves it unchanged, so applying this never disturbs the working provider.
+# On a from-scratch rebuild authentik regenerates it — read the new secret
+# from Authentik > Providers > hermes and update the 1Password `hermes-dotenv`
+# item (field oidc_client_secret); the hermes-dotenv ExternalSecret then
+# repopulates HERMES_DASHBOARD_OIDC_CLIENT_SECRET.
+#
+# sub_mode is user_email — the self_hosted provider maps standard OIDC claims
+# (sub/email/name) onto its Session; email is the stable identity claim we
+# want since Hermes has no separate username concept for dashboard login.
+version: 1
+metadata:
+  name: hermes-oidc
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider-hermes
+    identifiers:
+      name: hermes
+    attrs:
+      client_type: confidential
+      client_id: WFORCQ62bMifsYYZRZ7ranXU8l8eI47lTn3QQe1k
+      sub_mode: user_email
+      include_claims_in_id_token: true
+      issuer_mode: per_provider
+      grant_types:
+        - authorization_code
+        - refresh_token
+      redirect_uris:
+        - matching_mode: strict
+          url: https://hermes.${SECRET_DOMAIN}/auth/callback
+      authorization_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow:
+        !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key:
+        !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-openid"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-profile"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-email"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, "goauthentik.io/providers/oauth2/scope-offline_access"]]
+
+  - model: authentik_core.application
+    id: app-hermes
+    identifiers:
+      slug: hermes
+    attrs:
+      name: Hermes
+      provider: !KeyOf provider-hermes
+      policy_engine_mode: any
