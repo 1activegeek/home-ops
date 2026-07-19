@@ -50,6 +50,14 @@ spec:
               HERMES_HOME: /opt/data
               # Keep the hermes CLI on PATH here too (see gateway container note).
               PATH: /opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+              # v2026.7.x refuses to bind the dashboard to 0.0.0.0 unless an
+              # auth provider is registered (--insecure no longer bypasses
+              # this). Wired to Authentik via the bundled self_hosted OIDC
+              # plugin — HERMES_DASHBOARD_OIDC_* vars ship in the mounted
+              # /opt/data/.env (see externalsecret-dotenv.yaml and
+              # kubernetes/apps/security/authentik/app/blueprints/hermes-oidc.yaml),
+              # loaded into the process env by hermes's own dotenv handling —
+              # same mechanism as MATRIX_* above.
             probes:
               liveness: &probes
                 enabled: true
