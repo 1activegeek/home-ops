@@ -59,12 +59,19 @@ spec:
               # loaded into the process env by hermes's own dotenv handling —
               # same mechanism as MATRIX_* above.
             probes:
+              # OIDC hardening (2026-07-19) made "/" redirect unauthenticated
+              # requests to the Authentik login page (302), which kubelet's
+              # httpGet probe treats as a failure ("Probe terminated
+              # redirects") — the dashboard container was restarting on a
+              # flapping liveness check. /favicon.ico is a static asset that
+              # returns 200 without auth, so it's a safe unauthenticated
+              # health check target instead.
               liveness: &probes
                 enabled: true
                 custom: true
                 spec:
                   httpGet:
-                    path: /
+                    path: /favicon.ico
                     port: 9119
                   initialDelaySeconds: 30
                   periodSeconds: 30
