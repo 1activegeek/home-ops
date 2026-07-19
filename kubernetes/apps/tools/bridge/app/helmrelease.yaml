@@ -11,7 +11,6 @@ spec:
   values:
     controllers:
       bridge:
-        strategy: RollingUpdate
         containers:
           app:
             image:
@@ -98,3 +97,14 @@ spec:
         globalMounts:
           - path: /vault
             readOnly: true
+    route:
+      app:
+        hostnames: ["bridge.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: bridge
+                port: 5100

@@ -14,13 +14,6 @@ spec:
       interval: 15m
   interval: 1h
   timeout: 15m
-  install:
-    remediation:
-      retries: 3
-  upgrade:
-    cleanupOnFail: true
-    remediation:
-      retries: 3
   values:
     # Set default data path for Longhorn storage
     defaultSettings:

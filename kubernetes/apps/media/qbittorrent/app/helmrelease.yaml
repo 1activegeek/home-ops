@@ -13,6 +13,7 @@ spec:
       qbittorrent:
         # To re-enable VPN: uncomment gluetun container below, add externalsecret.yaml
         # to kustomization.yaml, and populate the qbittorrent 1Password item.
+        strategy: Recreate
         containers:
           app:
             image:
