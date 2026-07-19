@@ -12,7 +12,7 @@ cluster:
       # forwards is validated by the apiserver against this issuer). Additive:
       # existing admin client-cert / static kubeconfig auth is unaffected.
       # NOTE: applied out-of-band via `talosctl apply-config` (not Flux).
-      oidc-issuer-url: https://auth.thegeekybits.com/application/o/headlamp/
+      oidc-issuer-url: https://auth.${SECRET_DOMAIN}/application/o/headlamp/
       oidc-client-id: WxrKDa2ZRlFrT52GxJVz6wJuQxRSDw7RIAicrGP9
       oidc-username-claim: email
       oidc-groups-claim: groups
