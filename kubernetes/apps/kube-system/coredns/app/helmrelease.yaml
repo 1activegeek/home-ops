@@ -21,6 +21,16 @@ spec:
     replicaCount: 2
     servers:
       - zones:
+          - zone: ${SECRET_DOMAIN}.
+            scheme: dns://
+            use_tcp: true
+        port: 53
+        plugins:
+          - name: errors
+          - name: cache
+          - name: forward
+            parameters: . 10.43.222.7
+      - zones:
           - zone: .
             scheme: dns://
             use_tcp: true
