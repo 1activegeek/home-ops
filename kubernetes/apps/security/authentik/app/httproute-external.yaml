@@ -2,16 +2,20 @@
 # Expose Authentik externally for user login & SSO ONLY.
 # This route is public (no forward-auth) as it IS the auth provider.
 #
-# The admin (`/if/admin`) and user (`/if/user`) consoles are deliberately NOT
-# served on the internet-facing gateway — they return a fixed 404 here (see
-# httproutefilter-deny-console.yaml) and remain reachable only via the internal
+# The admin console (`/if/admin`) is deliberately NOT served on the
+# internet-facing gateway — it returns a fixed 404 here (see
+# httproutefilter-deny-console.yaml) and remains reachable only via the internal
 # gateway (envoy-internal / split-DNS / Tailscale), where the chart-generated
 # `authentik-server` HTTPRoute serves the full app.
+#
+# The user console (`/if/user`) IS public: users need self-service access to
+# their own account (password, OTP/passkey) from anywhere. It is a low-privilege,
+# self-scoped surface.
 #
 # Login flows, OAuth2/OIDC endpoints, the forward-auth outpost, the flow
 # interface (`/if/flow`), static assets and the API stay public via the
 # catch-all rule so external SSO keeps working. Path matches are most-specific-
-# wins, so the two console rules take precedence over the catch-all.
+# wins, so the admin rule takes precedence over the catch-all.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -36,18 +40,7 @@ spec:
             group: gateway.envoyproxy.io
             kind: HTTPRouteFilter
             name: authentik-deny-console
-    # User console — 404 at the public edge (internal-only surface)
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /if/user
-      filters:
-        - type: ExtensionRef
-          extensionRef:
-            group: gateway.envoyproxy.io
-            kind: HTTPRouteFilter
-            name: authentik-deny-console
-    # Everything else (login flows, OAuth2/OIDC, outpost, flow UI, API, static)
+    # Everything else (login flows, OAuth2/OIDC, outpost, flow UI, /if/user, API, static)
     # stays public so external SSO keeps working.
     - backendRefs:
         - name: authentik-server
