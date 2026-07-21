@@ -40,6 +40,20 @@ spec:
             group: gateway.envoyproxy.io
             kind: HTTPRouteFilter
             name: authentik-deny-console
+    # Admin-only API — 404 at the public edge. These endpoints (system info,
+    # workers, tasks, version) have no external caller now that the admin UI is
+    # internal-only. The login flow (/api/v3/flows) and user self-service
+    # (/api/v3/core, /api/v3/authenticators) are NOT under this prefix.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/v3/admin
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.envoyproxy.io
+            kind: HTTPRouteFilter
+            name: authentik-deny-console
     # Everything else (login flows, OAuth2/OIDC, outpost, flow UI, /if/user, API, static)
     # stays public so external SSO keeps working.
     - backendRefs:
