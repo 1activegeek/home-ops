@@ -37,26 +37,32 @@ spec:
                   value: "1"
                 - name: ZONE_NAME
                   value: "${SECRET_DOMAIN}"
-                - name: APPRISE_URL
-                  value: "http://apprise.tools:8000/notify"
+                # Mattermost delivery: post to #infrastructure via the Jarvis
+                # bot token (native avatar + name). Internal cluster URL — no
+                # external DNS/TLS dependency.
+                - name: MATTERMOST_URL
+                  value: "http://mattermost-main.tools.svc.cluster.local:8065"
+                - name: MATTERMOST_CHANNEL_ID
+                  value: "6qik9sorwbfcmdzqpwuwhwk69r"
+                - name: MATTERMOST_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: cloudflare-dns-monitor-secret
+                      key: MATTERMOST_TOKEN
                 - name: CF_API_TOKEN
                   valueFrom:
                     secretKeyRef:
                       name: cloudflare-dns-secret
                       key: api-token
-                - name: DISCORD_WEBHOOK_URL
-                  valueFrom:
-                    secretKeyRef:
-                      name: cloudflare-dns-monitor-secret
-                      key: DISCORD_WEBHOOK_URL
               command: ["python3", "-c"]
               args:
                 - |
-                  import json, os, re, sys, urllib.request, urllib.parse
+                  import json, os, sys, urllib.request, urllib.parse
                   CF = os.environ["CF_API_TOKEN"]
                   ZONE = os.environ["ZONE_NAME"]
-                  APPRISE = os.environ["APPRISE_URL"]
-                  WEBHOOK = os.environ["DISCORD_WEBHOOK_URL"]
+                  MM = os.environ["MATTERMOST_URL"].rstrip("/")
+                  MM_TOKEN = os.environ["MATTERMOST_TOKEN"]
+                  MM_CHANNEL = os.environ["MATTERMOST_CHANNEL_ID"]
                   STATE = "/state/seen-records.json"
                   API = "https://api.cloudflare.com/client/v4"
 
@@ -64,6 +70,15 @@ spec:
                       req = urllib.request.Request(API + path, headers={"Authorization": "Bearer " + CF})
                       with urllib.request.urlopen(req, timeout=20) as r:
                           return json.load(r)
+
+                  def mm_post(message):
+                      data = json.dumps({"channel_id": MM_CHANNEL, "message": message}).encode()
+                      req = urllib.request.Request(
+                          MM + "/api/v4/posts", data=data,
+                          headers={"Authorization": "Bearer " + MM_TOKEN,
+                                   "Content-Type": "application/json"})
+                      with urllib.request.urlopen(req, timeout=20) as r:
+                          r.read()
 
                   zr = cf("/zones?name=" + urllib.parse.quote(ZONE)).get("result") or []
                   if not zr:
@@ -97,19 +112,10 @@ spec:
                       if sections:
                           body = "Cloudflare DNS change(s) in %s:\n\n%s" % (ZONE, "\n\n".join(sections))
                           print(body)
-                          m = re.search(r"/webhooks/(\d+)/([\w-]+)", WEBHOOK)
-                          if not m:
-                              print("ERROR: cannot parse Discord webhook URL", file=sys.stderr)
-                              sys.exit(1)
-                          data = urllib.parse.urlencode({
-                              "urls": "discord://%s/%s" % (m.group(1), m.group(2)),
-                              "title": "DNS change in %s (+%d ~%d -%d)" % (
-                                  ZONE, len(added), len(changed), len(removed)),
-                              "body": body,
-                          }).encode()
-                          with urllib.request.urlopen(urllib.request.Request(APPRISE, data=data), timeout=20) as r:
-                              r.read()
-                          print("Alert dispatched via apprise.")
+                          message = "**DNS change in %s** (+%d ~%d -%d)\n\n%s" % (
+                              ZONE, len(added), len(changed), len(removed), body)
+                          mm_post(message)
+                          print("Alert dispatched to Mattermost #infrastructure.")
                       else:
                           print("No DNS changes (%d total)." % len(current))
 

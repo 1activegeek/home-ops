@@ -74,8 +74,9 @@ spec:
     alertmanager:
       enabled: true
       alertmanagerSpec:
-        # Full config rendered by the alertmanager ExternalSecret (webhook
-        # inline — the operator's parser rejects discord webhook_url_file)
+        # Full config rendered by the alertmanager ExternalSecret. Delivery is
+        # Mattermost #infrastructure via a Slack-compatible incoming webhook
+        # (api_url inline; the operator's parser rejects *_file indirection).
         configSecret: alertmanager-config
         storage:
           volumeClaimTemplate:

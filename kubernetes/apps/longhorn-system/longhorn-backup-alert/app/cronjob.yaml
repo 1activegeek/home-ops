@@ -37,13 +37,17 @@ spec:
               env:
                 - name: METRICS_URL
                   value: "http://longhorn-backend.longhorn-system:9500/metrics"
-                - name: APPRISE_URL
-                  value: "http://apprise.tools:8000/notify"
-                - name: DISCORD_WEBHOOK_URL
+                # Mattermost delivery: post to #infrastructure via the Jarvis
+                # bot token (native avatar + name), internal cluster URL.
+                - name: MATTERMOST_URL
+                  value: "http://mattermost-main.tools.svc.cluster.local:8065"
+                - name: MATTERMOST_CHANNEL_ID
+                  value: "6qik9sorwbfcmdzqpwuwhwk69r"
+                - name: MATTERMOST_TOKEN
                   valueFrom:
                     secretKeyRef:
                       name: longhorn-backup-alert-secret
-                      key: DISCORD_WEBHOOK_URL
+                      key: MATTERMOST_TOKEN
               command: ["/bin/sh", "-c"]
               args:
                 - |
@@ -58,19 +62,16 @@ spec:
                   fi
                   COUNT=$(printf '%s\n' "${FAILED}" | grep -c .)
                   VOLS=$(printf '%s\n' "${FAILED}" | sed -n 's/.*volume="\([^"]*\)".*/\1/p' | sort -u | tr '\n' ' ')
-                  MSG="Longhorn backup failure: ${COUNT} backup(s) in Error state. Volume(s): ${VOLS}"
+                  # Volume names are k8s-safe (lowercase alphanumerics + dashes),
+                  # so no JSON escaping beyond the static text is required.
+                  MSG="**Longhorn backup failure**: ${COUNT} backup(s) in Error state. Volume(s): ${VOLS}"
                   echo "[$(date -u)] ${MSG}"
-                  # Convert https://discord.com/api/webhooks/ID/TOKEN -> apprise discord://ID/TOKEN
-                  IDTOK=$(printf '%s' "${DISCORD_WEBHOOK_URL}" | sed -n 's#.*/webhooks/\([0-9][0-9]*\)/\([A-Za-z0-9_-][A-Za-z0-9_-]*\).*#\1/\2#p')
-                  if [ -z "${IDTOK}" ]; then
-                    echo "ERROR: could not parse Discord webhook URL into apprise format" >&2
-                    exit 1
-                  fi
-                  curl -sf --max-time 20 -X POST "${APPRISE_URL}" \
-                    --data-urlencode "urls=discord://${IDTOK}" \
-                    --data-urlencode "title=Longhorn backup failure" \
-                    --data-urlencode "body=${MSG}" >/dev/null
-                  echo "[$(date -u)] Alert dispatched via apprise."
+                  # Post to Mattermost #infrastructure via the Jarvis bot REST API.
+                  curl -sf --max-time 20 -X POST "${MATTERMOST_URL}/api/v4/posts" \
+                    -H "Authorization: Bearer ${MATTERMOST_TOKEN}" \
+                    -H "Content-Type: application/json" \
+                    -d "{\"channel_id\":\"${MATTERMOST_CHANNEL_ID}\",\"message\":\"${MSG}\"}" >/dev/null
+                  echo "[$(date -u)] Alert dispatched to Mattermost #infrastructure."
               resources:
                 requests:
                   cpu: 10m
