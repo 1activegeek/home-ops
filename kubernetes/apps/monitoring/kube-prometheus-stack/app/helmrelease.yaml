@@ -46,6 +46,10 @@ spec:
 
     prometheus:
       prometheusSpec:
+        # Public-facing URL so alert `generatorURL` links (embedded in every
+        # notification) resolve from a browser instead of the in-cluster
+        # service address. Route: kubernetes/.../kube-prometheus-stack httproute.
+        externalUrl: https://prometheus.${SECRET_DOMAIN}
         # Scrape every ServiceMonitor/PodMonitor/PrometheusRule/Probe/ScrapeConfig
         # in the cluster, regardless of helm release labels
         serviceMonitorSelectorNilUsesHelmValues: false
@@ -74,6 +78,10 @@ spec:
     alertmanager:
       enabled: true
       alertmanagerSpec:
+        # Public-facing URL so the "receiver" link in every Mattermost alert
+        # resolves from a browser instead of http://kps-alertmanager...:9093.
+        # Route: kubernetes/.../kube-prometheus-stack httproute (alertmanager.<domain>).
+        externalUrl: https://alertmanager.${SECRET_DOMAIN}
         # Full config rendered by the alertmanager ExternalSecret. Delivery is
         # Mattermost #infrastructure via a Slack-compatible incoming webhook
         # (api_url inline; the operator's parser rejects *_file indirection).
