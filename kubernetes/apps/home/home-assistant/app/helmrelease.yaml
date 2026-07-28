@@ -14,6 +14,36 @@ spec:
         type: statefulset
         annotations:
           reloader.stakater.com/auto: "true"
+        # TEMPORARY WORKAROUND (2026-07-26) — remove once awscrt ships a fix.
+        #
+        # The HA image ships awscrt 0.32.1 (pre-installed for the core lg_thinq
+        # integration). At runtime the ha_hatch custom component installs
+        # hatch_rest_api==1.34.1, whose unpinned awsiotsdk>=1.16.0 resolves to
+        # 1.31.0 and pins awscrt==0.36.1 — upgrading awscrt on disk mid-boot.
+        # awscrt.io is already imported at 0.32.1, whose ClientTlsContext.__slots__
+        # has no '_certificate_source', while awscrt.aws_iot_metrics (a module that
+        # only exists in 0.36.x) then imports fresh from 0.36.1 and reads that
+        # attribute -> AttributeError every coordinator poll (~80s), which both
+        # floods the log and leaves all Hatch entities dead.
+        #
+        # Fix: seed a persistent, self-consistent awscrt 0.36.1 under /config/pydeps
+        # and put it first on sys.path via PYTHONPATH, so every awscrt submodule
+        # resolves from one install regardless of what HA does to site-packages.
+        initContainers:
+          awscrt-pin:
+            image:
+              repository: ghcr.io/home-assistant/home-assistant
+              tag: 2026.5.4
+            command:
+              - sh
+              - -c
+              - pip install --quiet --upgrade --target /config/pydeps "awsiotsdk==1.31.0"
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
         containers:
           app:
             image:
@@ -21,6 +51,8 @@ spec:
               tag: 2026.5.4
             env:
               TZ: America/New_York
+              # See the awscrt-pin initContainer above.
+              PYTHONPATH: /config/pydeps
             probes:
               liveness:
                 enabled: true
