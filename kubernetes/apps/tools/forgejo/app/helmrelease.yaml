@@ -52,9 +52,13 @@ spec:
         repository:
           DEFAULT_PRIVATE: last
 
+        # Legacy OpenID 2.0 (NOT OIDC). Left enabled, this renders a
+        # "Proceed with OpenID" button that prompts for an OpenID 2.0 URI —
+        # a dead protocol, and easily mistaken for the Authentik SSO button.
+        # SSO is OAuth2/OIDC via the auth source below, not this.
         openid:
-          ENABLE_OPENID_SIGNIN: true
-          ENABLE_OPENID_SIGNUP: true
+          ENABLE_OPENID_SIGNIN: false
+          ENABLE_OPENID_SIGNUP: false
 
         ui:
           DEFAULT_THEME: catppuccin-mocha-blue
@@ -78,10 +82,18 @@ spec:
             catppuccin-green-auto,catppuccin-teal-auto,catppuccin-sky-auto,catppuccin-sapphire-auto,
             catppuccin-blue-auto,catppuccin-lavender-auto
 
-        # OIDC is configured post-deploy via Forgejo admin UI:
-        # Administration > Identity & Access > Authentication Sources
-        # Provider: OpenID Connect
-        # Discovery URL: https://authentik.${SECRET_DOMAIN}/application/o/forgejo/.well-known/openid-configuration
+        # OIDC auth source "authentik" — created 2026-07-30, lives in Forgejo's
+        # own DB (not templatable via app.ini), so it is NOT declared here.
+        # Recreate after a data loss with:
+        #   forgejo admin auth add-oauth --name authentik \
+        #     --provider openidConnect --key <client_id> --secret <client_secret> \
+        #     --auto-discover-url \
+        #       https://auth.${SECRET_DOMAIN}/application/o/forgejo/.well-known/openid-configuration \
+        #     --scopes "openid email profile"
+        # Credentials: 1Password homeops/forgejo (oidc.client_id, oidc.client_secret).
+        # Authentik side: OAuth2 provider "forgejo" bound to application "Forgejo";
+        # redirect URI https://git.${SECRET_DOMAIN}/user/oauth2/authentik/callback
+        # (the path segment must match the auth source name above).
 
     # Forgejo runs on its embedded SQLite database (DB_TYPE=sqlite3), which is
     # appropriate for this single-user homelab instance. The forgejo-helm chart
