@@ -21,21 +21,29 @@ spec:
         initContainers:
           # Native sidecar (restartPolicy: Always). Starts before the regular
           # containers and keeps running, so dockerd is guaranteed to be up and
-          # to have generated its TLS material before act_runner connects —
-          # this removes the classic dind startup race.
+          # listening before act_runner connects.
           dind:
             image:
               repository: docker.io/library/docker
               tag: 29.7.0-dind
             restartPolicy: Always
+            # dockerd listens on a UNIX SOCKET ONLY — no TCP listener exists.
+            #
+            # dockerd-entrypoint.sh only appends its default `--host=tcp://...`
+            # arguments when it is invoked with no arguments (`$# -eq 0`) or with
+            # a leading flag. Passing `dockerd` explicitly skips that block, so
+            # neither :2375 nor :2376 is ever opened. That removes the
+            # unauthenticated-root-API-reachable-cluster-wide risk entirely,
+            # which matters here because no NetworkPolicy is enforced anywhere.
+            #
+            # --group=1000 makes the socket group-owned by the runner's GID so
+            # the unprivileged act_runner container can talk to it.
+            command: ["dockerd"]
+            args:
+              - --host=unix:///var/run/docker/docker.sock
+              - --group=1000
             env:
-              # Generates a CA + server cert into /certs/server and a client
-              # cert into /certs/client, then serves TLS-only on :2376.
-              # Never blank this: doing so exposes an unauthenticated,
-              # root-equivalent Docker API on :2375, reachable by every pod in
-              # the cluster (no NetworkPolicy is enforced here).
-              DOCKER_TLS_CERTDIR: /certs
-              DOCKER_HOST: unix:///var/run/docker.sock
+              DOCKER_HOST: unix:///var/run/docker/docker.sock
             securityContext:
               # dockerd genuinely requires this. No admission controller blocks
               # it (PodSecurity is disabled at the apiserver); precedent exists
@@ -56,13 +64,11 @@ spec:
                   failureThreshold: 3
               readiness: *dindprobe
               # A native sidecar only guarantees dockerd has been STARTED before
-              # the regular containers run — not that it finished generating its
-              # TLS material. Without this, `app` raced dockerd and died with:
-              #   could not read CA certificate "/certs/client/ca.pem"
-              # A startupProbe is the one probe kubelet waits on before starting
-              # dependent containers, so it closes the race rather than relying
-              # on a crash and restart. dind's entrypoint writes the certs before
-              # dockerd listens, so a passing `docker info` implies certs exist.
+              # the regular containers run — not that it is accepting
+              # connections. A startupProbe is the one probe kubelet waits on
+              # before starting dependent containers, so it closes that race
+              # rather than relying on a crash and restart. A passing
+              # `docker info` means the socket is live.
               startup:
                 enabled: true
                 custom: true
@@ -146,11 +152,9 @@ spec:
             command:
               ["/bin/forgejo-runner", "daemon", "--config", "/config/config.yaml"]
             env:
-              # Containers in a pod share a network namespace, so localhost is
-              # the dind sidecar.
-              DOCKER_HOST: tcp://localhost:2376
-              DOCKER_TLS_VERIFY: "1"
-              DOCKER_CERT_PATH: /certs/client
+              # Shared emptyDir socket from the dind sidecar. No TLS material is
+              # needed because there is no TCP listener to protect.
+              DOCKER_HOST: unix:///var/run/docker/docker.sock
               TZ: America/Denver
             probes:
               liveness:
@@ -192,9 +196,7 @@ spec:
                   docker builder prune -af --filter "until=168h" || true
                 done
             env:
-              DOCKER_HOST: tcp://localhost:2376
-              DOCKER_TLS_VERIFY: "1"
-              DOCKER_CERT_PATH: /certs/client
+              DOCKER_HOST: unix:///var/run/docker/docker.sock
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
@@ -247,22 +249,24 @@ spec:
             dind:
               - path: /var/lib/docker
 
-      # dockerd-generated TLS material. dind writes the whole tree; the clients
-      # get only the client cert, read-only.
-      certs:
+      # dockerd's UNIX socket, shared between the sidecar and its clients.
+      #
+      # act_runner bind-mounts this socket into every job container (at
+      # /var/run/docker.sock) because container.docker_host names it. That is
+      # what lets workflows build and push images. It grants a job root inside
+      # the dind sandbox — which is inherent to letting CI use Docker at all —
+      # but NOT on the node: this is our own dockerd, not a node socket. Talos
+      # runs containerd and has no docker socket to expose.
+      docker-sock:
         type: emptyDir
         advancedMounts:
           forgejo-runner:
             dind:
-              - path: /certs
+              - path: /var/run/docker
             app:
-              - path: /certs/client
-                subPath: client
-                readOnly: true
+              - path: /var/run/docker
             prune:
-              - path: /certs/client
-                subPath: client
-                readOnly: true
+              - path: /var/run/docker
 
       config:
         type: configMap

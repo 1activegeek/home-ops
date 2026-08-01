@@ -46,10 +46,15 @@ data:
       # Deny workflows from bind-mounting arbitrary host paths into job
       # containers. Widen deliberately if a workflow ever genuinely needs it.
       valid_volumes: []
-      # "-" means: use the DOCKER_HOST env var (the dind sidecar over TLS).
-      # Never mount a node container socket here — Talos runs containerd, has
-      # no docker socket, and exposing one would be a node-takeover primitive.
-      docker_host: "-"
+      # act_runner bind-mounts this socket into every job container at
+      # /var/run/docker.sock, which is what lets workflows build and push
+      # images. "-" would mount nothing and `docker` would not exist in a job.
+      #
+      # This is OUR dind sidecar's socket, never a node socket: Talos runs
+      # containerd and has no docker socket, and mounting one would be a
+      # node-takeover primitive. A job gets root inside the dind sandbox, which
+      # is inherent to letting CI use Docker at all.
+      docker_host: "unix:///var/run/docker/docker.sock"
       force_pull: false
       force_rebuild: false
 
