@@ -79,13 +79,20 @@ spec:
                   echo "Runner already registered; nothing to do."
                   exit 0
                 fi
-                echo "Registering $${RUNNER_NAME} against $${FORGEJO_INSTANCE}"
-                /bin/forgejo-runner register --no-interactive \
+                echo "Creating runner file for $${RUNNER_NAME} against $${FORGEJO_INSTANCE}"
+                # create-runner-file, NOT `register`. `register` consumes the
+                # one-shot registration token the web UI mints and fails against
+                # a pre-shared secret with "runner registration token not found".
+                # This subcommand is the counterpart to the server-side
+                # `forgejo-cli actions register --secret`, which is what we use so
+                # the runner's identity is reproducible from Git + 1Password.
+                # --connect proves the secret is accepted before the daemon starts.
+                /bin/forgejo-runner create-runner-file \
                   --config /config/config.yaml \
                   --instance "$${FORGEJO_INSTANCE}" \
-                  --token "$${RUNNER_TOKEN}" \
+                  --secret "$${RUNNER_SECRET}" \
                   --name "$${RUNNER_NAME}" \
-                  --labels "docker:docker://code.forgejo.org/oci/node:22-bookworm"
+                  --connect
             env:
               # Shell variables above are escaped $${VAR}: this Kustomization
               # declares postBuild.substituteFrom, so a bare ${VAR} would be
@@ -94,11 +101,13 @@ spec:
               # Flux *should* substitute.
               FORGEJO_INSTANCE: "https://git.${SECRET_DOMAIN}"
               RUNNER_NAME: k8s-runner-1
-              RUNNER_TOKEN:
+              # A pre-shared secret, not a registration token — the two are
+              # consumed by different subcommands. Named accordingly.
+              RUNNER_SECRET:
                 valueFrom:
                   secretKeyRef:
                     name: forgejo-runner-secret
-                    key: RUNNER_TOKEN
+                    key: RUNNER_SECRET
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
