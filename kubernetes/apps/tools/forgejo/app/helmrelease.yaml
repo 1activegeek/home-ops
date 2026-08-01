@@ -23,10 +23,14 @@ spec:
         type: LoadBalancer
         port: 22
 
+    # 10Gi -> 50Gi for Actions job logs/artifacts and the container registry
+    # ([packages]). Expand ONLY `size` here: storageClass/accessModes are
+    # immutable, and changing one would make Helm try to recreate the PVC and
+    # fail the upgrade mid-flight. Longhorn cannot shrink a volume afterwards.
     persistence:
       enabled: true
       storageClass: longhorn
-      size: 10Gi
+      size: 50Gi
 
     gitea:
       admin:
@@ -37,6 +41,50 @@ spec:
             secretName: forgejo-config-secret
 
       config:
+        # PASSWD is injected via forgejo-config-secret (additionalConfigSources).
+        # Config sources are keyed by app.ini section name and the chart loads
+        # `additionals/` after `inlines/`, so the secret adds PASSWD to this
+        # same [database] section without clobbering the keys below.
+        database:
+          DB_TYPE: postgres
+          HOST: postgres-rw.database.svc.cluster.local:5432
+          NAME: forgejo
+          USER: forgejo
+          # In-cluster traffic on the Cilium pod network; CNPG's server cert is
+          # its own internal CA, which Forgejo would have to be taught to trust.
+          SSL_MODE: disable
+
+        actions:
+          ENABLED: true
+          # Where the RUNNER resolves bare `uses: actions/checkout@v4` from.
+          # `github` matches the wider ecosystem people copy-paste from; the
+          # runner has normal internet egress, so Forgejo being internal-only is
+          # irrelevant here. Forgejo's own actions remain usable fully-qualified:
+          #   uses: https://code.forgejo.org/actions/setup-node@v4
+          DEFAULT_ACTIONS_URL: github
+          LOG_RETENTION_DAYS: 30
+          LOG_COMPRESSION: zstd
+          ARTIFACT_RETENTION_DAYS: 30
+          ZOMBIE_TASK_TIMEOUT: 10m
+          ENDLESS_TASK_TIMEOUT: 3h
+          ABANDONED_JOB_TIMEOUT: 24h
+
+        # Container/package registry, served by Forgejo itself at
+        # https://git.${SECRET_DOMAIN}/v2/ — no extra route, hostname or cert.
+        # Storage is the local filesystem under /data (no S3 in this cluster),
+        # which is why the PVC above grew to 50Gi.
+        packages:
+          ENABLED: true
+
+        "cron.cleanup_actions":
+          ENABLED: true
+          SCHEDULE: "@midnight"
+
+        "cron.cleanup_packages":
+          ENABLED: true
+          SCHEDULE: "@midnight"
+          OLDER_THAN: 24h
+
         server:
           DOMAIN: "git.${SECRET_DOMAIN}"
           ROOT_URL: "https://git.${SECRET_DOMAIN}"
@@ -95,12 +143,14 @@ spec:
         # redirect URI https://git.${SECRET_DOMAIN}/user/oauth2/authentik/callback
         # (the path segment must match the auth source name above).
 
-    # Forgejo runs on its embedded SQLite database (DB_TYPE=sqlite3), which is
-    # appropriate for this single-user homelab instance. The forgejo-helm chart
-    # bundles no PostgreSQL subchart, so the previously-declared postgresql /
-    # postgresql-ha value blocks were inert (silently ignored) and never
-    # provisioned a database. Removed to end manifest-vs-reality drift.
-    # Application-consistent DB backups: see db-backup/app/cronjob-forgejo.yaml.
+    # Forgejo runs on the shared CloudNativePG cluster in the `database`
+    # namespace (migrated from embedded SQLite — SQLite on an RWO volume could
+    # not take the concurrent write load that Actions adds: job queue rows, step
+    # logs and artifact metadata). The forgejo-helm chart bundles no PostgreSQL
+    # subchart, so the connection is declared under gitea.config.database above.
+    # Backups: kubernetes/apps/database/db-backup dumps every database on the
+    # cluster nightly. Repo/LFS/package data on the PVC is covered separately by
+    # Longhorn's default recurring-job group.
 
     # Disable Redis cluster (use memory for single-pod)
     redis-cluster:
@@ -109,9 +159,11 @@ spec:
     strategy:
       type: Recreate
 
+    # Headroom for the Actions job queue, log ingestion and registry blob
+    # uploads, which all run in the Forgejo process.
     resources:
       requests:
         cpu: 200m
         memory: 512Mi
       limits:
-        memory: 1Gi
+        memory: 2Gi
