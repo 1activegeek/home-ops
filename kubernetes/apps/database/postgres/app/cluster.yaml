@@ -1,0 +1,68 @@
+---
+# Shared PostgreSQL cluster. Replaces the per-app `postgres:18-alpine` sidecar
+# pattern documented in docs/deployment-plan.md. Apps migrate onto it one at a
+# time — see docs/postgres-consolidation.md for the runbook and ordering.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+spec:
+  # 2 instances: primary + hot standby. Survives one node loss and allows a
+  # Talos node drain with automatic failover. Replication is asynchronous
+  # (the CNPG default) and must stay that way: enabling synchronous quorum
+  # with only 2 instances means a standby outage stalls writes for every app
+  # on this cluster.
+  instances: 2
+
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie
+
+  primaryUpdateStrategy: unsupervised
+  primaryUpdateMethod: switchover
+
+  storage:
+    size: 50Gi
+    storageClass: longhorn-cnpg
+  walStorage:
+    size: 10Gi
+    storageClass: longhorn-cnpg
+
+  enableSuperuserAccess: true
+  superuserSecret:
+    name: cnpg-superuser-secret
+
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      encoding: UTF8
+
+  postgresql:
+    parameters:
+      # ~11 apps eventually, Nextcloud alone holds ~30 connections.
+      max_connections: "200"
+      shared_buffers: "512MB"
+      effective_cache_size: "1536MB"
+      work_mem: "8MB"
+      maintenance_work_mem: "128MB"
+      max_slot_wal_keep_size: "4GB"
+      wal_keep_size: "1GB"
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+  monitoring:
+    enablePodMonitor: true
+
+  managed:
+    roles:
+      - name: forgejo
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-role-forgejo-secret
+        comment: "Forgejo (tools namespace)"

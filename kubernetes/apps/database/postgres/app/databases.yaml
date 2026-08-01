@@ -1,0 +1,15 @@
+---
+# One Database CR per application.
+# databaseReclaimPolicy: retain — a Flux prune or an accidental CR deletion must
+# never drop a real database. Dropping one is a deliberate, manual act.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: forgejo
+spec:
+  cluster:
+    name: postgres
+  name: forgejo
+  owner: forgejo
+  encoding: UTF8
+  databaseReclaimPolicy: retain
