@@ -1,0 +1,28 @@
+---
+# Longhorn StorageClass for CloudNativePG data and WAL volumes.
+#
+# numberOfReplicas: "1" is deliberate. CloudNativePG already replicates at the
+# Postgres layer (streaming replication between its instances), so the cluster's
+# default `longhorn` class (numberOfReplicas: 2) would give 2 CNPG instances x 2
+# Longhorn replicas = 4 physical copies of every byte, 4x write amplification on
+# the WAL, and 4x rebuild traffic — on 3 nodes that are also control-plane nodes.
+#
+# Unlike `longhorn-nobackup`, recurringJobSelector is deliberately OMITTED so
+# these volumes stay in the "default" recurring-job group and keep getting
+# snapshot-hourly / backup-daily / backup-weekly to the Synology. With no
+# block-level redundancy that off-box copy is the only thing underneath a disk
+# failure. Those block backups are crash-consistent only (Postgres replays WAL
+# on start); the nightly pg_dump in ../../db-backup is the authoritative
+# logical backup.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-cnpg
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "1"
+  staleReplicaTimeout: "30"
+  fromBackup: ""

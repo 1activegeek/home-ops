@@ -1,0 +1,105 @@
+---
+# Logical backup for the whole shared CNPG cluster: globals (roles, tablespaces)
+# plus a custom-format dump per database. Replaces the per-app pg_dump cronjobs
+# as each app migrates onto this cluster — see docs/postgres-consolidation.md.
+#
+# This is the AUTHORITATIVE backup. CNPG's native barman backups need an S3
+# endpoint, and no object storage exists in this cluster (Longhorn's only
+# off-box target is NFS to the Synology, which barman-cloud cannot use).
+#
+# NOTE: the parent Kustomization intentionally declares no postBuild
+# substituteFrom, so shell ${VAR} below needs no $${} escaping — same as every
+# other db-backup CronJob in this repo.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup-postgres
+spec:
+  # Fits the existing 01:00-02:30 stagger, well ahead of Longhorn's 03:00
+  # backup-daily job which then ships this PVC off-box.
+  schedule: "20 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dump
+              # Matches the server major version (18). Consistent with the eight
+              # existing db-backup CronJobs; pg_dump is compatible across minors.
+              image: postgres:18-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: PGHOST
+                  value: postgres-rw.database.svc.cluster.local
+                - name: PGPORT
+                  value: "5432"
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: cnpg-superuser-secret
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: cnpg-superuser-secret
+                      key: password
+                - name: RETENTION_DAYS
+                  value: "14"
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  TS=$(date +%Y%m%d-%H%M%S)
+
+                  echo "[$(date -u)] pg_dumpall --globals-only"
+                  pg_dumpall --globals-only --no-role-passwords \
+                    --dbname=postgres > "/backups/globals-${TS}.sql"
+                  ls -lh "/backups/globals-${TS}.sql"
+
+                  DBS=$(psql --dbname=postgres -Atc \
+                    "SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn")
+
+                  for DB in ${DBS}; do
+                    OUT="/backups/${DB}-${TS}.dump"
+                    echo "[$(date -u)] pg_dump ${DB} -> ${OUT}"
+                    pg_dump --dbname="${DB}" --no-owner --no-privileges \
+                      --format=custom --compress=9 --file="${OUT}"
+                    ls -lh "${OUT}"
+                  done
+
+                  echo "Pruning dumps older than ${RETENTION_DAYS}d"
+                  find /backups -maxdepth 1 -type f \
+                    \( -name '*.dump' -o -name 'globals-*.sql' \) \
+                    -mtime +${RETENTION_DAYS} -print -delete
+                  echo "done"
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: db-backups

@@ -1,0 +1,73 @@
+---
+# Discovered automatically: kube-prometheus-stack sets
+# ruleSelectorNilUsesHelmValues: false, so PrometheusRules in any namespace are
+# picked up. Alerts deliver to Mattermost via the alertmanager config secret.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cloudnative-pg
+spec:
+  groups:
+    - name: cloudnative-pg
+      rules:
+        - alert: CNPGCollectorDown
+          expr: cnpg_collector_up{namespace="database"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CNPG metrics collector down on {{ $labels.pod }}"
+            description: >-
+              The CloudNativePG collector on {{ $labels.pod }} has been
+              unreachable for 5m. The instance is likely down.
+
+        - alert: CNPGNoStreamingReplica
+          # Evaluated on the primary only (in_recovery == 0).
+          expr: |
+            cnpg_pg_replication_streaming_replicas{namespace="database"} < 1
+            and on(pod) cnpg_pg_replication_in_recovery{namespace="database"} == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CNPG primary {{ $labels.pod }} has no streaming replica"
+            description: >-
+              The cluster is running without a hot standby — a node loss now
+              means downtime for every app on this Postgres cluster.
+
+        - alert: CNPGReplicationLagHigh
+          expr: cnpg_pg_replication_lag{namespace="database"} > 300
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "CNPG replication lag {{ $value | humanizeDuration }} on {{ $labels.pod }}"
+            description: >-
+              Standby is more than 5 minutes behind the primary.
+
+        - alert: CNPGConnectionsHigh
+          expr: |
+            sum by (pod) (cnpg_backends_total{namespace="database"})
+              / on(pod) cnpg_pg_settings_setting{namespace="database", name="max_connections"}
+              > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "CNPG {{ $labels.pod }} above 80% of max_connections"
+            description: >-
+              Consider raising max_connections or adding a Pooler (PgBouncer).
+
+        - alert: CNPGVolumeAlmostFull
+          expr: |
+            kubelet_volume_stats_available_bytes{namespace="database"}
+              / kubelet_volume_stats_capacity_bytes{namespace="database"}
+              < 0.15
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CNPG volume {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} free"
+            description: >-
+              A full WAL or data volume takes Postgres down. Expand the PVC —
+              longhorn-cnpg has allowVolumeExpansion enabled.

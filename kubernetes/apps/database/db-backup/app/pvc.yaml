@@ -1,0 +1,19 @@
+---
+# Holds logical dumps for every database on the shared CNPG cluster, so it is
+# sized larger than the per-namespace 5Gi db-backups PVCs it will eventually
+# replace. On `longhorn` (not longhorn-nobackup) so Longhorn's default
+# recurring-job group ships it off-box to the Synology at 03:00 — one hour
+# after the dump completes.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-backups
+  labels:
+    app.kubernetes.io/name: db-backups
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
