@@ -1,0 +1,262 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: forgejo-runner
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: forgejo-runner
+  interval: 1h
+  values:
+    controllers:
+      forgejo-runner:
+        replicas: 1
+        # Recreate: two RWO PVCs (runner state + docker image store) cannot be
+        # held by two pods at once.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+
+        initContainers:
+          # Native sidecar (restartPolicy: Always). Starts before the regular
+          # containers and keeps running, so dockerd is guaranteed to be up and
+          # to have generated its TLS material before act_runner connects —
+          # this removes the classic dind startup race.
+          dind:
+            image:
+              repository: docker.io/library/docker
+              tag: 29.7.0-dind
+            restartPolicy: Always
+            env:
+              # Generates a CA + server cert into /certs/server and a client
+              # cert into /certs/client, then serves TLS-only on :2376.
+              # Never blank this: doing so exposes an unauthenticated,
+              # root-equivalent Docker API on :2375, reachable by every pod in
+              # the cluster (no NetworkPolicy is enforced here).
+              DOCKER_TLS_CERTDIR: /certs
+              DOCKER_HOST: unix:///var/run/docker.sock
+            securityContext:
+              # dockerd genuinely requires this. No admission controller blocks
+              # it (PodSecurity is disabled at the apiserver); precedent exists
+              # in home-assistant and zwave-js-ui.
+              privileged: true
+              runAsUser: 0
+              runAsGroup: 0
+            probes:
+              liveness: &dindprobe
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 20
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 3
+              readiness: *dindprobe
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+                # Bounds a runaway build's writes to the node's EPHEMERAL
+                # partition (capped 50-95GB with grow: false on these Talos
+                # nodes). Image layers themselves live on the PVC below.
+                ephemeral-storage: 2Gi
+
+          register:
+            image:
+              repository: code.forgejo.org/forgejo/runner
+              tag: 12.13.2
+            dependsOn: dind
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -eu
+                if [ -f /data/.runner ]; then
+                  echo "Runner already registered; nothing to do."
+                  exit 0
+                fi
+                echo "Registering $${RUNNER_NAME} against $${FORGEJO_INSTANCE}"
+                /bin/forgejo-runner register --no-interactive \
+                  --config /config/config.yaml \
+                  --instance "$${FORGEJO_INSTANCE}" \
+                  --token "$${RUNNER_TOKEN}" \
+                  --name "$${RUNNER_NAME}" \
+                  --labels "docker:docker://code.forgejo.org/oci/node:22-bookworm"
+            env:
+              # Shell variables above are escaped $${VAR}: this Kustomization
+              # declares postBuild.substituteFrom, so a bare ${VAR} would be
+              # replaced by Flux with an empty string before the pod ever runs.
+              # ${SECRET_DOMAIN} below is intentionally UNescaped — that one
+              # Flux *should* substitute.
+              FORGEJO_INSTANCE: "https://git.${SECRET_DOMAIN}"
+              RUNNER_NAME: k8s-runner-1
+              RUNNER_TOKEN:
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-runner-secret
+                    key: RUNNER_TOKEN
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
+        containers:
+          app:
+            image:
+              repository: code.forgejo.org/forgejo/runner
+              tag: 12.13.2
+            command:
+              ["/bin/forgejo-runner", "daemon", "--config", "/config/config.yaml"]
+            env:
+              # Containers in a pod share a network namespace, so localhost is
+              # the dind sidecar.
+              DOCKER_HOST: tcp://localhost:2376
+              DOCKER_TLS_VERIFY: "1"
+              DOCKER_CERT_PATH: /certs/client
+              TZ: America/Denver
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/bin/sh", "-c", "test -f /data/.runner"]
+                  initialDelaySeconds: 30
+                  periodSeconds: 60
+                  failureThreshold: 3
+              readiness:
+                enabled: false
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                memory: 4Gi
+                ephemeral-storage: 2Gi
+
+          # Keeps the docker image store from growing without bound. Without
+          # this the 50Gi PVC below fills and every build starts failing.
+          prune:
+            image:
+              repository: docker.io/library/docker
+              tag: 29.7.0-cli
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                while true; do
+                  sleep 86400
+                  docker system prune -af --filter "until=168h" || true
+                  docker builder prune -af --filter "until=168h" || true
+                done
+            env:
+              DOCKER_HOST: tcp://localhost:2376
+              DOCKER_TLS_VERIFY: "1"
+              DOCKER_CERT_PATH: /certs/client
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+
+        pod:
+          securityContext:
+            # Matches the runner image's built-in 1000:1000 user. The dind
+            # sidecar overrides this to root above.
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+
+    persistence:
+      # Runner registration state (.runner), act cache, host-mode workdir.
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 10Gi
+        advancedMounts:
+          forgejo-runner:
+            register:
+              - path: /data
+            app:
+              - path: /data
+
+      # Docker image layers and build cache.
+      #
+      # This MUST be a PVC, not an emptyDir. The Talos nodes cap their EPHEMERAL
+      # partition at 50-95GB with grow: false, so image layers on an emptyDir
+      # would push kubelet into DiskPressure and evict every workload on a node
+      # that is also a control-plane node. longhorn-nobackup because layers are
+      # 100% rebuildable and must not consume NAS backup capacity.
+      dind-storage:
+        type: persistentVolumeClaim
+        storageClass: longhorn-nobackup
+        accessMode: ReadWriteOnce
+        size: 50Gi
+        advancedMounts:
+          forgejo-runner:
+            dind:
+              - path: /var/lib/docker
+
+      # dockerd-generated TLS material. dind writes the whole tree; the clients
+      # get only the client cert, read-only.
+      certs:
+        type: emptyDir
+        advancedMounts:
+          forgejo-runner:
+            dind:
+              - path: /certs
+            app:
+              - path: /certs/client
+                subPath: client
+                readOnly: true
+            prune:
+              - path: /certs/client
+                subPath: client
+                readOnly: true
+
+      config:
+        type: configMap
+        name: forgejo-runner-config
+        advancedMounts:
+          forgejo-runner:
+            register:
+              - path: /config
+                readOnly: true
+            app:
+              - path: /config
+                readOnly: true
+
+      # Job working directories. emptyDir is correct here — short-lived, and
+      # bounded by the ephemeral-storage limits above.
+      workspace:
+        type: emptyDir
+        advancedMounts:
+          forgejo-runner:
+            app:
+              - path: /workspace
+
+    # No service and no route: the runner only makes outbound connections to
+    # Forgejo. Nothing needs to reach it.

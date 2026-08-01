@@ -1,0 +1,57 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forgejo-runner-config
+data:
+  config.yaml: |
+    log:
+      level: info
+
+    runner:
+      file: /data/.runner
+      # Concurrency comes from here, not from pod count: one pod running two
+      # jobs shares a single warm Docker image cache. Deliberately low — all
+      # three nodes in this cluster are control-plane nodes, so a runaway build
+      # competes with etcd and the apiserver.
+      capacity: 2
+      timeout: 1h
+      shutdown_timeout: 3h
+      insecure: false
+      fetch_timeout: 5s
+      fetch_interval: 2s
+      labels:
+        - "docker:docker://code.forgejo.org/oci/node:22-bookworm"
+        - "ubuntu-latest:docker://code.forgejo.org/oci/node:22-bookworm"
+        - "ubuntu-22.04:docker://code.forgejo.org/oci/node:22-bookworm"
+
+    cache:
+      # Cache server runs inside the runner container. Job containers live on
+      # dockerd's bridge network, which sits in this pod's network namespace,
+      # so auto-detection of the advertised host works. A cache failure degrades
+      # actions/cache but does not fail jobs.
+      enabled: true
+      dir: /data/cache
+      host: ""
+      port: 0
+
+    container:
+      network: bridge
+      # Job containers are UNPRIVILEGED. Only the dind sidecar is privileged.
+      privileged: false
+      # Caps a single job so a build cannot starve etcd or the other workloads
+      # sharing these nodes.
+      options: "--memory=4g --cpus=2"
+      workdir_parent: /workspace
+      # Deny workflows from bind-mounting arbitrary host paths into job
+      # containers. Widen deliberately if a workflow ever genuinely needs it.
+      valid_volumes: []
+      # "-" means: use the DOCKER_HOST env var (the dind sidecar over TLS).
+      # Never mount a node container socket here — Talos runs containerd, has
+      # no docker socket, and exposing one would be a node-takeover primitive.
+      docker_host: "-"
+      force_pull: false
+      force_rebuild: false
+
+    host:
+      workdir_parent: /data/workspace

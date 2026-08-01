@@ -35,6 +35,11 @@ KNOWN_UID_REQUIREMENTS=(
   "home-assistant/home-assistant:0"
   "metube:1000"
   "qdm12/gluetun:0"
+  # Docker-in-Docker for the Forgejo Actions runner: dockerd requires root
+  # and privileged: true. Job containers it spawns stay unprivileged.
+  "library/docker:0"
+  # act_runner image ships with a built-in 1000:1000 user.
+  "forgejo/runner:1000"
 )
 
 is_safe_for_65534() {

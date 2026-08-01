@@ -10,6 +10,7 @@ resources:
   - ./namespace.yaml
   - ./db-backup/ks.yaml
   - ./forgejo/ks.yaml
+  - ./forgejo-runner/ks.yaml
   - ./shlink/ks.yaml
   - ./apprise/ks.yaml
   - ./artifacts/ks.yaml
