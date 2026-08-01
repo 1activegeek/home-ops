@@ -70,8 +70,12 @@ spec:
                   TS=$(date +%Y%m%d-%H%M%S)
 
                   echo "[$(date -u)] pg_dumpall --globals-only"
+                  # pg_dumpall's --dbname takes a CONNECTION STRING, not a bare
+                  # database name the way pg_dump's does. Passing `postgres`
+                  # fails with: missing "=" after "postgres" in connection info
+                  # string.
                   pg_dumpall --globals-only --no-role-passwords \
-                    --dbname=postgres > "/backups/globals-${TS}.sql"
+                    --dbname="dbname=postgres" > "/backups/globals-${TS}.sql"
                   ls -lh "/backups/globals-${TS}.sql"
 
                   DBS=$(psql --dbname=postgres -Atc \
