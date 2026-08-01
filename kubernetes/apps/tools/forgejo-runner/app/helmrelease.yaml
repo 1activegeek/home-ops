@@ -55,6 +55,24 @@ spec:
                   timeoutSeconds: 10
                   failureThreshold: 3
               readiness: *dindprobe
+              # A native sidecar only guarantees dockerd has been STARTED before
+              # the regular containers run — not that it finished generating its
+              # TLS material. Without this, `app` raced dockerd and died with:
+              #   could not read CA certificate "/certs/client/ca.pem"
+              # A startupProbe is the one probe kubelet waits on before starting
+              # dependent containers, so it closes the race rather than relying
+              # on a crash and restart. dind's entrypoint writes the certs before
+              # dockerd listens, so a passing `docker info` implies certs exist.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 5
+                  periodSeconds: 3
+                  timeoutSeconds: 10
+                  failureThreshold: 40
             resources:
               requests:
                 cpu: 100m
