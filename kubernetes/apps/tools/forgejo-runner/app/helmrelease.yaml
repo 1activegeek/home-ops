@@ -25,7 +25,17 @@ spec:
           dind:
             image:
               repository: docker.io/library/docker
-              tag: 29.7.0-dind
+              # PINNED TO 27.x DELIBERATELY — do not let Renovate walk this to 28+.
+              # Docker 28 adopted os.Root-based archive extraction, which refuses
+              # to traverse a symlink during CopyToContainer. act stages actions at
+              # /var/run/act inside the job container, and /var/run is a symlink to
+              # /run in Debian-based images (including the default
+              # code.forgejo.org/oci/node:22-bookworm), so every `uses:` step died
+              # with:
+              #   statat var/run/act/actions/...: path escapes from parent
+              # Re-evaluate when act_runner stages actions somewhere other than
+              # /var/run, or upstream act works around the symlink.
+              tag: 27.5.1-dind
             restartPolicy: Always
             # dockerd listens on a UNIX SOCKET ONLY — no TCP listener exists.
             #
@@ -186,7 +196,8 @@ spec:
           prune:
             image:
               repository: docker.io/library/docker
-              tag: 29.7.0-cli
+              # Kept in step with the dind daemon above.
+              tag: 27.5.1-cli
             command: ["/bin/sh", "-c"]
             args:
               - |
