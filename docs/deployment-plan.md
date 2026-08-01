@@ -14,6 +14,14 @@ Several apps are currently running as Docker containers on the NAS and need to b
 
 ### Database Strategy: Individual DBs Per App
 
+> **Superseded (2026-08) by `postgres-consolidation.md`.** Postgres workloads are
+> consolidating onto a shared CloudNativePG cluster in the `database` namespace.
+> The per-app sidecar pattern held up to about ten databases, then the costs it
+> ignored — no HA, ten backup CronJobs, ten hand-run major upgrades, no metrics —
+> outweighed the isolation it bought. Forgejo has migrated; the remaining apps
+> follow the ordering in that document. MariaDB (grimmory) and MongoDB
+> (librechat) stay as sidecars. The original rationale is preserved below.
+
 **Deploy individual PostgreSQL/MariaDB instances per app** as sidecar containers using the bjw-s app-template multi-controller pattern.
 
 Rationale:
