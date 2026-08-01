@@ -31,9 +31,28 @@ and immune to the "block snapshot caught the DB mid-write" failure mode.
 | n8n | ai | Postgres 18 | `n8n-*.dump` | `pg_dump -Fc` |
 | librechat | ai | MongoDB 8.3 | `librechat-*.archive.gz` | `mongodump --gzip --archive` |
 | qdrant | ai | Qdrant 1.18 | `qdrant-*-<snapshot>` | snapshot API → download |
+| *(all CNPG databases)* | database | Postgres 18 | `<db>-*.dump` + `globals-*.sql` | `pg_dump -Fc` per DB |
 
-**Not covered here:** `forgejo` (HelmRelease declares postgres but no DB workload exists in
-cluster — its data lives on its own block-backed PVC); `litellm` (removed 2026-05).
+**Not covered here:** `litellm` (removed 2026-05).
+
+### The `database` namespace job
+
+`kubernetes/apps/database/db-backup/` differs from the per-app pattern: a single
+CronJob (01:20) enumerates every non-template database on the shared
+CloudNativePG cluster and dumps each one, plus `pg_dumpall --globals-only` for
+roles and tablespaces. Its `db-backups` PVC is 20Gi rather than 5Gi because it
+will eventually hold every database in the cluster.
+
+As apps migrate onto CNPG (see `postgres-consolidation.md`), their per-namespace
+`cronjob-<app>.yaml` is deleted and coverage moves to this job.
+
+**Forgejo** moved to CNPG and is covered by this job. It previously used a
+`kubectl exec ... forgejo dump` CronJob — a workaround for SQLite living on an
+RWO volume no second pod could mount. That job and the `pods/exec` RBAC it
+required have both been removed. Note that `forgejo dump` also captured
+`custom/`, attachments and packages; those live on the `gitea-shared-storage`
+PVC, which is Longhorn-backed and in the `default` recurring-job group, so
+coverage did not regress.
 
 ## Verify dumps are working
 
