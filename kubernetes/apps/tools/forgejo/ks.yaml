@@ -4,6 +4,12 @@ kind: Kustomization
 metadata:
   name: forgejo
 spec:
+  dependsOn:
+    # Forgejo's init container runs `gitea migrate` and hard-exits if the
+    # database is unreachable. The postgres Kustomization waits on the CNPG
+    # Cluster reporting a healthy phase, so this genuinely gates on a live DB.
+    - name: postgres
+      namespace: database
   interval: 1h
   path: ./kubernetes/apps/tools/forgejo/app
   postBuild:
