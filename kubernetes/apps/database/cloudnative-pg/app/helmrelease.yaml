@@ -1,0 +1,37 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cloudnative-pg
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: cloudnative-pg
+  interval: 1h
+  values:
+    # CRDs ship in-chart. The root cluster-apps patch already forces
+    # install.crds/upgrade.crds: CreateReplace on every HelmRelease.
+    crds:
+      create: true
+
+    config:
+      # Operator watches every namespace, so Cluster resources can live wherever
+      # they make sense. The shared cluster lives here in `database`, but this
+      # leaves the door open for a per-app Cluster later without a second operator.
+      clusterWide: true
+
+    monitoring:
+      # Prometheus discovers PodMonitors in all namespaces
+      # (*SelectorNilUsesHelmValues: false in kube-prometheus-stack).
+      podMonitorEnabled: true
+      grafanaDashboard:
+        # Grafana's sidecar uses searchNamespace: ALL, so the ConfigMap is found
+        # here in `database` — no namespace override needed.
+        create: true
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
