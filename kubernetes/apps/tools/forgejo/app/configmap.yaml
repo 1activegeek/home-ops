@@ -1,0 +1,22 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forgejo-custom-templates
+data:
+  # Injected into <head> via Forgejo's `custom/header` template hook.
+  #
+  # The Catppuccin themes in /data/gitea/public/assets/css predate Forgejo's
+  # `--color-danger-bg` variable, so `.button.danger` (every button in a repo's
+  # "Danger zone": transfer, delete wiki, delete repo, archive) falls back to
+  # `--color-error-bg`. Catppuccin sets that to the *solid* accent red — the
+  # same value the button's text color resolves to — so the label renders red
+  # on red and is invisible. Give those themes a dark red-tinted surface so the
+  # red text has something to sit on. Scoped by attribute selector so Forgejo's
+  # own themes, which define the variable correctly, are untouched.
+  header.tmpl: |
+    <style>
+      html[data-theme^="catppuccin-"] {
+        --color-danger-bg: color-mix(in srgb, var(--color-red) 12%, var(--color-body));
+      }
+    </style>

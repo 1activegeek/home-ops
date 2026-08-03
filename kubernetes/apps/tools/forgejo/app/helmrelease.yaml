@@ -152,6 +152,21 @@ spec:
     # cluster nightly. Repo/LFS/package data on the PVC is covered separately by
     # Longhorn's default recurring-job group.
 
+    # Custom `header.tmpl` injected into <head> — patches a missing CSS variable
+    # in the Catppuccin themes. See configmap.yaml for the why. Mounted at the
+    # `custom/templates/custom` hook directory ($GITEA_CUSTOM is /data/gitea);
+    # that directory is otherwise unused, so shadowing it inside the PVC is
+    # safe. Runtime container only — the init containers do not read templates.
+    extraVolumes:
+      - name: custom-templates
+        configMap:
+          name: forgejo-custom-templates
+
+    extraContainerVolumeMounts:
+      - name: custom-templates
+        mountPath: /data/gitea/templates/custom
+        readOnly: true
+
     # Disable Redis cluster (use memory for single-pod)
     redis-cluster:
       enabled: false
