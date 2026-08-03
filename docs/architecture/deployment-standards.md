@@ -67,7 +67,7 @@ Rules:
 
 ## 5. Secrets
 
-- **Apps:** `ExternalSecret` → `ClusterSecretStore` `onepassword-store`, `refreshInterval: 1h`, `dataFrom.extract` + `target.template` mapping 1Password snake_case fields to the env names the app expects. Use `/create-1p-secret` workflow for new items.
+- **Apps:** `ExternalSecret` → `ClusterSecretStore` `onepassword-store`, `refreshInterval: 1h`, `dataFrom.extract` + `target.template` mapping 1Password snake_case fields to the env names the app expects. Use the `create-1p-secret` skill for new items.
 - **Bootstrap/infra only:** SOPS-encrypted `*.sops.yaml` (cert-manager, flux-instance, cloudflare-dns, cloudflare-tunnel, onepassword-connect). Never add SOPS secrets for ordinary apps.
 - Never commit plaintext secrets, and never put near-secrets (IPs, redirect URIs, item names) in public docs.
 

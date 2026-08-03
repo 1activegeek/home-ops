@@ -100,3 +100,7 @@ Before changing any routed app:
 6. Update the deployment plan status and session log.
 
 If the right auth mode is unclear, stop and resolve the policy decision before changing manifests.
+
+For `native_oidc` apps, use the `setup-authentik-oidc` skill: providers and applications are
+declared as blueprints under `kubernetes/apps/security/authentik/app/blueprints/`, never
+created in the Authentik UI or via the REST API, so they survive an Authentik rebuild.
