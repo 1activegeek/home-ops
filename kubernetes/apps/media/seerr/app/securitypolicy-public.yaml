@@ -10,7 +10,8 @@
 # Auth mode: external_identity_exception (see docs/architecture/authentication.md).
 # Empty extAuth needs no ReferenceGrant to authentik-server.
 #
-# Targets the rendered HTTPRoute `seerr-app` (bjw-s app-template route key `app`).
+# Targets the rendered HTTPRoute `seerr` — bjw-s app-template 5.x names the route
+# after the release when the route key is `app` (NOT `seerr-app`).
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
@@ -20,4 +21,4 @@ spec:
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
-      name: seerr-app
+      name: seerr
