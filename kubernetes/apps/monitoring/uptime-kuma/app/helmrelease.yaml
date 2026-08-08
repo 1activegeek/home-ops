@@ -15,7 +15,7 @@ spec:
           app:
             image:
               repository: docker.io/louislam/uptime-kuma
-              tag: 2.4.0
+              tag: 2.5.0
             env:
               TZ: America/New_York
               UPTIME_KUMA_PORT: "3001"
