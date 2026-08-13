@@ -1,0 +1,38 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: searxng-config
+data:
+  settings.yml: |
+    # Read the documentation before extending the defaults:
+    # https://docs.searxng.org/admin/settings/
+    use_default_settings: true
+
+    general:
+      instance_name: "SearXNG"
+      donation_url: false
+      contact_url: false
+      enable_metrics: false
+
+    server:
+      # secret_key is injected via the SEARXNG_SECRET env var (ExternalSecret).
+      base_url: "https://searxng.${SECRET_DOMAIN}/"
+      # The limiter (bot detection) rejects the JSON API with 429 and needs a
+      # Valkey/Redis backend. This instance is internal-only, so keep it off.
+      limiter: false
+      public_instance: false
+      image_proxy: true
+      method: "GET"
+
+    search:
+      safe_search: 0
+      autocomplete: ""
+      default_lang: "en"
+      # "json" is required by the crw search backend. Upstream ships html only.
+      formats:
+        - html
+        - json
+
+    ui:
+      static_use_hash: true
