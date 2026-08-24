@@ -210,53 +210,6 @@ entries:
       policy_engine_mode: any
       provider: !KeyOf 'provider-zipline'
       slug: zipline
-  - id: provider-esphome
-    model: authentik_providers_proxy.proxyprovider
-    identifiers:
-      name: esphome-proxy
-    attrs:
-      access_token_validity: hours=1
-      authentication_flow: null
-      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      basic_auth_enabled: false
-      basic_auth_password_attribute: ''
-      basic_auth_user_attribute: ''
-      certificate: null
-      cookie_domain: ${SECRET_DOMAIN}
-      external_host: https://hass-esphome.${SECRET_DOMAIN}
-      intercept_header_auth: true
-      internal_host: ''
-      internal_host_ssl_validation: true
-      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-      jwt_federation_providers: []
-      jwt_federation_sources: []
-      mode: forward_single
-      name: esphome-proxy
-      property_mappings:
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-entitlements]]
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
-      refresh_token_validity: days=30
-      skip_path_regex: ''
-  - id: app-esphome
-    model: authentik_core.application
-    identifiers:
-      slug: esphome
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/esphome.png
-      meta_launch_url: https://hass-esphome.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: ESPHome
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: !KeyOf 'provider-esphome'
-      slug: esphome
   - model: authentik_outposts.outpost
     identifiers:
       managed: goauthentik.io/outposts/embedded
@@ -288,7 +241,6 @@ entries:
         - !KeyOf 'provider-code-server'
         - !KeyOf 'provider-zwave-js-ui'
         - !KeyOf 'provider-zipline'
-        - !KeyOf 'provider-esphome'
   - model: authentik_policies.policybinding
     identifiers:
       target: !KeyOf 'app-home-assistant'
@@ -304,18 +256,6 @@ entries:
   - model: authentik_policies.policybinding
     identifiers:
       target: !KeyOf 'app-code-server'
-      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
-      order: 0
-    attrs:
-      enabled: true
-      failure_result: false
-      group: null
-      negate: false
-      timeout: 30
-      user: null
-  - model: authentik_policies.policybinding
-    identifiers:
-      target: !KeyOf 'app-esphome'
       policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
       order: 0
     attrs:

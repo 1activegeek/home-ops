@@ -1,0 +1,65 @@
+# Removal of objects that no longer serve anything.
+#
+# Blueprints cannot delete implicitly - dropping an entry leaves the object in place. `state: absent`
+# is the only way to remove one, which is why this file exists separately from the capture.
+#
+# Order matters: applications are removed before the providers they point at, and policy bindings
+# before their targets, so nothing is deleted out from under a foreign key.
+#
+# Once this has applied everywhere it matters, the file can be deleted - the entries are no-ops after
+# the first run.
+
+version: 1
+
+metadata:
+  name: homeops-cleanup
+
+entries:
+  # esphome: the HTTPRoute for hass-esphome no longer exists, so the proxy provider protects nothing.
+  - model: authentik_policies.policybinding
+    state: absent
+    identifiers:
+      target: !Find [authentik_core.application, [slug, esphome]]
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: esphome
+  - model: authentik_providers_proxy.proxyprovider
+    state: absent
+    identifiers:
+      name: esphome-proxy
+
+  # Superseded by zipline-proxy; this OIDC provider has no application attached.
+  - model: authentik_providers_oauth2.oauth2provider
+    state: absent
+    identifiers:
+      name: zipline-provider
+
+  # No application, no signing key, and every grant type enabled including password and implicit.
+  # Home Assistant is reached through home-assistant-proxy instead.
+  - model: authentik_providers_oauth2.oauth2provider
+    state: absent
+    identifiers:
+      name: home-assistant-oidc-provider
+
+  # Bound to no flow. Superseded by passwordless-webauthn-validation in 10-auth-experience.yaml.
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    state: absent
+    identifiers:
+      name: passkey-first-validation
+
+  # Bound to nothing. The working equivalent is the passwordless flow itself, which never reaches the
+  # password stage.
+  - model: authentik_policies_expression.expressionpolicy
+    state: absent
+    identifiers:
+      name: skip-password-if-passkey-succeeded
+
+  # Bound to nothing, and not one of authentik's defaults. Remove only if you did not intend to wire
+  # reputation-based login throttling later.
+  - model: authentik_policies_reputation.reputationpolicy
+    state: absent
+    identifiers:
+      name: login-reputation-check
