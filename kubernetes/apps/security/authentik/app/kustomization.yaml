@@ -4,23 +4,28 @@ kind: Kustomization
 namespace: security
 resources:
   - externalsecret.yaml
+  - externalsecret-oidc.yaml
   - helmrepository.yaml
   - helmrelease.yaml
   - httproute-external.yaml
   - httproutefilter-deny-console.yaml
   - referencegrant.yaml
 
-# Authentik config-as-code: passwordless passkey login + enrollment.
-# Mounted into the authentik pods via helmrelease values.blueprints.configMaps.
+# Authentik config-as-code. Every object we own is declared in ./blueprints so the instance can be
+# rebuilt from nothing. Mounted into the authentik pods via helmrelease values.blueprints.configMaps.
 # disableNameSuffixHash keeps the name stable so the Helm value can reference it;
 # reloader (annotation on the deployments) restarts pods when the content changes.
+#
+# The numeric prefixes are for humans - authentik discovers blueprints with rglob() and applies them
+# in no particular order. Real ordering is enforced inside the files with metaapplyblueprint.
 configMapGenerator:
   - name: authentik-blueprints
     files:
-      - blueprints/setup-passkey.yaml
-      - blueprints/headlamp-oidc.yaml
-      - blueprints/matrix-oidc.yaml
-      - blueprints/hermes-oidc.yaml
+      - blueprints/00-foundation.yaml
+      - blueprints/10-auth-experience.yaml
+      - blueprints/20-oidc-integrations.yaml
+      - blueprints/30-proxy-integrations.yaml
+      - blueprints/40-launcher-apps.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

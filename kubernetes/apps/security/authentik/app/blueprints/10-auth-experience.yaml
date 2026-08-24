@@ -1,0 +1,511 @@
+# The login experience: passkey sign-in, password recovery, invitation enrollment, and the brand.
+#
+# All four flows live in one file on purpose. The brand and the identification-stage patch reference
+# these flows, and blueprint files have no guaranteed apply order between them — co-locating removes
+# the dependency entirely.
+#
+# passwordless-authentication is the flow behind the "Sign in with Passkey" button. It requires a
+# discoverable (resident) credential with user verification, which is what makes usernameless login
+# work. The last entry patches the stock identification stage to point at it.
+#
+# The `home` application and the brand are here because the brand's default_application targets it —
+# it is where users land after login, so it belongs to the auth experience rather than the app tiles.
+
+version: 1
+
+metadata:
+  name: homeops-auth-experience
+
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: homeops-foundation
+      required: true
+  - id: prompt-passkey-info
+    model: authentik_stages_prompt.prompt
+    identifiers:
+      field_key: passkey-info-text
+    attrs:
+      field_key: passkey-info-text
+      initial_value: ''
+      initial_value_expression: false
+      label: passkey-info-text
+      name: enrollment-passkey-info-text
+      order: 0
+      placeholder: |-
+        Next, you will set up a Passkey for secure, passwordless login.
+
+        A Passkey uses your device (fingerprint, face, or PIN) to verify your identity - no password needed\!
+
+        You can skip this step, but you will need to set up an Authenticator App instead.
+      placeholder_expression: false
+      required: false
+      sub_text: ''
+      type: static
+  - id: stage-passkey-enroll
+    model: authentik_stages_authenticator_webauthn.authenticatorwebauthnstage
+    identifiers:
+      name: passwordless-webauthn-enroll
+    attrs:
+      authenticator_attachment: null
+      configure_flow: null
+      device_type_restrictions: []
+      friendly_name: ''
+      hints: []
+      max_attempts: 0
+      name: passwordless-webauthn-enroll
+      resident_key_requirement: required
+      user_verification: required
+  - id: stage-passwordless-validate
+    model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    identifiers:
+      name: passwordless-webauthn-validation
+    attrs:
+      configuration_stages: []
+      device_classes:
+        - webauthn
+      email_otp_throttling_factor: 1.0
+      last_auth_threshold: seconds=0
+      name: passwordless-webauthn-validation
+      not_configured_action: deny
+      sms_otp_throttling_factor: 1.0
+      static_otp_throttling_factor: 1.0
+      totp_otp_throttling_factor: 1.0
+      webauthn_allowed_device_types: []
+      webauthn_hints: []
+      webauthn_user_verification: required
+  - id: stage-recovery-identification
+    model: authentik_stages_identification.identificationstage
+    identifiers:
+      name: recovery-identification
+    attrs:
+      captcha_stage: null
+      case_insensitive_matching: true
+      enable_remember_me: false
+      enrollment_flow: null
+      name: recovery-identification
+      password_stage: null
+      passwordless_flow: null
+      pretend_user_exists: true
+      recovery_flow: null
+      show_matched_user: true
+      show_source_labels: false
+      sources: []
+      user_fields:
+        - email
+        - username
+      webauthn_stage: null
+  - id: stage-recovery-email
+    model: authentik_stages_email.emailstage
+    identifiers:
+      name: recovery-email
+    attrs:
+      activate_user_on_success: true
+      from_address: system@authentik.local
+      host: localhost
+      name: recovery-email
+      port: 25
+      recovery_cache_timeout: minutes=5
+      recovery_max_attempts: 5
+      subject: Password Recovery for TheGeekyBits
+      template: email/password_reset.html
+      timeout: 10
+      token_expiry: minutes=30
+      use_global_settings: true
+      use_ssl: false
+      use_tls: false
+      username: ''
+  - id: stage-recovery-password
+    model: authentik_stages_prompt.promptstage
+    identifiers:
+      name: recovery-password-prompt
+    attrs:
+      fields:
+        - !Find [authentik_stages_prompt.prompt, [name, initial-setup-field-password]]
+        - !Find [authentik_stages_prompt.prompt, [name, initial-setup-field-password-repeat]]
+      name: recovery-password-prompt
+      validation_policies: []
+  - id: stage-recovery-write
+    model: authentik_stages_user_write.userwritestage
+    identifiers:
+      name: recovery-user-write
+    attrs:
+      create_users_as_inactive: false
+      create_users_group: null
+      name: recovery-user-write
+      user_creation_mode: never_create
+      user_path_template: ''
+      user_type: external
+  - id: stage-invitation-check
+    model: authentik_stages_invitation.invitationstage
+    identifiers:
+      name: enrollment-invitation-check
+    attrs:
+      continue_flow_without_invitation: false
+      name: enrollment-invitation-check
+  - id: stage-invitation-prompt
+    model: authentik_stages_prompt.promptstage
+    identifiers:
+      name: enrollment-invitation-prompt
+    attrs:
+      fields:
+        - !Find [authentik_stages_prompt.prompt, [name, default-user-settings-field-name]]
+        - !Find [authentik_stages_prompt.prompt, [name, initial-setup-field-email]]
+        - !Find [authentik_stages_prompt.prompt, [name, initial-setup-field-password-repeat]]
+        - !Find [authentik_stages_prompt.prompt, [name, initial-setup-field-password]]
+      name: enrollment-invitation-prompt
+      validation_policies: []
+  - id: stage-passkey-info
+    model: authentik_stages_prompt.promptstage
+    identifiers:
+      name: enrollment-passkey-info
+    attrs:
+      fields:
+        - !KeyOf 'prompt-passkey-info'
+      name: enrollment-passkey-info
+      validation_policies: []
+  - id: stage-invitation-write
+    model: authentik_stages_user_write.userwritestage
+    identifiers:
+      name: enrollment-invitation-user-write
+    attrs:
+      create_users_as_inactive: false
+      create_users_group: null
+      name: enrollment-invitation-user-write
+      user_creation_mode: always_create
+      user_path_template: users
+      user_type: external
+  - id: stage-enroll-webauthn
+    model: authentik_stages_authenticator_webauthn.authenticatorwebauthnstage
+    identifiers:
+      name: enrollment-webauthn-setup
+    attrs:
+      authenticator_attachment: null
+      configure_flow: null
+      device_type_restrictions: []
+      friendly_name: Passkey
+      hints: []
+      max_attempts: 0
+      name: enrollment-webauthn-setup
+      resident_key_requirement: required
+      user_verification: required
+  - id: stage-enroll-totp
+    model: authentik_stages_authenticator_totp.authenticatortotpstage
+    identifiers:
+      name: enrollment-totp-setup
+    attrs:
+      configure_flow: null
+      digits: '6'
+      friendly_name: Authenticator App
+      name: enrollment-totp-setup
+  - id: flow-passwordless
+    model: authentik_flows.flow
+    identifiers:
+      slug: passwordless-authentication
+    attrs:
+      authentication: require_unauthenticated
+      background: ''
+      compatibility_mode: false
+      denied_action: message_continue
+      designation: authentication
+      layout: stacked
+      name: Passwordless Authentication
+      policy_engine_mode: any
+      slug: passwordless-authentication
+      title: Sign in with Passkey
+  - id: flow-recovery
+    model: authentik_flows.flow
+    identifiers:
+      slug: password-recovery
+    attrs:
+      authentication: none
+      background: ''
+      compatibility_mode: false
+      denied_action: message_continue
+      designation: recovery
+      layout: stacked
+      name: Password Recovery
+      policy_engine_mode: any
+      slug: password-recovery
+      title: Reset your password
+  - id: flow-invitation
+    model: authentik_flows.flow
+    identifiers:
+      slug: enrollment-invitation
+    attrs:
+      authentication: require_unauthenticated
+      background: ''
+      compatibility_mode: false
+      denied_action: message_continue
+      designation: enrollment
+      layout: stacked
+      name: Enrollment (Invitation Only)
+      policy_engine_mode: any
+      slug: enrollment-invitation
+      title: Create your account
+  - id: flow-setup-passkey
+    model: authentik_flows.flow
+    identifiers:
+      slug: setup-passkey
+    attrs:
+      authentication: require_authenticated
+      background: ''
+      compatibility_mode: false
+      denied_action: message_continue
+      designation: stage_configuration
+      layout: stacked
+      name: setup-passkey
+      policy_engine_mode: any
+      slug: setup-passkey
+      title: Register a passkey
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-passwordless'
+      stage: !KeyOf 'stage-passwordless-validate'
+      order: 10
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-passwordless'
+      stage: !Find [authentik_flows.stage, [name, default-authentication-login]]
+      order: 20
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-invitation'
+      stage: !KeyOf 'stage-invitation-check'
+      order: 10
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-invitation'
+      stage: !KeyOf 'stage-invitation-prompt'
+      order: 20
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - id: fsb-invitation-write
+    model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-invitation'
+      stage: !KeyOf 'stage-invitation-write'
+      order: 30
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-invitation'
+      stage: !KeyOf 'stage-passkey-info'
+      order: 35
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-invitation'
+      stage: !KeyOf 'stage-enroll-webauthn'
+      order: 40
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - id: fsb-invitation-totp
+    model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-invitation'
+      stage: !KeyOf 'stage-enroll-totp'
+      order: 50
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-invitation'
+      stage: !Find [authentik_flows.stage, [name, default-authentication-login]]
+      order: 60
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-recovery'
+      stage: !KeyOf 'stage-recovery-identification'
+      order: 10
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-recovery'
+      stage: !KeyOf 'stage-recovery-email'
+      order: 20
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-recovery'
+      stage: !KeyOf 'stage-recovery-password'
+      order: 30
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-recovery'
+      stage: !KeyOf 'stage-recovery-write'
+      order: 40
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-recovery'
+      stage: !Find [authentik_flows.stage, [name, default-authentication-login]]
+      order: 50
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf 'flow-setup-passkey'
+      stage: !KeyOf 'stage-passkey-enroll'
+      order: 10
+    attrs:
+      evaluate_on_plan: false
+      invalid_response_action: retry
+      policy_engine_mode: any
+      re_evaluate_policies: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'fsb-invitation-write'
+      policy: !Find [authentik_policies.policy, [name, enrollment-set-username-from-email]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      group: null
+      negate: false
+      timeout: 30
+      user: null
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'fsb-invitation-totp'
+      policy: !Find [authentik_policies.policy, [name, skip-totp-if-has-passkey]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      group: null
+      negate: false
+      timeout: 30
+      user: null
+  - model: authentik_stages_identification.identificationstage
+    identifiers:
+      name: default-authentication-identification
+    attrs:
+      captcha_stage: null
+      case_insensitive_matching: true
+      enable_remember_me: false
+      enrollment_flow: null
+      name: default-authentication-identification
+      password_stage: null
+      passwordless_flow: !KeyOf 'flow-passwordless'
+      pretend_user_exists: true
+      recovery_flow: !KeyOf 'flow-recovery'
+      show_matched_user: true
+      show_source_labels: false
+      sources: []
+      user_fields:
+        - email
+        - username
+      webauthn_stage: null
+  - id: app-home
+    model: authentik_core.application
+    identifiers:
+      slug: home
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: Default redirect after login
+      meta_hide: false
+      meta_icon: https://${SECRET_DOMAIN}/apple-touch-icon.png
+      meta_launch_url: https://${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Home
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: home
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'app-home'
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      group: null
+      negate: false
+      timeout: 30
+      user: null
+  - model: authentik_brands.brand
+    identifiers:
+      domain: ${SECRET_DOMAIN}
+    attrs:
+      attributes: {}
+      branding_custom_css: ''
+      branding_default_flow_background: /static/dist/assets/images/flow_background.jpg
+      branding_favicon: /static/dist/assets/icons/icon.png
+      branding_logo: /static/dist/assets/icons/icon_left_brand.svg
+      branding_map_tiles: ''
+      branding_title: TheGeekyBits
+      client_certificates: []
+      default: true
+      default_application: !KeyOf 'app-home'
+      domain: ${SECRET_DOMAIN}
+      flow_authentication: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      flow_device_code: null
+      flow_invalidation: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
+      flow_lockdown: null
+      flow_recovery: !KeyOf 'flow-recovery'
+      flow_request: null
+      flow_unenrollment: null
+      flow_user_settings: !Find [authentik_flows.flow, [slug, default-user-settings-flow]]
+      flow_user_switch: null
+      web_certificate: null
