@@ -76,6 +76,57 @@ change is a field-level problem, not a destroyed object.
    stops managing those objects and they freeze in place.
 3. Only if both fail, restore the database dump.
 
+## Rehearsing a rebuild
+
+The only test that actually proves recovery works is standing up an instance with an empty
+database and comparing it to production. Blueprint validation does not catch what this does —
+the first rehearsal found that the whole login experience was silently lost.
+
+```bash
+kubectl create namespace authentik-dr
+
+# the exact blueprints and OIDC secrets production is running
+kubectl get cm authentik-blueprints -n security -o yaml \
+  | sed 's/namespace: security/namespace: authentik-dr/' | kubectl apply -f -
+kubectl get secret authentik-oidc-clients -n security -o json \
+  | jq '{apiVersion,kind,type,data,metadata:{name:.metadata.name,namespace:"authentik-dr"}}' \
+  | kubectl apply -f -
+
+helm install authentik-dr authentik/authentik --version <same as HelmRelease> -n authentik-dr \
+  --set-json 'global.envFrom=[{"secretRef":{"name":"authentik-oidc-clients"}}]' \
+  --set 'blueprints.configMaps[0]=authentik-blueprints' \
+  --set authentik.secret_key=throwaway --set authentik.postgresql.password=throwaway \
+  --set postgresql.enabled=true --set postgresql.auth.password=throwaway \
+  --set postgresql.primary.persistence.enabled=false \
+  --set server.route.main.enabled=false
+```
+
+Every blueprint must report `successful`:
+
+```bash
+DW=$(kubectl get pods -n authentik-dr -l app.kubernetes.io/component=worker -o name)
+kubectl exec -n authentik-dr ${DW#pod/} -- ak shell -c '
+from authentik.blueprints.models import BlueprintInstance
+for b in BlueprintInstance.objects.filter(path__startswith="mounted"):
+    print(b.status, b.path)
+'
+```
+
+Then compare object inventories. Compare by **natural key** (slug/name), never by primary key —
+those differ between instances — and resolve foreign keys to names first, or the diff is noise.
+Expect these to differ legitimately:
+
+- user accounts, group membership, enrolled passkeys and TOTP devices (not blueprinted)
+- proxy provider `client_id`/`client_secret` (generated per instance; used only between the
+  embedded outpost and authentik, so nothing external depends on them)
+- primary keys on authentik's own default notification rules and roles
+
+Tear down with `kubectl delete namespace authentik-dr && helm uninstall authentik-dr -n authentik-dr`.
+
+**Watch for the failure mode this catches:** a single invalid entry rolls back its *entire*
+blueprint file (`Importer.apply()` wraps everything in one transaction). One bad object does not
+degrade gracefully - it takes every object in that file with it.
+
 ## Verifying a change before it ships
 
 `Importer.validate()` runs inside a rolled-back transaction, so it is safe against production. To
