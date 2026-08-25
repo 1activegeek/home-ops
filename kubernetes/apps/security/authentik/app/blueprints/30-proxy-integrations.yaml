@@ -1,0 +1,339 @@
+# Forward-auth (proxy) providers, their applications, and embedded-outpost membership.
+#
+# These back the gateway-level ext_authz SecurityPolicy on the envoy-external Gateway, which sends
+# every external route to the embedded outpost at /outpost.goauthentik.io/auth/envoy. Apps opt OUT
+# via the public-access component rather than opting in.
+#
+# client_secret is intentionally omitted: for a proxy provider it is only used between the embedded
+# outpost and authentik itself, so a generated value is correct and nothing external depends on it.
+#
+# The outpost entry patches the built-in embedded outpost in place, keyed on its managed identifier.
+# Listing `providers` here is authoritative — a provider missing from this list is removed from the
+# outpost.
+
+version: 1
+
+metadata:
+  name: homeops-proxy-integrations
+
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: homeops-foundation
+      required: true
+  - id: provider-home-assistant
+    model: authentik_providers_proxy.proxyprovider
+    identifiers:
+      name: home-assistant-proxy
+    attrs:
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      basic_auth_enabled: false
+      basic_auth_password_attribute: ''
+      basic_auth_user_attribute: ''
+      certificate: null
+      cookie_domain: ${SECRET_DOMAIN}
+      external_host: https://hass.${SECRET_DOMAIN}
+      intercept_header_auth: true
+      internal_host: ''
+      internal_host_ssl_validation: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      mode: forward_single
+      name: home-assistant-proxy
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-entitlements]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+      refresh_token_validity: days=30
+      skip_path_regex: ''
+  - id: app-home-assistant
+    model: authentik_core.application
+    identifiers:
+      slug: home-assistant
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png
+      meta_launch_url: https://hass.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Home Assistant
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-home-assistant'
+      slug: home-assistant
+  - id: provider-code-server
+    model: authentik_providers_proxy.proxyprovider
+    identifiers:
+      name: code-server-proxy
+    attrs:
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      basic_auth_enabled: false
+      basic_auth_password_attribute: ''
+      basic_auth_user_attribute: ''
+      certificate: null
+      cookie_domain: ${SECRET_DOMAIN}
+      external_host: https://hass-code.${SECRET_DOMAIN}
+      intercept_header_auth: true
+      internal_host: ''
+      internal_host_ssl_validation: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      mode: forward_single
+      name: code-server-proxy
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-entitlements]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+      refresh_token_validity: days=30
+      skip_path_regex: ''
+  - id: app-code-server
+    model: authentik_core.application
+    identifiers:
+      slug: code-server
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/code-server.png
+      meta_launch_url: https://hass-code.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: HA Code Server
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-code-server'
+      slug: code-server
+  - id: provider-zwave-js-ui
+    model: authentik_providers_proxy.proxyprovider
+    identifiers:
+      name: zwave-js-ui-proxy
+    attrs:
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      basic_auth_enabled: false
+      basic_auth_password_attribute: ''
+      basic_auth_user_attribute: ''
+      certificate: null
+      cookie_domain: ${SECRET_DOMAIN}
+      external_host: https://hass-zwave.${SECRET_DOMAIN}
+      intercept_header_auth: true
+      internal_host: ''
+      internal_host_ssl_validation: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      mode: forward_single
+      name: zwave-js-ui-proxy
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-entitlements]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+      refresh_token_validity: days=30
+      skip_path_regex: ''
+  - id: app-zwave-js-ui
+    model: authentik_core.application
+    identifiers:
+      slug: zwave-js-ui
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://hass-zwave.${SECRET_DOMAIN}/apple-touch-icon-180x180.png
+      meta_launch_url: https://hass-zwave.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Z-Wave JS UI
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-zwave-js-ui'
+      slug: zwave-js-ui
+  - id: provider-zipline
+    model: authentik_providers_proxy.proxyprovider
+    identifiers:
+      name: zipline-proxy
+    attrs:
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      basic_auth_enabled: false
+      basic_auth_password_attribute: ''
+      basic_auth_user_attribute: ''
+      certificate: null
+      cookie_domain: ${SECRET_DOMAIN}
+      external_host: https://zipline.${SECRET_DOMAIN}
+      intercept_header_auth: true
+      internal_host: ''
+      internal_host_ssl_validation: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      mode: forward_single
+      name: zipline-proxy
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-entitlements]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+      refresh_token_validity: days=30
+      skip_path_regex: ''
+  - id: app-zipline
+    model: authentik_core.application
+    identifiers:
+      slug: zipline
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/zipline.png
+      meta_launch_url: https://zipline.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Zipline
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-zipline'
+      slug: zipline
+  - id: provider-esphome
+    model: authentik_providers_proxy.proxyprovider
+    identifiers:
+      name: esphome-proxy
+    attrs:
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      basic_auth_enabled: false
+      basic_auth_password_attribute: ''
+      basic_auth_user_attribute: ''
+      certificate: null
+      cookie_domain: ${SECRET_DOMAIN}
+      external_host: https://hass-esphome.${SECRET_DOMAIN}
+      intercept_header_auth: true
+      internal_host: ''
+      internal_host_ssl_validation: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      mode: forward_single
+      name: esphome-proxy
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-entitlements]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+      refresh_token_validity: days=30
+      skip_path_regex: ''
+  - id: app-esphome
+    model: authentik_core.application
+    identifiers:
+      slug: esphome
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/esphome.png
+      meta_launch_url: https://hass-esphome.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: ESPHome
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-esphome'
+      slug: esphome
+  - model: authentik_outposts.outpost
+    identifiers:
+      managed: goauthentik.io/outposts/embedded
+    attrs:
+      config:
+        authentik_host: https://auth.${SECRET_DOMAIN}
+        authentik_host_browser: https://auth.${SECRET_DOMAIN}
+        authentik_host_insecure: false
+        container_image: null
+        docker_labels: null
+        docker_map_ports: true
+        docker_network: null
+        kubernetes_disabled_components: []
+        kubernetes_image_pull_secrets: []
+        kubernetes_ingress_annotations: {}
+        kubernetes_ingress_class_name: null
+        kubernetes_ingress_secret_name: authentik-outpost-tls
+        kubernetes_namespace: security
+        kubernetes_replicas: 1
+        kubernetes_service_type: ClusterIP
+        log_level: info
+        object_naming_template: ak-outpost-%(name)s
+        refresh_interval: minutes=5
+      name: authentik Embedded Outpost
+      service_connection: null
+      type: proxy
+      providers:
+        - !KeyOf 'provider-home-assistant'
+        - !KeyOf 'provider-code-server'
+        - !KeyOf 'provider-zwave-js-ui'
+        - !KeyOf 'provider-zipline'
+        - !KeyOf 'provider-esphome'
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'app-home-assistant'
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      group: null
+      negate: false
+      timeout: 30
+      user: null
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'app-code-server'
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      group: null
+      negate: false
+      timeout: 30
+      user: null
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'app-esphome'
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      group: null
+      negate: false
+      timeout: 30
+      user: null
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'app-zwave-js-ui'
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      group: null
+      negate: false
+      timeout: 30
+      user: null

@@ -5,26 +5,32 @@ credentials get injected**. Issuer, scopes, and blueprint shape are uniform.
 
 ## Callback paths
 
-Committed in this cluster (verified against the blueprints):
+Committed in `20-oidc-integrations.yaml` (verified against the live instance):
 
 | App | Redirect URI |
 |---|---|
 | Headlamp | `https://headlamp.${SECRET_DOMAIN}/oidc-callback` |
 | Hermes | `https://hermes.${SECRET_DOMAIN}/auth/callback` |
 | Matrix (via MAS) | `https://mas.${SECRET_DOMAIN}/upstream/callback/<mas-provider-ulid>` |
+| Grafana | `https://grafana.${SECRET_DOMAIN}/login/generic_oauth` |
+| Forgejo | `https://git.${SECRET_DOMAIN}/user/oauth2/authentik/callback` |
+
+Forgejo is the odd one: the OAuth2 *source* also lives in Forgejo's own database, created
+with `forgejo admin auth add-oauth`. The blueprint covers the Authentik half only.
 
 Documented upstream, not blueprinted here — verify against the app's current docs, since
 callback paths move between major versions:
 
 | App | Redirect URI |
 |---|---|
-| Grafana | `https://<host>/login/generic_oauth` |
 | Gatus | `https://<host>/authorization-code/callback` |
-| Forgejo | `https://<host>/user/oauth2/authentik/callback` |
 | Open WebUI | `https://<host>/oauth/oidc/callback` |
 | n8n | `https://<host>/rest/oauth2-credential/callback` |
 | Zipline | `https://<host>/api/auth/oauth/oidc` |
 | BookLore | `https://<host>/api/auth/oidc/callback` |
+
+Zipline is currently behind a **proxy provider**, not native OIDC — check
+`30-proxy-integrations.yaml` before assuming the OIDC path applies.
 
 For anything unlisted, read the app's docs. Guessing costs a full blueprint → commit → Flux
 → test cycle to disprove, and the failure page doesn't tell you what the app actually sent.
@@ -102,7 +108,21 @@ manual. The recreate command is documented next to the HelmRelease at
 ### Forward auth (no provider at all)
 
 If `docs/architecture/authentication.md` classifies the app as `forward_auth`, there is no
-OAuth2 provider to create. Authentik authenticates at the Envoy Gateway via
-`kubernetes/components/authentik-forward-auth`. No app consumes it yet, and its
-SecurityPolicy needs `targetRefs` pointed at the app's HTTPRoute — mirror the `components:`
-+ `replacements:` wiring in `kubernetes/apps/security/authentik/app/kustomization.yaml`.
+native OIDC wiring to do on the app side. Authentik authenticates at the Envoy Gateway: a
+single SecurityPolicy on the `envoy-external` Gateway sends **every** external route to the
+embedded outpost, so apps opt *out* with the `public-access` component rather than opting in.
+
+Declare a proxy provider and its application in `30-proxy-integrations.yaml`, and add the
+provider to the embedded outpost's `providers` list in the same file:
+
+```yaml
+  - model: authentik_outposts.outpost
+    identifiers:
+      managed: goauthentik.io/outposts/embedded
+    attrs:
+      providers:
+        - !KeyOf provider-<app>    # this list is authoritative — omitting one removes it
+```
+
+No client secret is needed; it is used only between the outpost and Authentik, so a
+generated value is correct.

@@ -12,8 +12,20 @@ disappears when that database is rebuilt, and nobody finds out until every SSO l
 house breaks at once. The blueprint is the source of truth; the running instance is a cache.
 
 Blueprints live in `kubernetes/apps/security/authentik/app/blueprints/`, are packed into a
-ConfigMap by kustomize, and are auto-applied by the Authentik worker. Read
-`headlamp-oidc.yaml` or `hermes-oidc.yaml` before writing a new one.
+ConfigMap by kustomize, and are auto-applied by the Authentik worker. The whole configuration
+is captured there — every provider, application, flow, policy, and portal tile — in five
+files grouped by role, not one file per app:
+
+| File | Owns |
+|---|---|
+| `00-foundation.yaml` | tier groups, custom scope mappings, shared policies |
+| `10-auth-experience.yaml` | passkey login, password recovery, invitation enrollment, brand |
+| `20-oidc-integrations.yaml` | OIDC providers + their applications |
+| `30-proxy-integrations.yaml` | forward-auth providers + embedded outpost membership |
+| `40-launcher-apps.yaml` | portal tiles for apps with no provider |
+
+Read `20-oidc-integrations.yaml` before adding to it. Files have no guaranteed apply order —
+cross-file dependencies are declared with `authentik_blueprints.metaapplyblueprint`.
 
 ## Step 0 — Ground yourself in what actually exists
 
@@ -39,11 +51,12 @@ for biometrics on every call.
 building anything.
 
 - **`native_oidc`** — the app speaks OIDC itself. That's this skill; continue.
-- **`forward_auth`** — Authentik authenticates at the Envoy Gateway; **no OAuth2 provider is
-  needed**. The `kubernetes/components/authentik-forward-auth` component exists but has no
-  in-repo consumer yet, and its SecurityPolicy needs `targetRefs` wired to the app's
-  HTTPRoute — copy the `components:` + `replacements:` pattern from
-  `kubernetes/apps/security/authentik/app/kustomization.yaml` and expect to work it out.
+- **`forward_auth`** — Authentik authenticates at the Envoy Gateway. Add a proxy provider and
+  application to `30-proxy-integrations.yaml` and list the provider on the embedded outpost in
+  the same file. No client secret is involved; it is used only between the outpost and
+  Authentik. External routes are gated **by default** by the SecurityPolicy on
+  `envoy-external`, so apps opt *out* with the `public-access` component — a forward-auth app
+  usually needs no route change at all.
 - **`public_exception` / `external_identity_exception`** — deliberately not behind Authentik.
   Don't add auth; the doc explains why per app.
 
@@ -54,9 +67,9 @@ rejects it in strict mode with an opaque error that doesn't echo what the app se
 paths are in `references/app-oidc-patterns.md`; if the app isn't listed, take the path from
 its own docs rather than guessing.
 
-Create `kubernetes/apps/security/authentik/app/blueprints/<app>-oidc.yaml`, opening with a
-comment block on why this app has SSO and anything odd about its callback or claims — house
-style, and what makes these readable a year later.
+Add an entry to `kubernetes/apps/security/authentik/app/blueprints/20-oidc-integrations.yaml`,
+with a comment on anything odd about this app's callback or claims — house style, and what
+makes these readable a year later.
 
 ```yaml
 # <App> OIDC — <why this app is gated behind Authentik>.
@@ -73,6 +86,7 @@ entries:
     attrs:
       client_type: confidential
       client_id: <pinned stable 40-char alphanumeric string>
+      client_secret: !Env AUTHENTIK_OIDC_<APP>_SECRET
       sub_mode: user_email
       include_claims_in_id_token: true
       issuer_mode: per_provider
@@ -111,53 +125,57 @@ Why the fiddly bits matter:
 - **`signing_key`** — omit it and the provider defaults to HS256, which most clients reject.
 - **`property_mappings`** — omit `openid`/`email`/`profile` and `/userinfo` returns nothing,
   so the app can't resolve the user. `offline_access` is a sensible default for refresh
-  tokens, not a law — `matrix-oidc.yaml` omits it.
+  tokens, not a law — the `matrix` provider omits it.
 - **`sub_mode`** — `user_email` where the app keys accounts by email, `user_username` where
   it matches on username (Matrix). Changing it later orphans existing accounts, and apps
   that allowlist by `sub` (Gatus's `allowed-subjects`) depend on which one you picked.
 - **`client_id` pinned** — any stable 40-char alphanumeric string; a rebuild otherwise
   regenerates a random one and silently breaks the app's stored credential.
-- **`client_secret` omitted deliberately** — committing it would put a plaintext secret in
-  git. On a live instance Authentik leaves an existing secret untouched, so re-applying never
-  disturbs a working provider; on a from-scratch rebuild it generates a new one, which you
-  capture into 1Password (Step 4).
+- **`client_secret` via `!Env`** — the value never enters git; only the variable name does.
+  It is fed by the `authentik-oidc-clients` ExternalSecret, which reads the same 1Password
+  item and field the app itself consumes, so there is still one source of truth per secret.
+  This is what makes a from-scratch rebuild work: Authentik comes back holding the secret the
+  app is already configured with, instead of generating a fresh one that matches nothing.
+  `!Env` takes a **scalar** — `!Env VAR`. The sequence form requires two elements
+  (`!Env [VAR, default]`) and raises `IndexError` with one.
 
 Need a claim Authentik doesn't ship (custom groups, a custom `sub`)? Add an
 `authentik_providers_oauth2.scopemapping` entry with an inline `expression: |` and reference
-it with `!KeyOf` — `headlamp-oidc.yaml` shows it.
+it with `!KeyOf` — `headlamp-email-verified` in `00-foundation.yaml` shows it (shared
+mappings live there, not next to the provider).
 
-## Step 3 — Register the blueprint (the step everyone forgets)
+## Step 3 — Map the secret (the step everyone forgets)
 
-A blueprint file does nothing until it is listed in the ConfigMap generator. Add it to
-`configMapGenerator.files` in `kubernetes/apps/security/authentik/app/kustomization.yaml`:
+The `!Env` reference resolves to nothing unless the variable is projected into the pods. Add
+both halves to `kubernetes/apps/security/authentik/app/externalsecret-oidc.yaml`:
 
 ```yaml
-configMapGenerator:
-  - name: authentik-blueprints
-    files:
-      - blueprints/setup-passkey.yaml
-      - blueprints/<app>-oidc.yaml   # <- add this
+  target:
+    template:
+      data:
+        AUTHENTIK_OIDC_<APP>_SECRET: "{{ .<app> }}"   # <- add
+  data:
+    - secretKey: <app>                                # <- and this
+      remoteRef:
+        key: <app>
+        property: oidc_client_secret
 ```
 
-`passwordless-passkey.yaml` sits in that directory unregistered and has never applied — the
-file existing is not the same as it being live. After Flux reconciles (the ConfigMap name is
-stable because `disableNameSuffixHash: true`):
+Because the five blueprint files are already registered in `configMapGenerator`, adding an
+app needs no `kustomization.yaml` change. Verify after Flux reconciles:
 
 ```bash
-kubectl -n security get cm authentik-blueprints -o jsonpath='{.data}' | grep -o '<app>-oidc.yaml'
-kubectl -n security logs deploy/authentik-worker --tail=100 | grep -i blueprint
+kubectl -n security get cm authentik-blueprints -o jsonpath='{.data}' | grep -o '20-oidc-integrations.yaml'
+kubectl -n security get secret authentik-oidc-clients -o jsonpath='{.data}' | tr ',' '\n' | grep <APP>
 ```
 
-## Step 4 — Capture the client secret into 1Password
+## Step 4 — Create the client secret in 1Password
 
-Once applied, Authentik has generated the secret. Read it from **Admin → Applications →
-Providers → `<app>`**, or via the API if the `authentik` 1Password item carries a token
-(check its fields — don't assume a field name):
+You generate the secret up front now, rather than reading back whatever Authentik invented —
+the blueprint pins it, so both sides agree from the first apply:
 
 ```bash
-AUTHENTIK_TOKEN=$(op item get authentik --vault homeops --format json | jq -r '.fields[] | select(.label|test("token")) | .value')
-curl -s -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
-  "https://auth.${SECRET_DOMAIN}/api/v3/providers/oauth2/?name=<app>" | jq -r '.results[0].client_secret'
+openssl rand -base64 48 | tr -dc 'a-zA-Z0-9' | head -c 64; echo
 ```
 
 Then hand off to the **create-1p-secret** skill — it owns the naming contract. Item `<app>`
@@ -196,10 +214,27 @@ Debug in this order: worker logs for blueprint errors → provider exists with t
 `client_id` → redirect URI matches the app's request byte for byte → Secret data keys match
 what the app reads.
 
+## Verify the blueprint before it ships
+
+`Importer.validate()` runs inside a rolled-back transaction, so it is safe against the live
+instance:
+
+```bash
+W=$(kubectl get pods -n security -o name | grep worker | head -1)
+kubectl exec -n security ${W#pod/} -- ak shell -c '
+from authentik.blueprints.v1.importer import Importer
+ok, logs = Importer.from_string(open("/blueprints/mounted/cm-authentik-blueprints/20-oidc-integrations.yaml").read()).validate()
+print("valid:", ok)
+for l in logs:
+    if l.log_level in ("warning", "error"): print(l.event)
+'
+```
+
 ## After a rebuild
 
-Blueprints recreate every provider and application automatically; the client secrets are the
-one manual step, since Authentik regenerates them. For each app, redo Step 4 and update the
-1Password field — the ExternalSecret repopulates within `refreshInterval` (1h), or sooner if
-you delete the target Secret. Note this in the PR for any new app so it lands in the recovery
-runbook rather than in someone's memory.
+Nothing manual. Providers, applications, flows, and tiles come back from the blueprints, and
+client secrets come back from 1Password via `authentik-oidc-clients` — so each app finds the
+credential it already holds. What does **not** come back is user data: accounts, group
+membership, and enrolled passkeys/TOTP devices. Users re-enrol, or you restore the database.
+
+Full procedure: `docs/authentik-disaster-recovery.md`.

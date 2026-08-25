@@ -1,0 +1,95 @@
+# Shared authentik objects that everything else references.
+#
+# Kept in one place so groups, the custom scope mapping and the shared policies have a single
+# definition. Every other blueprint in this directory declares a metaapplyblueprint dependency on
+# this file, which guarantees these objects exist before they are referenced with !Find — blueprint
+# files are discovered with rglob() and have no inherent ordering.
+#
+# tier1/2/3 are access tiers. Membership is user data and is deliberately NOT declared here: listing
+# `users` would reconcile group membership away on every apply.
+#
+# headlamp-email-verified exists because kube-apiserver requires an `email_verified` claim when
+# oidc-username-claim=email, and authentik's built-in `email` scope hardcodes it to false. The
+# built-in mapping is left untouched because Grafana and others share it.
+
+version: 1
+
+metadata:
+  name: homeops-foundation
+
+entries:
+  - model: authentik_core.group
+    identifiers:
+      name: tier1
+    attrs:
+      attributes: {}
+      is_superuser: false
+      name: tier1
+      parents: []
+  - model: authentik_core.group
+    identifiers:
+      name: tier2
+    attrs:
+      attributes: {}
+      is_superuser: false
+      name: tier2
+      parents: []
+  - model: authentik_core.group
+    identifiers:
+      name: tier3
+    attrs:
+      attributes: {}
+      is_superuser: false
+      name: tier3
+      parents: []
+  - id: scope-headlamp-email
+    model: authentik_providers_oauth2.scopemapping
+    identifiers:
+      name: headlamp-email-verified
+    attrs:
+      description: email + email_verified=true for k8s OIDC (Headlamp)
+      expression: |-
+        return {
+            "email": request.user.email,
+            "email_verified": True,
+        }
+      name: headlamp-email-verified
+      scope_name: email
+  - model: authentik_policies_expression.expressionpolicy
+    identifiers:
+      name: allow-authenticated-users
+    attrs:
+      execution_logging: false
+      expression: |-
+        # Allow any authenticated user
+        return request.user.is_authenticated
+      name: allow-authenticated-users
+  - model: authentik_policies_expression.expressionpolicy
+    identifiers:
+      name: enrollment-set-username-from-email
+    attrs:
+      execution_logging: false
+      expression: |-
+        # Set username equal to email address for this enrollment
+        context = request.context
+        if 'prompt_data' in context:
+            email = context['prompt_data'].get('email', '')
+            context['prompt_data']['username'] = email
+        return True
+      name: enrollment-set-username-from-email
+  - model: authentik_policies_expression.expressionpolicy
+    identifiers:
+      name: skip-totp-if-has-passkey
+    attrs:
+      execution_logging: false
+      expression: |-
+        # Skip TOTP setup if user already has a WebAuthn device (passkey)
+        from authentik.stages.authenticator_webauthn.models import WebAuthnDevice
+
+        user = request.user
+        if user and user.is_authenticated:
+            has_passkey = WebAuthnDevice.objects.filter(user=user, confirmed=True).exists()
+            if has_passkey:
+                return False  # False = skip this stage
+        return True  # True = show this stage
+      name: skip-totp-if-has-passkey

@@ -1,0 +1,296 @@
+# OIDC providers and their applications.
+#
+# client_id is pinned literally: several consumers hardcode it (kube-apiserver's oidc-client-id for
+# headlamp, MAS's upstream provider for matrix, the hermes dotenv), so it has to survive a rebuild
+# byte-for-byte.
+#
+# client_secret comes from !Env, backed by the authentik-oidc-clients ExternalSecret which reads each
+# app's existing 1Password item. That is what makes a from-scratch rebuild work: authentik comes back
+# with the same secret the app is already configured with, instead of generating a fresh one.
+#
+# matrix uses sub_mode: user_username because MAS maps the localpart from preferred_username, and its
+# redirect URI embeds a pinned upstream-provider ULID that must match byte-for-byte. Its RS256 signing
+# key must stay RSA — MAS and Synapse reject ECC.
+#
+# headlamp needs offline_access (it hard-fails without a refresh token) and the custom
+# headlamp-email-verified scope from 00-foundation.yaml.
+
+version: 1
+
+metadata:
+  name: homeops-oidc-integrations
+
+entries:
+  - model: authentik_blueprints.metaapplyblueprint
+    attrs:
+      identifiers:
+        name: homeops-foundation
+      required: true
+  - id: provider-headlamp
+    model: authentik_providers_oauth2.oauth2provider
+    identifiers:
+      name: headlamp
+    attrs:
+      access_code_validity: minutes=1
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      client_id: WxrKDa2ZRlFrT52GxJVz6wJuQxRSDw7RIAicrGP9
+      client_secret: !Env 'AUTHENTIK_OIDC_HEADLAMP_SECRET'
+      client_type: confidential
+      encryption_key: null
+      grant_types:
+        - authorization_code
+        - refresh_token
+      include_claims_in_id_token: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      issuer_mode: per_provider
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      logout_method: backchannel
+      logout_uri: ''
+      name: headlamp
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [name, headlamp-email-verified]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-offline_access]]
+      redirect_uris:
+        - matching_mode: strict
+          redirect_uri_type: authorization
+          url: https://headlamp.${SECRET_DOMAIN}/oidc-callback
+      refresh_token_threshold: seconds=0
+      refresh_token_validity: days=30
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: user_email
+  - model: authentik_core.application
+    identifiers:
+      slug: headlamp
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/headlamp.png
+      meta_launch_url: https://headlamp.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Headlamp
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-headlamp'
+      slug: headlamp
+  - id: provider-hermes
+    model: authentik_providers_oauth2.oauth2provider
+    identifiers:
+      name: hermes
+    attrs:
+      access_code_validity: minutes=1
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      client_id: WFORCQ62bMifsYYZRZ7ranXU8l8eI47lTn3QQe1k
+      client_secret: !Env 'AUTHENTIK_OIDC_HERMES_SECRET'
+      client_type: confidential
+      encryption_key: null
+      grant_types:
+        - authorization_code
+        - refresh_token
+      include_claims_in_id_token: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      issuer_mode: per_provider
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      logout_method: backchannel
+      logout_uri: ''
+      name: hermes
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-offline_access]]
+      redirect_uris:
+        - matching_mode: strict
+          redirect_uri_type: authorization
+          url: https://hermes.${SECRET_DOMAIN}/auth/callback
+      refresh_token_threshold: seconds=0
+      refresh_token_validity: days=30
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: user_email
+  - model: authentik_core.application
+    identifiers:
+      slug: hermes
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://hermes.${SECRET_DOMAIN}/favicon.ico
+      meta_launch_url: https://hermes.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Hermes
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-hermes'
+      slug: hermes
+  - id: provider-matrix
+    model: authentik_providers_oauth2.oauth2provider
+    identifiers:
+      name: matrix
+    attrs:
+      access_code_validity: minutes=1
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      client_id: uJXPSHb3y6CVGcdzy5g0LtNgQ3COZHJOFDjnw8Il
+      client_secret: !Env 'AUTHENTIK_OIDC_MATRIX_SECRET'
+      client_type: confidential
+      encryption_key: null
+      grant_types:
+        - authorization_code
+        - refresh_token
+      include_claims_in_id_token: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      issuer_mode: per_provider
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      logout_method: backchannel
+      logout_uri: ''
+      name: matrix
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+      redirect_uris:
+        - matching_mode: strict
+          redirect_uri_type: authorization
+          url: https://mas.${SECRET_DOMAIN}/upstream/callback/01K0AH2QJ4E8SNVGW5T7D9F3RB
+      refresh_token_threshold: seconds=0
+      refresh_token_validity: days=30
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: user_username
+  - model: authentik_core.application
+    identifiers:
+      slug: matrix
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/element.png
+      meta_launch_url: https://matrix.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Matrix
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-matrix'
+      slug: matrix
+  - id: provider-grafana
+    model: authentik_providers_oauth2.oauth2provider
+    identifiers:
+      name: grafana-provider
+    attrs:
+      access_code_validity: minutes=1
+      access_token_validity: minutes=5
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      client_id: d2f6842d-ab01-4a87-abc7-468b3b4fbc2b
+      client_secret: !Env 'AUTHENTIK_OIDC_GRAFANA_SECRET'
+      client_type: confidential
+      encryption_key: null
+      grant_types:
+        - authorization_code
+        - hybrid
+        - implicit
+        - client_credentials
+        - password
+        - urn:ietf:params:oauth:grant-type:device_code
+        - refresh_token
+      include_claims_in_id_token: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      issuer_mode: per_provider
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      logout_method: backchannel
+      logout_uri: ''
+      name: grafana-provider
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+      redirect_uris:
+        - matching_mode: strict
+          redirect_uri_type: authorization
+          url: https://grafana.${SECRET_DOMAIN}/login/generic_oauth
+      refresh_token_threshold: seconds=0
+      refresh_token_validity: days=30
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+  - model: authentik_core.application
+    identifiers:
+      slug: grafana
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/grafana.png
+      meta_launch_url: https://grafana.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Grafana
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-grafana'
+      slug: grafana
+  - id: provider-forgejo
+    model: authentik_providers_oauth2.oauth2provider
+    identifiers:
+      name: forgejo
+    attrs:
+      access_code_validity: minutes=1
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      client_id: 8VI9efwXVoNUP9rb5MSXwtUuIxByZd2Topg7nSFb
+      client_secret: !Env 'AUTHENTIK_OIDC_FORGEJO_SECRET'
+      client_type: confidential
+      encryption_key: null
+      grant_types:
+        - authorization_code
+        - refresh_token
+      include_claims_in_id_token: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      issuer_mode: per_provider
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      logout_method: backchannel
+      logout_uri: ''
+      name: forgejo
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-offline_access]]
+      redirect_uris:
+        - matching_mode: strict
+          redirect_uri_type: authorization
+          url: https://git.${SECRET_DOMAIN}/user/oauth2/authentik/callback
+      refresh_token_threshold: seconds=0
+      refresh_token_validity: days=30
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+  - model: authentik_core.application
+    identifiers:
+      slug: forgejo
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/forgejo.png
+      meta_launch_url: https://git.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Forgejo
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-forgejo'
+      slug: forgejo

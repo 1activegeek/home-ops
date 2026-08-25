@@ -60,33 +60,63 @@ Before opening a PR for any routed app change:
 
 Validation is required for auth changes, route changes, new apps, and app removals.
 
+## Configuration As Code
+
+Authentik's own configuration is declared in blueprints under
+`kubernetes/apps/security/authentik/app/blueprints/` and delivered to the pods as a ConfigMap. This
+is the source of truth: an object that is not in a blueprint does not survive a rebuild.
+
+| File | Owns |
+|------|------|
+| `00-foundation.yaml` | Access-tier groups, the custom scope mapping, shared policies |
+| `10-auth-experience.yaml` | Passkey login, password recovery, invitation enrollment, the brand |
+| `20-oidc-integrations.yaml` | OIDC providers and their applications |
+| `30-proxy-integrations.yaml` | Forward-auth providers and embedded-outpost membership |
+| `40-launcher-apps.yaml` | Portal tiles for apps with no provider |
+
+Rules:
+
+1. **Never create providers, applications, or flows through the UI or the API.** They will be lost on
+   rebuild, and the next blueprint apply may partially overwrite them. Add a blueprint entry instead.
+2. Client IDs are pinned literally in the blueprint. Client secrets come from `!Env`, backed by the
+   `authentik-oidc-clients` ExternalSecret, so a rebuilt instance comes back with the secret the
+   application already holds.
+3. Blueprints do partial updates - fields a blueprint does not name are left alone. Adding a field to
+   a blueprint therefore takes ownership of it.
+4. Blueprint files have no guaranteed apply order. Cross-file dependencies are declared with
+   `authentik_blueprints.metaapplyblueprint`, not by filename.
+
+Adding a new integration is covered by the `/setup-authentik-oidc` command.
+
 ## App Classification Matrix
+
+Audited against the live cluster and the manifests. `none` means the app has no authentication in
+front of it - for an internal-only route that is a deliberate choice, not an omission.
 
 | App | Exposure | Auth Mode | Rationale |
 |-----|----------|-----------|-----------|
-| Gatus | internal | `native_oidc` | Native OIDC support and operator UI access |
-| Grafana | internal | `native_oidc` | Native generic OAuth with Authentik |
-| MeTube | internal | `forward_auth` | No built-in auth; easy gateway protection if desired later |
-| Forgejo | internal | `native_oidc` | Strong native OIDC support |
-| Zipline | external | `native_oidc` | Public app with supported OIDC flow |
-| Plex | internal | `external_identity_exception` | Uses Plex.tv identity model |
-| SABnzbd | internal | `forward_auth` | No native OIDC; gateway auth is the preferred pattern |
-| qBittorrent | internal | `forward_auth` | No native OIDC; gateway auth is the preferred pattern |
+| Headlamp | internal | `native_oidc` | Blueprinted. Shares its client ID with the kube-apiserver OIDC config |
+| Grafana | internal | `native_oidc` | Blueprinted. Generic OAuth against Authentik |
+| Forgejo | internal | `native_oidc` | Blueprinted. The auth source also lives in Forgejo's own database |
+| Hermes | internal | `native_oidc` | Blueprinted. Dashboard refuses to bind without a provider |
+| Matrix (MAS) | internal | `native_oidc` | Blueprinted. Redirect URI embeds a pinned upstream-provider ID |
+| Synapse | internal | `native_oidc` | Auth fully delegated to MAS. Federation disabled; no local passwords |
+| Element | internal | `native_oidc` | Static client; flows through Synapse -> MAS -> Authentik |
+| Z-Wave JS UI | external | `forward_auth` | Blueprinted proxy provider. The only external route actually gated |
+| Home Assistant | external | `public_exception` | Opted out via the `public-access` component; uses its own auth |
+| Zipline | internal | `forward_auth` | Blueprinted proxy provider |
+| HA Code Server | internal | `forward_auth` | Blueprinted proxy provider; its route is currently disabled |
 | Seerr | external | `external_identity_exception` | User flow is intentionally based on Plex auth |
 | Shlink | external | `public_exception` | Redirect service is intended to serve public links |
-| Shlink Web | internal | `forward_auth` | Admin UI should not be publicly exposed |
-| Tautulli | internal | `forward_auth` | No native OIDC |
-| Bazarr | internal | `forward_auth` | No native OIDC |
-| Audiobookshelf | internal | `native_oidc` | Native OIDC support since v2.6 (see authentik-sso-rollout-plan.md) |
-| Grimmory | internal | `none` | Deployed internal-only first; auth deferred to a follow-up change |
-| Bambuddy | internal | `none` | Internal-only LAN access; built-in MFA suffices. Revisit forward_auth later. |
-| Mattermost | internal | `none` | Internal-only LAN access; built-in account auth suffices. Team Edition lacks native OIDC; revisit forward_auth later. |
-| Synapse | internal | `native_oidc` | Auth fully delegated to MAS, which uses Authentik as its only upstream provider. Federation disabled; no local passwords. |
-| MAS | internal | `native_oidc` | Matrix Authentication Service; login UI redirects to Authentik (sole upstream OIDC provider). Password auth disabled. |
-| Element | internal | `native_oidc` | Static client; auth flows through Synapse -> MAS -> Authentik. No auth of its own. |
-| OpenWebUI | internal | `native_oidc` | Native OIDC support |
-| n8n | internal | `native_oidc` | Prefer Authentik-backed OIDC when configured |
-| Teslamate | internal | `forward_auth` | No native OIDC |
+| Plex | internal | `external_identity_exception` | Uses Plex.tv identity model |
+| Authentik | external | `public_exception` | It is the IdP. Admin console is 404'd at the public edge |
+| Echo, Flux webhook, Tesla pubkey | external | `public_exception` | Webhook and probe endpoints |
+| Mattermost | internal | `none` | Team Edition licence-gates OIDC; internal-only LAN access |
+| Grimmory | internal | `none` | OIDC explicitly disabled in its config |
+| All other internal apps | internal | `none` | Internal-only; no gateway auth and no OIDC configured |
+
+Apps in the last row include the *arr stack, media tooling, monitoring UIs, and the AI services. They
+have a portal tile in Authentik for discoverability, but that tile does not authenticate anything.
 
 ## Default Workflow For Future Agents
 

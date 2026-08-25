@@ -1,0 +1,527 @@
+# Application tiles with no provider attached.
+#
+# These exist purely so the authentik user portal at /if/user lists every service with the right icon
+# and launch URL. They carry no authentication of their own — the apps behind them are either
+# internal-only or authenticate some other way.
+#
+# Without this file a rebuilt instance comes back with an empty portal, which is why they are
+# captured even though they are not integrations.
+
+version: 1
+
+metadata:
+  name: homeops-launcher-apps
+
+entries:
+  - model: authentik_core.application
+    identifiers:
+      slug: alertmanager
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/alertmanager.png
+      meta_launch_url: https://alertmanager.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Alertmanager
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: alertmanager
+  - model: authentik_core.application
+    identifiers:
+      slug: apprise
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/apprise.png
+      meta_launch_url: https://apprise.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Apprise
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: apprise
+  - model: authentik_core.application
+    identifiers:
+      slug: audiobookshelf
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/audiobookshelf.png
+      meta_launch_url: https://audiobooks.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Audiobookshelf
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: audiobookshelf
+  - model: authentik_core.application
+    identifiers:
+      slug: babybuddy
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/babybuddy.png
+      meta_launch_url: https://baby.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Baby Buddy
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: babybuddy
+  - model: authentik_core.application
+    identifiers:
+      slug: bambuddy
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://bambuddy.${SECRET_DOMAIN}/img/apple-touch-icon.png
+      meta_launch_url: https://bambuddy.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Bambuddy
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: bambuddy
+  - model: authentik_core.application
+    identifiers:
+      slug: bazarr
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/bazarr.png
+      meta_launch_url: https://bazarr.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Bazarr
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: bazarr
+  - model: authentik_core.application
+    identifiers:
+      slug: code-server-tools
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/code-server.png
+      meta_launch_url: https://code.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Code Server
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: code-server-tools
+  - model: authentik_core.application
+    identifiers:
+      slug: glance
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/glance.png
+      meta_launch_url: https://glance.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Glance
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: glance
+  - model: authentik_core.application
+    identifiers:
+      slug: grimmory
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://books.${SECRET_DOMAIN}/assets/favicon.svg?b280ce4c57cf230e7fac0e7cdb8fc093
+      meta_launch_url: https://books.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Grimmory
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: grimmory
+  - model: authentik_core.application
+    identifiers:
+      slug: homepage
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
+      meta_launch_url: https://home.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Homepage
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: homepage
+  - model: authentik_core.application
+    identifiers:
+      slug: librechat
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/librechat.png
+      meta_launch_url: https://librechat.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: LibreChat
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: librechat
+  - model: authentik_core.application
+    identifiers:
+      slug: longhorn
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/longhorn.png
+      meta_launch_url: https://longhorn.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Longhorn
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: longhorn
+  - model: authentik_core.application
+    identifiers:
+      slug: matrix-account
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/matrix.png
+      meta_launch_url: https://mas.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Matrix Account
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: matrix-account
+  - model: authentik_core.application
+    identifiers:
+      slug: mattermost
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/mattermost.png
+      meta_launch_url: https://matter.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Mattermost
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: mattermost
+  - model: authentik_core.application
+    identifiers:
+      slug: metube
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/metube.png
+      meta_launch_url: https://metube.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: MeTube
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: metube
+  - model: authentik_core.application
+    identifiers:
+      slug: music-assistant
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/music-assistant.png
+      meta_launch_url: https://music.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Music Assistant
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: music-assistant
+  - model: authentik_core.application
+    identifiers:
+      slug: n8n
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/n8n.png
+      meta_launch_url: https://n8n.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: n8n
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: n8n
+  - model: authentik_core.application
+    identifiers:
+      slug: nextcloud
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nextcloud.png
+      meta_launch_url: https://cloud.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Nextcloud
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: nextcloud
+  - model: authentik_core.application
+    identifiers:
+      slug: open-webui
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/open-webui.png
+      meta_launch_url: https://chat.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Open WebUI
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: open-webui
+  - model: authentik_core.application
+    identifiers:
+      slug: prometheus
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/prometheus.png
+      meta_launch_url: https://prometheus.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Prometheus
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: prometheus
+  - model: authentik_core.application
+    identifiers:
+      slug: prowlarr
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/prowlarr.png
+      meta_launch_url: https://prowlarr.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Prowlarr
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: prowlarr
+  - model: authentik_core.application
+    identifiers:
+      slug: qdrant
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/qdrant.png
+      meta_launch_url: https://qdrant.${SECRET_DOMAIN}/dashboard
+      meta_publisher: ''
+      name: Qdrant
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: qdrant
+  - model: authentik_core.application
+    identifiers:
+      slug: rackpeek
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://rackpeek.${SECRET_DOMAIN}/rackpeek_logo_32x32.png
+      meta_launch_url: https://rackpeek.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: RackPeek
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: rackpeek
+  - model: authentik_core.application
+    identifiers:
+      slug: radarr
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/radarr.png
+      meta_launch_url: https://radarr.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Radarr
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: radarr
+  - model: authentik_core.application
+    identifiers:
+      slug: radarr4k
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/radarr-4k.png
+      meta_launch_url: https://radarr4k.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Radarr 4K
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: radarr4k
+  - model: authentik_core.application
+    identifiers:
+      slug: seerr
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyseerr.png
+      meta_launch_url: https://requests.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Seerr
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: seerr
+  - model: authentik_core.application
+    identifiers:
+      slug: shlink
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/shlink.png
+      meta_launch_url: https://shlink.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Shlink
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: shlink
+  - model: authentik_core.application
+    identifiers:
+      slug: sonarr
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/sonarr.png
+      meta_launch_url: https://sonarr.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Sonarr
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: sonarr
+  - model: authentik_core.application
+    identifiers:
+      slug: tautulli
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tautulli.png
+      meta_launch_url: https://tautulli.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Tautulli
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: tautulli
+  - model: authentik_core.application
+    identifiers:
+      slug: teslamate
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/teslamate.png
+      meta_launch_url: https://teslamate.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: TeslaMate
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: teslamate
+  - model: authentik_core.application
+    identifiers:
+      slug: uptime-kuma
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png
+      meta_launch_url: https://uptime.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Uptime Kuma
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: uptime-kuma
+  - model: authentik_core.application
+    identifiers:
+      slug: webtop
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/webtop.png
+      meta_launch_url: https://webtop.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Webtop
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: webtop
