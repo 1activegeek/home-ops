@@ -177,7 +177,7 @@ queries `10.0.3.52` and fails if any dual host returns the external gateway IP.
 | External default auth | `.../envoy-gateway/app/securitypolicy-external-default.yaml` |
 | Internal split-DNS resolver | `kubernetes/apps/network/k8s-gateway/app/helmrelease.yaml` |
 | Public opt-out (reusable) | `kubernetes/components/public-access/` |
-| Forward-auth (reusable) | `kubernetes/components/authentik-forward-auth/` |
+| Proxy providers + outpost | `.../authentik/app/blueprints/30-proxy-integrations.yaml` |
 | External DNS publish (Cloudflare) | `kubernetes/apps/network/cloudflare-dns/` |
 | Public tunnel | `kubernetes/apps/network/cloudflare-tunnel/` |
 | UniFi forward | dnsmasq `server=/${SECRET_DOMAIN}/10.0.3.52` (single rule, on the UCG) |

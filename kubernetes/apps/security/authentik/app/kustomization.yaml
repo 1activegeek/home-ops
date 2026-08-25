@@ -26,6 +26,7 @@ configMapGenerator:
       - blueprints/20-oidc-integrations.yaml
       - blueprints/30-proxy-integrations.yaml
       - blueprints/40-launcher-apps.yaml
+      - blueprints/99-cleanup.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

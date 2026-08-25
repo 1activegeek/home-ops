@@ -77,7 +77,7 @@ Rules:
 - Hostname convention: `<app>.${SECRET_DOMAIN}` (or `{{ .Release.Name }}.${SECRET_DOMAIN}`).
 - Gateways: `envoy-internal` (default, LAN), `envoy-external` (internet via cloudflare-tunnel wildcard).
 - File naming: `httproute.yaml` = internal, `httproute-external.yaml` = external.
-- **External exposure is a security decision** — `envoy-external` carries a gateway-level default forward-auth SecurityPolicy (`envoy-external-default-auth`). To expose something *without* Authentik, opt out explicitly with the `kubernetes/components/public-access` component. **Never write an inline one-off SecurityPolicy.** Path-scoped carve-outs use `kubernetes/components/authentik-forward-auth`.
+- **External exposure is a security decision** — `envoy-external` carries a gateway-level default forward-auth SecurityPolicy (`envoy-external-default-auth`). To expose something *without* Authentik, opt out explicitly with the `kubernetes/components/public-access` component. **Never write an inline one-off SecurityPolicy.** Per-route auth is declared as a proxy provider in `kubernetes/apps/security/authentik/app/blueprints/30-proxy-integrations.yaml`, not as a second SecurityPolicy.
 - Every routed app declares an auth mode per `docs/architecture/authentication.md` before merge.
 - Remember: the Tailscale subnet router makes *all* internal services tailnet-reachable — "internal" is not "unreachable".
 
