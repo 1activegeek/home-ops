@@ -20,7 +20,7 @@ spec:
           init-keys:
             image:
               repository: ghcr.io/element-hq/synapse
-              tag: v1.156.0
+              tag: v1.159.0
             command: ["/bin/sh", "-c"]
             args:
               - |
@@ -33,7 +33,7 @@ spec:
           app:
             image:
               repository: ghcr.io/element-hq/synapse
-              tag: v1.156.0
+              tag: v1.159.0
             env:
               SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
             probes:
