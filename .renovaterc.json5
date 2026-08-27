@@ -14,12 +14,18 @@
   schedule: ["every weekend"],
   // Burn-in gate: hold every update until the upstream release is 3 days old,
   // measured from the datasource's release timestamp (not the PR open date).
-  // internalChecksFilter: "strict" (the default) keeps the PR hidden until the
-  // release ages past this threshold, so any PR the triage routine sees is
-  // already merge-eligible on green CI. This replaces the PR-age check that
-  // scripts/renovate-triage/triage.py used to enforce.
+  //
+  // internalChecksFilter MUST stay "none" (Renovate's default is "strict").
+  // Most OCI registries -- GHCR, quay.io, mcr, mirror.gcr.io -- expose no
+  // per-tag release timestamp, so Renovate can never satisfy minimumReleaseAge
+  // for those images and the internal check stays "pending" forever. Under
+  // "strict" that hides the PR indefinitely: every ghcr.io dependency in this
+  // repo silently stopped updating between 2026-05-25 and 2026-08-26 while
+  // Docker Hub and helm-datasource deps (which do carry timestamps) kept
+  // flowing. "none" raises the PR anyway and lets burn-in be enforced at merge
+  // time instead -- see MIN_PR_AGE_DAYS in scripts/renovate-triage/triage.py.
   minimumReleaseAge: "3 days",
-  internalChecksFilter: "strict",
+  internalChecksFilter: "none",
   ignorePaths: ["**/*.sops.*"],
   flux: {
     managerFilePatterns: ["/(^|/)kubernetes/.+\\.ya?ml(?:\\.j2)?$/"],
@@ -37,6 +43,13 @@
     managerFilePatterns: ["/^kustomization\\.ya?ml(?:\\.j2)?$/"],
   },
   packageRules: [
+    {
+      description: "Pin onepassword-connect chart to 2.2.1 - chart 2.3.0 changed credentials mounting from base64 env var to raw JSON file, incompatible with current SOPS secret encoding. Fix by re-encoding the 1password-credentials.json SOPS secret as raw JSON before upgrading.",
+      matchManagers: ["helmv3", "helm-values"],
+      matchPackageNames: ["connect"],
+      matchCurrentVersion: "2.2.1",
+      enabled: false,
+    },
     {
       description: "Override Helmfile Dependency Name",
       matchDatasources: ["docker"],
