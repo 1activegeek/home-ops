@@ -153,6 +153,17 @@ spec:
               - path: /data/homeserver.yaml
                 subPath: homeserver.yaml
                 readOnly: true
+      # Hookshot's appservice registration, referenced by
+      # app_service_config_files. Owned by externalsecret-appservice.yaml.
+      appservice:
+        type: secret
+        name: hookshot-registration
+        advancedMounts:
+          main:
+            app:
+              - path: /as/hookshot-registration.yml
+                subPath: registration.yml
+                readOnly: true
       log-config:
         type: configMap
         name: synapse-log-config

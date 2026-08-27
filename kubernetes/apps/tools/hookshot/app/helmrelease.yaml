@@ -1,0 +1,120 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: hookshot
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: hookshot
+  interval: 1h
+  values:
+    controllers:
+      main:
+        # Single replica only — no leader election. Multi-replica would require
+        # the worker-mode `queue:` Redis setup.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/matrix-org/matrix-hookshot
+              tag: 7.4.4
+            # The image CMD already points at /data/config.yml and
+            # /data/registration.yml, so no args override is needed.
+            probes:
+              # Undocumented, but registered on every configured listener.
+              # Not available on the appservice port (9993).
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /live
+                    port: 9000
+                  initialDelaySeconds: 20
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /ready
+                    port: 9000
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+            securityContext:
+              allowPrivilegeEscalation: false
+              # Hookshot performs no runtime disk writes, so the whole
+              # filesystem can be read-only.
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 512Mi
+        pod:
+          # The upstream image ships no USER directive and would otherwise run
+          # as root.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+
+    service:
+      main:
+        controller: main
+        ports:
+          webhooks:
+            port: 9000
+          appservice:
+            port: 9993
+          metrics:
+            port: 9001
+
+    persistence:
+      config:
+        type: secret
+        name: hookshot-secret
+        advancedMounts:
+          main:
+            app:
+              - path: /data/config.yml
+                subPath: config.yml
+                readOnly: true
+              - path: /data/passkey.pem
+                subPath: passkey.pem
+                readOnly: true
+      registration:
+        type: secret
+        name: hookshot-registration
+        advancedMounts:
+          main:
+            app:
+              - path: /data/registration.yml
+                subPath: registration.yml
+                readOnly: true
+
+    # Only the webhooks listener is routed. The appservice port (9993) stays
+    # cluster-internal — Synapse reaches it directly via the Service.
+    route:
+      app:
+        hostnames: ["hookshot.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: hookshot
+                port: 9000
