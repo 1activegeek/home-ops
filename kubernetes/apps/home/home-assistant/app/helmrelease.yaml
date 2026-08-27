@@ -33,7 +33,7 @@ spec:
           awscrt-pin:
             image:
               repository: ghcr.io/home-assistant/home-assistant
-              tag: 2026.5.4
+              tag: 2026.8.3
             command:
               - sh
               - -c
@@ -48,7 +48,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-assistant/home-assistant
-              tag: 2026.5.4
+              tag: 2026.8.3
             env:
               TZ: America/New_York
               # See the awscrt-pin initContainer above.
