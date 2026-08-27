@@ -103,7 +103,7 @@ Rules:
 The stack: **kube-prometheus-stack** (Prometheus + Alertmanager + node-exporter + kube-state-metrics), **Loki** + **Alloy** (logs), **Uptime Kuma** (uptime), existing **Grafana** — all in `monitoring`. When deploying a new app, wire it in with these standard hooks (everything is picked up automatically, no central config to edit):
 
 - **Metrics** — enable the chart's `serviceMonitor`/`metrics` values, or ship a `ServiceMonitor`/`PodMonitor` next to the app. Prometheus watches ALL monitors cluster-wide (nil selectors) — no labels or registration needed.
-- **Alerts** — ship a `PrometheusRule` CR next to the app; also auto-discovered. Alertmanager routes everything to Discord (`discord-webhook-jarvis` via ExternalSecret); severity tiers inhibit downward (critical > warning > info). `Watchdog`/`InfoInhibitor` are nulled.
+- **Alerts** — ship a `PrometheusRule` CR next to the app; also auto-discovered. Alertmanager delivers to Matrix through a matrix-hookshot generic webhook (see `docs/matrix-webhooks.md`); severity tiers inhibit downward (critical > warning > info). `Watchdog`/`InfoInhibitor` are nulled. (History: this was Discord, then Mattermost `#infrastructure` — both retired.)
 - **Logs** — automatic. Alloy (DaemonSet) tails every pod on its node and pushes to Loki with labels `namespace, pod, container, node, app`. Nothing to configure per app.
 - **Dashboards** — ConfigMap labeled `grafana_dashboard: "1"` (any namespace) with the JSON under `data:`; the Grafana sidecar auto-loads it. Datasources likewise via `grafana_datasource: "1"`.
 - **Uptime** — add a monitor in Uptime Kuma (`uptime.` internal route) for anything user-facing. Manual/API for now; declarative auto-registration is a planned follow-up.

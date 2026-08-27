@@ -1,0 +1,24 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: hookshot
+spec:
+  # The appservice registration secret (hookshot-registration) is owned by the
+  # synapse Kustomization, since Synapse must be able to read that file to boot.
+  # Depending on synapse here keeps the ordering one-directional.
+  dependsOn:
+    - name: synapse
+  interval: 1h
+  path: ./kubernetes/apps/tools/hookshot/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: tools
+  wait: false

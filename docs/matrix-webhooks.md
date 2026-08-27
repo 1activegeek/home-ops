@@ -1,0 +1,161 @@
+# Matrix webhooks (matrix-hookshot)
+
+Webhook integration for the Matrix stack. Tools push notifications into Matrix
+over per-room webhook URLs; Matrix rooms can push events back out over HTTP.
+
+**Important:** webhook connections are stored as **Matrix room state events**
+(`uk.half-shot.matrix-hookshot.generic.hook`), not in git and not in a database.
+This document is the recovery record for everything that lives outside the repo.
+
+## What's deployed
+
+| Piece | Where |
+|---|---|
+| Hookshot | `kubernetes/apps/tools/hookshot/` — `ghcr.io/matrix-org/matrix-hookshot:7.4.4`, ns `tools` |
+| Appservice registration | `kubernetes/apps/tools/synapse/app/externalsecret-appservice.yaml` → secret `hookshot-registration` |
+| Synapse wiring | `app_service_config_files: [/as/hookshot-registration.yml]` in `synapse/app/externalsecret.yaml` |
+| Route | `hookshot.${SECRET_DOMAIN}` on `envoy-internal` → port 9000 |
+| Secrets | 1Password item `hookshot` (`as_token`, `hs_token`, `passkey`) |
+
+Ports: **9000** webhooks (routed, plus `/live` + `/ready` probes), **9001** metrics,
+**9993** appservice (`/_matrix/app/*`, cluster-internal only — never routed).
+
+No database, no Redis, no PVC. Hookshot performs no runtime disk writes, so it
+runs with `readOnlyRootFilesystem: true` and read-only secret mounts.
+
+## Hard constraints
+
+- **E2EE must stay off.** MAS has no `m.login.application_service`, so encrypted
+  bridges cannot authenticate
+  ([MAS#2580](https://github.com/element-hq/matrix-authentication-service/issues/2580)).
+  Never add an `encryption:` block. Keep notification rooms unencrypted.
+  Omitting encryption is also what removes the Redis requirement.
+- **Hookshot must be ≥ 7.4.4.** Synapse ≥ 1.139 enforces MSC4190, which broke
+  older Hookshot ([#1089](https://github.com/matrix-org/matrix-hookshot/issues/1089),
+  fixed in [#1092](https://github.com/matrix-org/matrix-hookshot/pull/1092)).
+- **`url` in registration.yml must point at port 9993**, not 9000. Port 9000
+  serves a different Express app with no `/_matrix/app/*` routes, so Synapse's
+  appservice ping 404s and the bridge is marked down
+  ([#1265](https://github.com/matrix-org/matrix-hookshot/issues/1265)).
+- **`generic.userIdPrefix` must match the registration `users.regex`** (`_webhooks_`).
+- **No `provisioning:` block** — removed in Hookshot 7.x. `listeners.resources`
+  accepts only `webhooks`, `widgets`, `metrics`. The rendered upstream docs are
+  stale on this point.
+- A malformed registration file **crash-loops Synapse**. Roll back the two
+  synapse files if that happens.
+
+## Adding a webhook for a new tool
+
+1. Create a room in Element (unencrypted).
+2. Invite `@hookshot:matrix.${SECRET_DOMAIN}`.
+3. Raise the bot to Moderator (50) so it can send state events.
+4. Run `!hookshot webhook <name>` (name 3–64 chars).
+
+The bot confirms in-room and **DMs the secret URL** in an admin room it creates.
+Each URL is bound to that one room — this is the per-app/per-room separation.
+
+Other commands: `!hookshot webhook list`, `!hookshot webhook remove <name>`,
+`!hookshot help`.
+
+Use the in-cluster URL `http://hookshot.tools.svc.cluster.local:9000/webhook/<hookId>`
+for cluster senders, and `https://hookshot.${SECRET_DOMAIN}/webhook/<hookId>`
+for LAN senders.
+
+### Payload formatting
+
+Hookshot reads **only** `text`, `html`, and `username` from an incoming payload.
+There is no `body` or `message` fallback — anything else is dumped into the room
+as a pretty-printed JSON code block.
+
+- **Simple senders** (Home Assistant `rest_command`, n8n HTTP node, shell
+  CronJobs): just POST `{"text": "..."}`. Markdown is rendered. No transform.
+- **Fixed-schema senders** (Alertmanager, Uptime Kuma, Forgejo): need a JS
+  transformation function.
+
+### Transformation functions
+
+They live in the room state event's `transformationFunction` key and must be set
+with the client's state-event editor — there is no bot command for this in 7.x.
+Scripts run in a sandboxed QuickJS VM with a 2s limit, enabled globally by
+`generic.allowJsTransformationFunctions: true`.
+
+Anyone who can send state events in the room can rewrite the script, so keep
+room power levels tight.
+
+Assign to `result` using the v2 API. Alertmanager:
+
+```js
+const alerts = data.alerts || [];
+const rows = alerts.map(a => {
+  const icon = a.status === 'firing' ? '🔥' : '✅';
+  const l = a.labels || {}, ann = a.annotations || {};
+  return `${icon} <b>${l.alertname || 'unknown'}</b> [${l.severity || '-'}] ${l.namespace || ''}<br>` +
+         `${ann.summary || ann.description || ''}`;
+});
+const critical = alerts.some(a => (a.labels || {}).severity === 'critical' && a.status === 'firing');
+result = {
+  version: "v2",
+  empty: rows.length === 0,
+  plain: `${data.status}: ${alerts.length} alert(s)`,
+  html: rows.join('<br>'),
+  msgtype: "m.notice",
+  mentions: { room: critical }
+};
+```
+
+## Outbound (Matrix → HTTP)
+
+`generic.outbound: true` is already set and needs nothing else. Per room:
+
+```
+!hookshot outbound-hook <name> <url>
+```
+
+Hookshot PUTs `multipart/form-data` — an `event` part with the raw Matrix event
+JSON, plus an optional `media` part — with headers `X-Matrix-Hookshot-EventId`,
+`-RoomId`, and `-Token`. Authenticate on the token header.
+
+**Every event in the room is forwarded.** The receiver must filter on `type`.
+
+## Room → webhook map
+
+Fill in as webhooks are created. Keep this current — it is the only record
+outside room state.
+
+| Room | Source | Direction | Transform | Hook ID stored in |
+|---|---|---|---|---|
+| _(tbd)_ | Alertmanager | in | yes (above) | 1P `hookshot-hooks` |
+| _(tbd)_ | Longhorn backup CronJob | in | no (`{"text": ...}`) | 1P `hookshot-hooks` |
+| _(tbd)_ | Uptime Kuma | in | yes | 1P `hookshot-hooks` |
+| _(tbd)_ | Forgejo | in | yes | 1P `hookshot-hooks` |
+
+## Verification
+
+```sh
+# Appservice ping — a 404 means registration `url` targets the wrong port
+kubectl -n tools run curl --rm -it --restart=Never --image=curlimages/curl -- \
+  curl -XPOST -H "Authorization: Bearer $HS_TOKEN" -H 'Content-Type: application/json' \
+  -d '{}' http://hookshot.tools.svc.cluster.local:9993/_matrix/app/v1/ping
+
+# Probes
+curl http://hookshot.tools.svc.cluster.local:9000/live    # {"ok":true}
+curl http://hookshot.tools.svc.cluster.local:9000/ready   # {"ready":true}
+
+# Round trip
+curl -X POST -H 'Content-Type: application/json' -d '{"text":"hello"}' <webhook url>
+```
+
+Validate config changes before deploying (needs Docker):
+
+```sh
+docker run --rm -v $PWD/config.yml:/config.yml \
+  ghcr.io/matrix-org/matrix-hookshot:7.4.4 node config/Config.js /config.yml
+```
+
+## Not enabled
+
+Hookshot also ships GitHub, GitLab, Jira, RSS/Atom, and Figma connectors. Each
+needs its own `users.regex` namespace in the registration file plus a config
+section (and, for GitHub, an OAuth app). The generic webhook covers every
+current source. RSS feed resumption across restarts is the one feature that
+would justify adding Redis later.
