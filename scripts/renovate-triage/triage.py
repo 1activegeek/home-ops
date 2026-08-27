@@ -4,11 +4,12 @@
 Classifies open Renovate PRs by type label + CI status and outputs triage.json.
 Optionally approves and squash-merges the safe bucket.
 
-Release-age burn-in is enforced upstream by Renovate via `minimumReleaseAge`
-(.renovaterc.json5), which measures age from the datasource's release timestamp
-and keeps a PR hidden until it ages past the threshold. So any PR this script
-sees has already passed burn-in; it only needs to gate on type + CI status.
-PR age is reported for context but is no longer a merge gate.
+Release-age burn-in is enforced HERE, at merge time, via MIN_PR_AGE_DAYS.
+Renovate's own `minimumReleaseAge` (.renovaterc.json5) cannot carry the gate on
+its own: most OCI registries (GHCR, quay.io, mcr) expose no per-tag release
+timestamp, so that check never resolves for those images. .renovaterc.json5 sets
+internalChecksFilter: "none" so the PR is raised anyway, and this script holds it
+until the PR itself is MIN_PR_AGE_DAYS old before it lands in the safe bucket.
 
 Usage:
   triage.py                        # report mode, JSON to stdout
@@ -52,6 +53,10 @@ POD_BAD_WAITING = {
     "CreateContainerError",
     "InvalidImageName",
 }
+
+# Burn-in: a safe PR must sit open this many days before auto-merge. See the
+# module docstring for why this lives here and not in Renovate's config.
+MIN_PR_AGE_DAYS = 3
 
 TYPE_LABELS = {"type/major", "type/minor", "type/patch", "type/digest"}
 SAFE_TYPES = {"type/minor", "type/patch", "type/digest"}
@@ -113,8 +118,7 @@ def checks_state(rollup):
 
 
 def pr_age_days(created_at):
-    """PR age in days. Informational only — release-age burn-in is enforced
-    upstream by Renovate's minimumReleaseAge, not by this number."""
+    """PR age in days. This is the burn-in clock — see MIN_PR_AGE_DAYS."""
     created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
     return (datetime.now(timezone.utc) - created).days
 
@@ -152,11 +156,18 @@ def bucket_pr(pr):
         return "review", entry
 
     if update_type in SAFE_TYPES:
-        if ci == "green":
-            entry["reason"] = f"{update_type}, all checks green (burn-in passed upstream)"
-            return "safe", entry
-        entry["reason"] = f"checks {ci}"
-        return "waiting", entry
+        if ci != "green":
+            entry["reason"] = f"checks {ci}"
+            return "waiting", entry
+        if age < MIN_PR_AGE_DAYS:
+            entry["reason"] = (
+                f"burn-in: PR is {age}d old, needs {MIN_PR_AGE_DAYS}d"
+            )
+            return "waiting", entry
+        entry["reason"] = (
+            f"{update_type}, all checks green, burn-in passed ({age}d old)"
+        )
+        return "safe", entry
 
     entry["reason"] = "unknown update type; manual review needed"
     return "review", entry
