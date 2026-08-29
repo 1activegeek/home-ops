@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: docker.io/mattermost/mattermost-team-edition
-              tag: 11.10.0
+              tag: 11.10.1
             env:
               MM_SERVICESETTINGS_SITEURL: "https://matter.${SECRET_DOMAIN}"
               MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
