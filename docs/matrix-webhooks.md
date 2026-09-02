@@ -105,6 +105,19 @@ logged at startup and skipped rather than left open.
 3. **Invite the ghost to the room.** The relay registers a ghost it has not seen
    before, but an invite-only room cannot be self-joined.
 
+The registration call must pass `inhibit_login: true`. Synapse >= 1.139 enforces
+MSC4190, and with MAS in front it rejects an appservice registration without it:
+
+```
+IO.ELEMENT.MSC4190.M_APPSERVICE_LOGIN_UNSUPPORTED
+This server uses OAuth2, so the inhibit_login parameter must be set to true
+for appservice registrations.
+```
+
+This is the same MSC4190 enforcement that broke older Hookshot builds. It only
+bites the first time a given ghost is created, so a profile reusing a ghost
+hookshot already made will appear to work while a genuinely new sender fails.
+
 Two constraints worth knowing before designing around this:
 
 - Any sender must stay inside hookshot's **exclusive `@_webhooks_*` namespace**,

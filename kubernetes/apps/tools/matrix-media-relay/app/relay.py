@@ -120,8 +120,13 @@ def _ensure_registered(sender):
         return
     localpart = sender.split(":", 1)[0].lstrip("@")
     try:
+        # inhibit_login is mandatory: Synapse >= 1.139 enforces MSC4190, and with
+        # MAS in front it rejects an appservice registration without it
+        # (IO.ELEMENT.MSC4190.M_APPSERVICE_LOGIN_UNSUPPORTED). The relay never
+        # needs the access token this suppresses -- it acts through the AS token.
         _matrix("POST", "/_matrix/client/v3/register", sender,
-                {"type": "m.login.application_service", "username": localpart})
+                {"type": "m.login.application_service", "username": localpart,
+                 "inhibit_login": True})
         log.info("registered ghost %s", sender)
     except urllib.error.HTTPError as exc:
         detail = exc.read()[:200]
