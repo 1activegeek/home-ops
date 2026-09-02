@@ -25,7 +25,24 @@ spec:
               PORT: &port 8080
               SYNAPSE_URL: http://synapse-main.tools.svc.cluster.local:8008
               TAUTULLI_URL: http://tautulli.media.svc.cluster.local:8181
-              SENDER: "@_webhooks_plex:matrix.${SECRET_DOMAIN}"
+              # Routing table. The profile -- not the request -- decides which
+              # ghost sends and which rooms are reachable, so a leaked token is
+              # confined to one sender and one room set. Each profile needs a
+              # matching TOKEN_<NAME> in the ExternalSecret; one without a token
+              # is logged and skipped at startup.
+              #
+              # To add a source: add a profile here, add its TOKEN_<NAME>, and
+              # invite the ghost to the room (invite-only rooms cannot be
+              # self-joined). Any new sender must stay inside hookshot's
+              # exclusive @_webhooks_* namespace -- a different prefix would
+              # need its own appservice registration and a Synapse restart.
+              PROFILES: |
+                {
+                  "plex": {
+                    "sender": "@_webhooks_plex:matrix.${SECRET_DOMAIN}",
+                    "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"]
+                  }
+                }
             envFrom:
               - secretRef:
                   name: matrix-media-relay-secret
