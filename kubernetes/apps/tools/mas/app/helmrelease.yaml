@@ -134,3 +134,37 @@ spec:
           - backendRefs:
               - name: mas-main
                 port: 8080
+      # MAS's compatibility layer, mounted on the Synapse client-API host.
+      # Synapse delegates auth to MAS and therefore answers M_UNRECOGNIZED on
+      # the legacy /login endpoints; clients that do not speak native OIDC
+      # (MSC2965) — FluffyChat, most mobile clients — read /login to discover
+      # flows and so offer no way to sign in. These rules hand login/logout/
+      # refresh to MAS instead, which advertises m.login.sso. Gateway API has
+      # no mid-path wildcard, so each client-API version is listed; the longer
+      # PathPrefix beats Synapse's catch-all at the gateway.
+      compat:
+        hostnames: ["synapse.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path:
+                  type: PathPrefix
+                  value: /_matrix/client/r0/login
+              - path:
+                  type: PathPrefix
+                  value: /_matrix/client/v3/login
+              - path:
+                  type: PathPrefix
+                  value: /_matrix/client/r0/logout
+              - path:
+                  type: PathPrefix
+                  value: /_matrix/client/v3/logout
+              - path:
+                  type: PathPrefix
+                  value: /_matrix/client/v3/refresh
+            backendRefs:
+              - name: mas-main
+                port: 8080
