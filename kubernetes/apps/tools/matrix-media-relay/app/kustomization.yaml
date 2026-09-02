@@ -20,6 +20,7 @@ configMapGenerator:
   - name: matrix-media-relay-avatars
     files:
       - avatar-plex.png
+      - avatar-requests.png
 
 generatorOptions:
   disableNameSuffixHash: true

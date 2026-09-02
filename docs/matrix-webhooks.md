@@ -144,9 +144,9 @@ PUT  /_matrix/client/v3/rooms/{roomId}/state/m.room.avatar/?user_id={sender}
 
 Doing it this way keeps the icon reproducible after a homeserver rebuild rather
 than being one-off manual state, the same problem the room-state webhooks have.
-`avatar-plex.svg` is the editable source; it was rasterized with
-`qlmanage -t -s 512`, recolored to Plex's palette, and inset to 58% so Element's
-circular crop does not clip the chevron.
+Each PNG keeps its `.svg` next to it as the editable source, rasterized with
+`qlmanage -t -s 512`. `avatar-plex.svg` was recolored to Plex's palette and
+inset to 58% so Element's circular crop does not clip the chevron.
 
 Hookshot rewrites display names on restart but never touches avatars, so what
 the relay sets here survives (verified by restarting hookshot and re-firing).
@@ -161,6 +161,24 @@ Two constraints worth knowing before designing around this:
 - Ghost display names are owned by hookshot for any name it also uses, so a
   profile sharing a name with a hookshot webhook inherits its `(Webhook)`
   suffix.
+
+### Poster sources: Tautulli paths vs absolute URLs
+
+`img` accepts either form and the relay picks the fetcher:
+
+- a **relative Plex library path** (`/library/metadata/.../thumb`) is proxied
+  through Tautulli's `/api/v2` command form, which is the only one that accepts
+  an API key;
+- an **absolute `http(s)` URL** is fetched directly, but only if its host is in
+  `IMAGE_HOSTS`. Sources that hand out public artwork links (Seerr's TMDB URLs)
+  use this path.
+
+The allowlist is load-bearing, not tidiness: the relay sits inside the cluster,
+so an unrestricted fetcher would be an SSRF pivot onto every internal service.
+For the same reason redirects are **refused rather than followed** — an
+allowlisted host that 302s elsewhere would otherwise walk straight past the
+check. Add a host to `IMAGE_HOSTS` in the HelmRelease to onboard another
+artwork source.
 
 ### Wiring Tautulli to it
 
@@ -196,6 +214,54 @@ JSON Data (Recently Added):
 
 Omit `img` and the relay sends a plain `m.notice` instead, so it degrades
 gracefully for sources with no artwork.
+
+
+### Wiring a request manager (Seerr) to it
+
+Seerr's **Webhook** notification agent posts a user-defined JSON body, which
+means it can talk to the relay directly with no transformation function. It is a
+separate profile from Plex on purpose: its own bearer token, its own
+`@_webhooks_*` ghost and avatar, so "requested/approved" traffic is visually
+distinct from "new media available" in the same room.
+
+> **Substitute by hand.** This is pasted into Seerr's own UI, so **nothing
+> expands `${SECRET_DOMAIN}`** and no placeholder resolves itself. Replace the
+> domain, the room ID (Element → Room Settings → Advanced), and the token (1P
+> item `matrix-media-relay`, property `token_requests`) before saving.
+
+Settings → Notifications → Webhook:
+
+| Field | Value |
+|---|---|
+| Webhook URL | `http://matrix-media-relay.tools.svc.cluster.local:8080/notify` |
+| Authorization Header | `Bearer <token_requests>` |
+| Notification Types | only the ones wanted (e.g. auto-approved, available) |
+
+JSON payload template — the relay reads `room`, `text`, `html`, and `img`, and
+ignores everything else:
+
+```json
+{
+  "room": "!YOUR_ROOM_ID:matrix.${SECRET_DOMAIN}",
+  "img": "{{image}}",
+  "text": "{{event}}\n\n{{subject}}\n{{message}}",
+  "html": "<b>{{event}}</b><br>{{subject}}"
+}
+```
+
+Two things to know before editing that template:
+
+- **`{{image}}` is an absolute TMDB URL**, so `image.tmdb.org` has to be in
+  `IMAGE_HOSTS` or the relay rejects the request and nothing is posted. It is
+  there by default.
+- Seerr renders **one template for every enabled notification type**, so the
+  wording has to work for all of them — `{{event}}` is what distinguishes
+  them at runtime. Wanting genuinely different text per type means a second
+  webhook agent, which Seerr does not support; use `{{event}}` instead.
+
+Fire a test event from Seerr's own UI (the agent has a **Test** button) rather
+than waiting for a real request. A 401 means the header is not literally
+`Bearer <token>`; a 403 means the room ID is not one the profile owns.
 
 ## Known-good noise
 

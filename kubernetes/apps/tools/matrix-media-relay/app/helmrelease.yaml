@@ -25,6 +25,10 @@ spec:
               PORT: &port 8080
               SYNAPSE_URL: http://synapse-main.tools.svc.cluster.local:8008
               TAUTULLI_URL: http://tautulli.media.svc.cluster.local:8181
+              # Absolute `img` URLs are fetched only from these hosts. Seerr
+              # hands out TMDB poster links; Tautulli's Plex library paths are
+              # relative and still go through the Tautulli API instead.
+              IMAGE_HOSTS: image.tmdb.org
               # Routing table. The profile -- not the request -- decides which
               # ghost sends and which rooms are reachable, so a leaked token is
               # confined to one sender and one room set. Each profile needs a
@@ -42,6 +46,11 @@ spec:
                     "sender": "@_webhooks_plex:matrix.${SECRET_DOMAIN}",
                     "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"],
                     "avatar": "avatar-plex.png"
+                  },
+                  "requests": {
+                    "sender": "@_webhooks_requests:matrix.${SECRET_DOMAIN}",
+                    "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"],
+                    "avatar": "avatar-requests.png"
                   }
                 }
             envFrom:
@@ -106,6 +115,9 @@ spec:
             app:
               - path: /app/avatars/avatar-plex.png
                 subPath: avatar-plex.png
+                readOnly: true
+              - path: /app/avatars/avatar-requests.png
+                subPath: avatar-requests.png
                 readOnly: true
 
     # Internal only. Tautulli reaches it in-cluster; the route is for testing.
