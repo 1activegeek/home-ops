@@ -167,8 +167,10 @@ PUT  /_matrix/client/v3/rooms/{roomId}/state/m.room.avatar/?user_id={sender}
 `m.room.avatar` requires **PL50** and the `@_webhooks_*` ghosts sit at
 `users_default` (0), so use the hookshot bot, which holds PL50.
 
-Doing it this way keeps the icon reproducible after a homeserver rebuild rather
-than being one-off manual state, the same problem the room-state webhooks have.
+That asymmetry is deliberate: a ghost icon is reproducible from the ConfigMap
+after a homeserver rebuild, a room avatar is not -- like the webhook connections
+themselves, it lives only in room state.
+
 A hand-made icon keeps its `.svg` next to it as the editable source, rasterized
 with `qlmanage -t -s 512`: `avatar-plex.svg` was recolored to Plex's palette and
 inset to 58% so Element's circular crop does not clip the chevron. Where the
