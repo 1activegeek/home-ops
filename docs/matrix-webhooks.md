@@ -44,6 +44,86 @@ runs with `readOnlyRootFilesystem: true` and read-only secret mounts.
 - A malformed registration file **crash-loops Synapse**. Roll back the two
   synapse files if that happens.
 
+## Known-good noise
+
+Hookshot logs this on **every** start:
+
+```
+**WARNING**: The homeserver reports it is unable to contact Hookshot.
+This will render Hookshot unusable until fixed.
+```
+
+**It is cosmetic — the bridge works.** Verified 2026-08-28: the bot responds to
+`!hookshot help`, and every Synapse-side appservice call (`whoami`,
+`capabilities`, `profile`, `joined_rooms`) returns 200 under the AS token.
+
+Only Synapse's own self-ping fails, with `ConnectionDone` at ~0.30s. A manual
+request from inside the Synapse pod to the same URL succeeds — Hookshot answers
+with its own `400 transaction_id did not match`, proving auth passes and the
+route exists:
+
+```sh
+kubectl -n tools exec deploy/synapse-main -c app -- python3 -c "
+import json,urllib.request
+tok=[l.split(':',1)[1].strip().strip('\"') for l in open('/as/hookshot-registration.yml')
+     if l.strip().startswith('hs_token:')][0]
+req=urllib.request.Request('http://hookshot.tools.svc.cluster.local:9993/_matrix/app/v1/ping',
+  data=json.dumps({'transaction_id':'test'}).encode(),
+  headers={'Authorization':'Bearer '+tok,'Content-Type':'application/json'}, method='POST')
+try: print(urllib.request.urlopen(req,timeout=10).status)
+except Exception as e: print(type(e).__name__, e, getattr(e,'read',lambda:b'')()[:200])
+"
+```
+
+Expect `400 transaction_id did not match`. A **404** is the real failure — it
+means the registration `url` points at the webhooks listener (9000) instead of
+the appservice port (9993). Anything else means the bridge is fine; ignore the
+warning.
+
+## Trap: ESO and Helm apply the appservice change separately
+
+This took Synapse down for ~95 minutes on first deploy. It will recur on a
+cluster rebuild or any change that touches both halves at once.
+
+`app_service_config_files` lives in the **ExternalSecret** (ESO-managed), while
+the `/as` volume that satisfies it lives in the **HelmRelease** (Helm-managed).
+They are applied by different controllers with no ordering between them. When
+ESO wins the race:
+
+1. ESO syncs the new `homeserver.yaml`; reloader restarts Synapse
+2. Synapse crashes — `FileNotFoundError: /as/hookshot-registration.yml`
+3. Helm's readiness wait times out and it **rolls back**, which removes the
+   volume while the ESO-managed config still demands the file
+4. Deadlock. Flux retries the doomed rollback indefinitely (~18 times observed);
+   it does **not** self-heal
+
+Recovery — force Helm to the git desired state instead of rolling back:
+
+```sh
+flux -n tools reconcile helmrelease synapse --force
+```
+
+Synapse comes up immediately, since by then both the volume and the secret exist.
+
+To avoid it entirely when re-introducing this from scratch, land the mount
+first: add the `appservice` persistence entry to synapse's HelmRelease in one
+commit (harmless on its own — the file is simply unused), then add
+`app_service_config_files` in a second commit.
+
+## Trap: duplicate 1Password field labels
+
+ESO's `dataFrom.extract` requires **unique** field labels. Creating the
+`hookshot` item with an explicit `notesPlain` field produces a second one
+alongside 1Password's native notes field, and both ExternalSecrets fail with:
+
+```
+error processing spec.dataFrom[0].extract, err:
+expected one 1Password ItemField matching: 'notesPlain' in 'hookshot', got 2
+```
+
+Never add `notesPlain` to the item template. Let `op item create` make its own,
+then set the text afterwards with `op item edit hookshot notesPlain="..."`.
+
 ## Adding a webhook for a new tool
 
 1. Create a room in Element (unencrypted).
