@@ -136,9 +136,14 @@ connections uses and re-applies its `<name> (Webhook)` form on restart, so
 re-checking is what wins the name back afterwards. The cost is one GET per
 notification.
 
-Dropping the `(Webhook)` suffix permanently instead means removing the hookshot
-connection that owns the ghost -- but only if nothing still posts to its URL,
-since removing the connection invalidates it.
+Dropping the `(Webhook)` suffix permanently is a **rename**, not a deletion.
+Hookshot derives its ghost as `@<userIdPrefix><name lowercased, stripped>` and
+hardcodes `<name> (Webhook)`, re-applying it on every message it sends through
+that connection. So a connection named `Plex` owns `@_webhooks_plex` and will
+keep reclaiming it. Renaming that connection to `Tautulli` moves it onto
+`@_webhooks_tautulli` and leaves `@_webhooks_plex` to the relay for good —
+which is what was done here. Deleting the connection would work too, but costs
+the webhook URL for no extra benefit.
 
 **Ghost avatars are declared per profile** with `"avatar": "<file>.png"`, the PNG
 living in the relay's ConfigMap next to `relay.py`. This is the intended path for
@@ -461,12 +466,24 @@ JSON, plus an optional `media` part — with headers `X-Matrix-Hookshot-EventId`
 Fill in as webhooks are created. Keep this current — it is the only record
 outside room state.
 
-| Room | Source | Direction | Transform | Hook ID stored in |
+Hookshot connections (state key is what `!hookshot webhook remove <x>` takes,
+which is not necessarily the display name):
+
+| Room | Source | State key | Name | Hook ID stored in |
 |---|---|---|---|---|
-| _(tbd)_ | Alertmanager | in | yes (above) | 1P `hookshot-hooks` |
-| _(tbd)_ | Longhorn backup CronJob | in | no (`{"text": ...}`) | 1P `hookshot-hooks` |
-| _(tbd)_ | Uptime Kuma | in | yes | 1P `hookshot-hooks` |
-| _(tbd)_ | Forgejo | in | yes | 1P `hookshot-hooks` |
+| Media Server | Tautulli (standby — the active path is the relay) | `tautulli` | `Tautulli` | 1P `hookshot-hooks` (`tautulli_hook_id`, `tautulli_url`) |
+| _(tbd)_ | Alertmanager | | | 1P `hookshot-hooks` |
+| _(tbd)_ | Longhorn backup CronJob | | | 1P `hookshot-hooks` |
+| _(tbd)_ | Uptime Kuma | | | 1P `hookshot-hooks` |
+| _(tbd)_ | Forgejo | | | 1P `hookshot-hooks` |
+
+Relay profiles (no hookshot connection involved — these post straight to
+Synapse):
+
+| Room | Source | Sender | Display name |
+|---|---|---|---|
+| Media Server | Tautulli → `/notify` | `@_webhooks_plex` | `Plex` |
+| Media Server | Seerr → `/notify` | `@_webhooks_requests` | `Requests` |
 
 ## Verification
 
