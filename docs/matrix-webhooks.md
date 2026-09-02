@@ -9,6 +9,13 @@ This document is the recovery record for everything that lives outside the repo.
 
 ## What's deployed
 
+> **Placeholders in this document.** `${SECRET_DOMAIN}` is a Flux substitution
+> variable: it resolves automatically inside `kubernetes/` manifests, but **not**
+> in anything pasted into another app's configuration UI. Wherever a snippet is
+> destined for an external tool, substitute the real values manually. The real
+> domain is deliberately kept out of this repo.
+
+
 | Piece | Where |
 |---|---|
 | Hookshot | `kubernetes/apps/tools/hookshot/` — `ghcr.io/matrix-org/matrix-hookshot:7.4.4`, ns `tools` |
@@ -86,6 +93,14 @@ built from `{rating_key}` instead — the bare `/thumb` path resolves fine.
 
 Webhook URL `http://matrix-media-relay.tools.svc.cluster.local:8080/notify`, POST.
 
+> **Substitute by hand.** Everything below is pasted into Tautulli's own UI, not
+> rendered by Flux, so **nothing expands `${SECRET_DOMAIN}`** and no placeholder
+> resolves itself. Before saving, replace `${SECRET_DOMAIN}` with the real
+> domain, `!YOUR_ROOM_ID` with the target room's ID (Element → Room Settings →
+> Advanced), and `<auth_token>` with the value from 1Password. Leaving
+> `${SECRET_DOMAIN}` in place sends a literal, invalid room ID and the relay
+> rejects it.
+
 JSON Headers:
 
 ```json
@@ -95,7 +110,7 @@ JSON Headers:
 JSON Data (Recently Added):
 
 ```json
-{"room": "!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}",
+{"room": "!YOUR_ROOM_ID:matrix.${SECRET_DOMAIN}",
  "img": "/library/metadata/{rating_key}/thumb",
  "text": "New {media_type!c} Available\n\n<movie>{title} ({year}) [{video_full_resolution}] - Runtime: {duration}\n{imdb_url}</movie><episode>{show_name} - S{season_num00}E{episode_num00} - {episode_name} [{video_full_resolution}]\n{thetvdb_url}</episode>",
  "html": "<b>New {media_type!c} Available</b><br><movie><a href=\"{imdb_url}\">{title}</a> ({year}) <span data-mx-color=\"#888888\">[{video_full_resolution}] &middot; {duration}</span></movie><episode><a href=\"{thetvdb_url}\">{show_name}</a> - S{season_num00}E{episode_num00}<br>{episode_name}</episode>"}
