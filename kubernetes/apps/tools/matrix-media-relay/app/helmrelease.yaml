@@ -40,7 +40,8 @@ spec:
                 {
                   "plex": {
                     "sender": "@_webhooks_plex:matrix.${SECRET_DOMAIN}",
-                    "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"]
+                    "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"],
+                    "avatar": "avatar-plex.png"
                   }
                 }
             envFrom:
