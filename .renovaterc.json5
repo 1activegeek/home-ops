@@ -11,7 +11,8 @@
   ],
   dependencyDashboard: true,
   dependencyDashboardTitle: "Renovate Dashboard 🤖",
-  schedule: ["every weekend"],
+  timezone: "America/New_York",
+  schedule: ["* 20-23 * * 3"],
   // Burn-in gate: hold every update until the upstream release is 3 days old,
   // measured from the datasource's release timestamp (not the PR open date).
   //
