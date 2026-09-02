@@ -1,0 +1,23 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: matrix-media-relay
+spec:
+  # Uses hookshot's appservice token to masquerade as its @_webhooks_* ghosts,
+  # so the registration secret (owned by synapse) must exist first.
+  dependsOn:
+    - name: synapse
+  interval: 1h
+  path: ./kubernetes/apps/tools/matrix-media-relay/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: tools
+  wait: false

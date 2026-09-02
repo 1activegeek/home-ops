@@ -28,5 +28,6 @@ resources:
   - ./mas/ks.yaml
   - ./element/ks.yaml
   - ./hookshot/ks.yaml
+  - ./matrix-media-relay/ks.yaml
   # - ./syncthing/ks.yaml
   # - ./kms/ks.yaml ## Disabling for now, likely to archive later
