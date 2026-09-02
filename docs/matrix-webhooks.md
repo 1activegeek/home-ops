@@ -84,6 +84,38 @@ so there is no drift.
 The relay is stdlib-only Python mounted from a ConfigMap into a stock `python`
 image — no image build, no registry, and Renovate still tracks the base tag.
 
+### Authorization model
+
+Callers are identified by a **per-profile bearer token**. The profile -- not the
+request -- decides which ghost sends and which rooms are reachable, so a stolen
+token cannot post as another sender or into an unrelated room. Tokens are
+compared with `hmac.compare_digest`, and `room` in the payload is optional: when
+supplied it must be in the profile's list, otherwise the request is refused with
+403 before anything is sent.
+
+Profiles live in `PROFILES` in the HelmRelease (routing, non-secret); each needs
+a matching `TOKEN_<NAME>` in the ExternalSecret. A profile with no token is
+logged at startup and skipped rather than left open.
+
+**Adding another notification source:**
+
+1. Add a profile to `PROFILES` with its `sender` and `rooms`.
+2. Add `TOKEN_<NAME>` to the ExternalSecret, and a `token_<name>` property to
+   the `matrix-media-relay` 1Password item.
+3. **Invite the ghost to the room.** The relay registers a ghost it has not seen
+   before, but an invite-only room cannot be self-joined.
+
+Two constraints worth knowing before designing around this:
+
+- Any sender must stay inside hookshot's **exclusive `@_webhooks_*` namespace**,
+  because the relay borrows hookshot's appservice token. A different prefix
+  (`@_alerts_*`) would need its own appservice registration in
+  `synapse/app/externalsecret-appservice.yaml` -- and therefore a Synapse
+  restart, which is the operation that caused the outage documented above.
+- Ghost display names are owned by hookshot for any name it also uses, so a
+  profile sharing a name with a hookshot webhook inherits its `(Webhook)`
+  suffix.
+
 ### Wiring Tautulli to it
 
 Tautulli's `/pms_image_proxy` requires a **web session**; only the `/api/v2`
@@ -97,14 +129,14 @@ Webhook URL `http://matrix-media-relay.tools.svc.cluster.local:8080/notify`, POS
 > rendered by Flux, so **nothing expands `${SECRET_DOMAIN}`** and no placeholder
 > resolves itself. Before saving, replace `${SECRET_DOMAIN}` with the real
 > domain, `!YOUR_ROOM_ID` with the target room's ID (Element → Room Settings →
-> Advanced), and `<auth_token>` with the value from 1Password. Leaving
+> Advanced), and `<token_plex>` with the value from 1Password (item `matrix-media-relay`). Leaving
 > `${SECRET_DOMAIN}` in place sends a literal, invalid room ID and the relay
 > rejects it.
 
 JSON Headers:
 
 ```json
-{"Authorization": "Bearer <auth_token from 1P matrix-media-relay>", "Content-Type": "application/json"}
+{"Authorization": "Bearer <token_plex from 1P matrix-media-relay>", "Content-Type": "application/json"}
 ```
 
 JSON Data (Recently Added):

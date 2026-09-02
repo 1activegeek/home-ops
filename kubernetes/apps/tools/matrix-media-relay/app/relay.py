@@ -6,29 +6,32 @@ but emits the image and the text as two separate events. This relay exists for
 the one case neither covers -- a single event with the artwork and the text
 together (MSC2530 caption), which is what Element renders as one card.
 
-Fetches the poster from Tautulli's API, uploads it to the Synapse media repo,
-and sends one m.image. Authenticates with hookshot's appservice token so it can
-masquerade as the same @_webhooks_* ghost that posts the text-only messages --
-no second appservice registration, so no Synapse restart.
+Authenticates with hookshot's appservice token so it can masquerade as the
+@_webhooks_* ghosts, meaning no second appservice registration and no Synapse
+restart.
+
+Callers are identified by a per-profile bearer token. The profile -- not the
+request -- decides which ghost sends and which rooms are reachable, so a leaked
+token cannot be used to post as someone else or into an unrelated room. Add a
+profile plus its TOKEN_<NAME> to onboard another notification source.
 
 Stdlib only, so it runs on a stock python image with no build step.
 """
 
+import hmac
 import json
 import logging
 import os
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SYNAPSE_URL = os.environ.get("SYNAPSE_URL", "http://synapse-main.tools.svc.cluster.local:8008")
 AS_TOKEN = os.environ["AS_TOKEN"]
-SENDER = os.environ["SENDER"]
-DEFAULT_ROOM = os.environ.get("DEFAULT_ROOM", "")
 TAUTULLI_URL = os.environ.get("TAUTULLI_URL", "http://tautulli.media.svc.cluster.local:8181")
 TAUTULLI_API_KEY = os.environ.get("TAUTULLI_API_KEY", "")
-AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "")
 PORT = int(os.environ.get("PORT", "8080"))
 TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "30"))
 MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_BYTES", str(10 * 1024 * 1024)))
@@ -37,8 +40,45 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("relay")
 
 
+def _load_profiles():
+    """{token: {"name","sender","rooms"}} built from PROFILES plus TOKEN_<NAME>.
+
+    Keeping the routing table out of the request means a stolen token is
+    confined to one sender and one room set.
+    """
+    raw = json.loads(os.environ.get("PROFILES", "{}"))
+    table = {}
+    for name, prof in raw.items():
+        token = os.environ.get("TOKEN_" + name.upper().replace("-", "_"))
+        if not token:
+            log.warning("profile %r has no TOKEN_%s; it is unreachable",
+                        name, name.upper().replace("-", "_"))
+            continue
+        rooms = prof.get("rooms") or []
+        if not prof.get("sender") or not rooms:
+            log.warning("profile %r needs both sender and rooms; skipping", name)
+            continue
+        table[token] = {"name": name, "sender": prof["sender"], "rooms": list(rooms)}
+    return table
+
+
+PROFILES = _load_profiles()
+_registered = set()
+
+
+def _authenticate(header):
+    """Constant-time match so the comparison cannot be timed to guess a token."""
+    if not header or not header.startswith("Bearer "):
+        return None
+    supplied = header[7:]
+    for token, profile in PROFILES.items():
+        if hmac.compare_digest(token, supplied):
+            return profile
+    return None
+
+
 def _image_size(data):
-    """(width, height) for PNG/JPEG, or (None, None). Only a rendering hint --
+    """(width, height) for PNG/JPEG, else (None, None). A rendering hint only --
     without it Element reflows the timeline while the image loads."""
     try:
         if data[:8] == b"\x89PNG\r\n\x1a\n":
@@ -60,9 +100,9 @@ def _image_size(data):
     return None, None
 
 
-def _matrix(method, path, body=None, content_type="application/json", raw=False):
+def _matrix(method, path, sender, body=None, content_type="application/json", raw=False):
     sep = "&" if "?" in path else "?"
-    url = SYNAPSE_URL + path + sep + "user_id=" + urllib.parse.quote(SENDER)
+    url = SYNAPSE_URL + path + sep + "user_id=" + urllib.parse.quote(sender)
     data = body if raw else (json.dumps(body).encode() if body is not None else None)
     req = urllib.request.Request(
         url, data=data, method=method,
@@ -70,6 +110,24 @@ def _matrix(method, path, body=None, content_type="application/json", raw=False)
     )
     with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
         return json.load(resp)
+
+
+def _ensure_registered(sender):
+    """Register the ghost once per process. Hookshot creates the ghosts it owns,
+    but a profile for a source hookshot has never seen would 403 without this.
+    The ghost still has to be invited to any invite-only room."""
+    if sender in _registered:
+        return
+    localpart = sender.split(":", 1)[0].lstrip("@")
+    try:
+        _matrix("POST", "/_matrix/client/v3/register", sender,
+                {"type": "m.login.application_service", "username": localpart})
+        log.info("registered ghost %s", sender)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read()[:200]
+        if b"M_USER_IN_USE" not in detail:
+            log.warning("register %s returned %s: %s", sender, exc.code, detail)
+    _registered.add(sender)
 
 
 def fetch_poster(img):
@@ -92,19 +150,22 @@ def fetch_poster(img):
     return data, ctype
 
 
-def send(payload):
-    room = payload.get("room") or DEFAULT_ROOM
-    if not room:
-        raise ValueError("no room supplied and DEFAULT_ROOM is unset")
+def send(profile, payload):
+    sender, allowed = profile["sender"], profile["rooms"]
+    room = payload.get("room") or allowed[0]
+    if room not in allowed:
+        raise PermissionError("profile %r may not post to %s" % (profile["name"], room))
+
     text = payload.get("text") or ""
     html = payload.get("html")
     img = payload.get("img")
+    _ensure_registered(sender)
 
     if img:
         data, ctype = fetch_poster(img)
         filename = payload.get("filename") or ("poster." + (ctype.split("/")[-1] or "jpg"))
         mxc = _matrix("POST", "/_matrix/media/v3/upload?filename=" + urllib.parse.quote(filename),
-                      data, ctype, raw=True)["content_uri"]
+                      sender, data, ctype, raw=True)["content_uri"]
         width, height = _image_size(data)
         info = {"mimetype": ctype, "size": len(data)}
         if width and height:
@@ -121,7 +182,7 @@ def send(payload):
 
     path = "/_matrix/client/v3/rooms/%s/send/m.room.message/%s" % (
         urllib.parse.quote(room), "relay-%d" % (time.time() * 1000))
-    return _matrix("PUT", path, content)["event_id"]
+    return _matrix("PUT", path, sender, content)["event_id"], room
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -137,13 +198,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path in ("/healthz", "/live", "/ready"):
-            return self._reply(200, {"ok": True})
+            return self._reply(200, {"ok": True, "profiles": len(PROFILES)})
         self._reply(404, {"error": "not found"})
 
     def do_POST(self):
         if self.path.split("?")[0] != "/notify":
             return self._reply(404, {"error": "not found"})
-        if AUTH_TOKEN and self.headers.get("Authorization") != "Bearer " + AUTH_TOKEN:
+        profile = _authenticate(self.headers.get("Authorization"))
+        if not profile:
+            log.warning("rejected unauthenticated POST from %s", self.address_string())
             return self._reply(401, {"error": "unauthorized"})
         try:
             length = int(self.headers.get("Content-Length") or 0)
@@ -151,14 +214,17 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("empty body")
             payload = json.loads(self.rfile.read(length))
         except Exception as exc:
-            log.warning("bad request: %s", exc)
+            log.warning("bad request from profile %s: %s", profile["name"], exc)
             return self._reply(400, {"error": str(exc)})
         try:
-            event_id = send(payload)
+            event_id, room = send(profile, payload)
+        except PermissionError as exc:
+            log.warning("%s", exc)
+            return self._reply(403, {"error": str(exc)})
         except Exception as exc:
-            log.exception("send failed")
+            log.exception("send failed for profile %s", profile["name"])
             return self._reply(502, {"error": str(exc)})
-        log.info("sent %s", event_id)
+        log.info("profile=%s room=%s sent %s", profile["name"], room, event_id)
         self._reply(200, {"event_id": event_id})
 
     def log_message(self, fmt, *args):
@@ -166,5 +232,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    log.info("listening on :%d as %s", PORT, SENDER)
+    if not PROFILES:
+        log.error("no usable profiles; every request will be rejected")
+    for p in PROFILES.values():
+        log.info("profile %s -> %s rooms=%s", p["name"], p["sender"], p["rooms"])
+    log.info("listening on :%d", PORT)
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
