@@ -47,11 +47,13 @@ spec:
                   "plex": {
                     "sender": "@_webhooks_plex:matrix.${SECRET_DOMAIN}",
                     "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"],
+                    "displayname": "Plex",
                     "avatar": "avatar-plex.png"
                   },
                   "requests": {
                     "sender": "@_webhooks_requests:matrix.${SECRET_DOMAIN}",
                     "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"],
+                    "displayname": "Requests",
                     "avatar": "avatar-requests.png"
                   }
                 }

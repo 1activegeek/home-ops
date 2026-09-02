@@ -127,6 +127,24 @@ This is the same MSC4190 enforcement that broke older Hookshot builds. It only
 bites the first time a given ghost is created, so a profile reusing a ghost
 hookshot already made will appear to work while a genuinely new sender fails.
 
+**Display names are declared per profile** with `"displayname": "<name>"`.
+Without one a ghost shows up as its raw localpart (`_webhooks_requests`),
+because Synapse sets a new user's display name to the localpart at
+registration. Unlike the avatar this is re-asserted on **every** send rather
+than cached: hookshot owns the name of any ghost one of its own webhook
+connections uses and re-applies its `<name> (Webhook)` form on restart, so
+re-checking is what wins the name back afterwards. The cost is one GET per
+notification.
+
+Dropping the `(Webhook)` suffix permanently is a **rename**, not a deletion.
+Hookshot derives its ghost as `@<userIdPrefix><name lowercased, stripped>` and
+hardcodes `<name> (Webhook)`, re-applying it on every message it sends through
+that connection. So a connection named `Plex` owns `@_webhooks_plex` and will
+keep reclaiming it. Renaming that connection to `Tautulli` moves it onto
+`@_webhooks_tautulli` and leaves `@_webhooks_plex` to the relay for good —
+which is what was done here. Deleting the connection would work too, but costs
+the webhook URL for no extra benefit.
+
 **Ghost avatars are declared per profile** with `"avatar": "<file>.png"`, the PNG
 living in the relay's ConfigMap next to `relay.py`. This is the intended path for
 giving every notification source its own icon: adding a webhook is one profile
@@ -149,8 +167,10 @@ PUT  /_matrix/client/v3/rooms/{roomId}/state/m.room.avatar/?user_id={sender}
 `m.room.avatar` requires **PL50** and the `@_webhooks_*` ghosts sit at
 `users_default` (0), so use the hookshot bot, which holds PL50.
 
-Doing it this way keeps the icon reproducible after a homeserver rebuild rather
-than being one-off manual state, the same problem the room-state webhooks have.
+That asymmetry is deliberate: a ghost icon is reproducible from the ConfigMap
+after a homeserver rebuild, a room avatar is not -- like the webhook connections
+themselves, it lives only in room state.
+
 A hand-made icon keeps its `.svg` next to it as the editable source, rasterized
 with `qlmanage -t -s 512`: `avatar-plex.svg` was recolored to Plex's palette and
 inset to 58% so Element's circular crop does not clip the chevron. Where the
@@ -247,27 +267,44 @@ Settings → Notifications → Webhook:
 | Authorization Header | `Bearer <token_requests>` |
 | Notification Types | only the ones wanted (e.g. auto-approved, available) |
 
-JSON payload template — the relay reads `room`, `text`, `html`, and `img`, and
-ignores everything else:
+JSON payload template. Seerr's stock template is a flat dump of every variable
+it knows; the relay reads only `room`, `text`, `html`, and `img`, so the useful
+conversion is to spend those variables on one rendered card rather than carry
+the unread keys:
 
 ```json
 {
   "room": "!YOUR_ROOM_ID:matrix.${SECRET_DOMAIN}",
   "img": "{{image}}",
-  "text": "{{event}}\n\n{{subject}}\n{{message}}",
-  "html": "<b>{{event}}</b><br>{{subject}}"
+  "text": "{{event}}\n\n{{subject}}\nRequested by {{requestedBy_username}}\n\n{{message}}",
+  "html": "<b>{{event}}</b><br><a href=\"https://www.themoviedb.org/{{media_type}}/{{media_tmdbid}}\">{{subject}}</a><br><span data-mx-color=\"#888888\">Requested by {{requestedBy_username}}</span><blockquote>{{message}}</blockquote>"
 }
 ```
 
-Two things to know before editing that template:
+`{{event}}` already reads as the headline ("Movie Request Automatically
+Approved", "Movie Now Available"), `{{subject}}` is the title and year, and
+`{{media_type}}` is `movie` or `tv` — which is exactly TMDB's own URL segment,
+so the title links to the right page with no mapping table.
+
+Four things to know before editing that template:
 
 - **`{{image}}` is an absolute TMDB URL**, so `image.tmdb.org` has to be in
   `IMAGE_HOSTS` or the relay rejects the request and nothing is posted. It is
-  there by default.
+  there by default. An empty `img` degrades to a plain `m.notice`, which is
+  what a test event (no media attached) produces.
+- Substitution is a plain **first-occurrence** `String.replace` per key, so a
+  placeholder repeated inside one value only expands once. Repeat it across
+  different keys instead, as `text` and `html` do above.
 - Seerr renders **one template for every enabled notification type**, so the
   wording has to work for all of them — `{{event}}` is what distinguishes
   them at runtime. Wanting genuinely different text per type means a second
   webhook agent, which Seerr does not support; use `{{event}}` instead.
+- Configuring this over the API rather than the UI means knowing that `types`
+  is a **bitmask** of the `Notification` enum in `server/lib/notifications/`
+  (`MEDIA_AVAILABLE = 8`, `MEDIA_AUTO_APPROVED = 128`, so both is `136`), and
+  that `options.jsonPayload` is posted as a **JSON string** which the server
+  double-encodes before storing — `JSON.parse(JSON.parse(...))` is what reads
+  it back.
 
 Fire a test event from Seerr's own UI (the agent has a **Test** button) rather
 than waiting for a real request. A 401 means the header is not literally
@@ -431,12 +468,24 @@ JSON, plus an optional `media` part — with headers `X-Matrix-Hookshot-EventId`
 Fill in as webhooks are created. Keep this current — it is the only record
 outside room state.
 
-| Room | Source | Direction | Transform | Hook ID stored in |
+Hookshot connections (state key is what `!hookshot webhook remove <x>` takes,
+which is not necessarily the display name):
+
+| Room | Source | State key | Name | Hook ID stored in |
 |---|---|---|---|---|
-| _(tbd)_ | Alertmanager | in | yes (above) | 1P `hookshot-hooks` |
-| _(tbd)_ | Longhorn backup CronJob | in | no (`{"text": ...}`) | 1P `hookshot-hooks` |
-| _(tbd)_ | Uptime Kuma | in | yes | 1P `hookshot-hooks` |
-| _(tbd)_ | Forgejo | in | yes | 1P `hookshot-hooks` |
+| Media Server | Tautulli (standby — the active path is the relay) | `tautulli` | `Tautulli` | 1P `hookshot-hooks` (`tautulli_hook_id`, `tautulli_url`) |
+| _(tbd)_ | Alertmanager | | | 1P `hookshot-hooks` |
+| _(tbd)_ | Longhorn backup CronJob | | | 1P `hookshot-hooks` |
+| _(tbd)_ | Uptime Kuma | | | 1P `hookshot-hooks` |
+| _(tbd)_ | Forgejo | | | 1P `hookshot-hooks` |
+
+Relay profiles (no hookshot connection involved — these post straight to
+Synapse):
+
+| Room | Source | Sender | Display name |
+|---|---|---|---|
+| Media Server | Tautulli → `/notify` | `@_webhooks_plex` | `Plex` |
+| Media Server | Seerr → `/notify` | `@_webhooks_requests` | `Requests` |
 
 ## Verification
 
