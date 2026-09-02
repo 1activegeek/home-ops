@@ -95,6 +95,18 @@ spec:
               - path: /app/relay.py
                 subPath: relay.py
                 readOnly: true
+      # Ghost avatars, referenced by "avatar" in PROFILES above. Without this
+      # mount the relay logs that the file is unreadable and skips applying the
+      # avatar -- notifications still send, so the omission is quiet.
+      avatars:
+        type: configMap
+        name: matrix-media-relay-avatars
+        advancedMounts:
+          main:
+            app:
+              - path: /app/avatars/avatar-plex.png
+                subPath: avatar-plex.png
+                readOnly: true
 
     # Internal only. Tautulli reaches it in-cluster; the route is for testing.
     route:
