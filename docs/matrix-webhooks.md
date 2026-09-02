@@ -151,9 +151,12 @@ PUT  /_matrix/client/v3/rooms/{roomId}/state/m.room.avatar/?user_id={sender}
 
 Doing it this way keeps the icon reproducible after a homeserver rebuild rather
 than being one-off manual state, the same problem the room-state webhooks have.
-Each PNG keeps its `.svg` next to it as the editable source, rasterized with
-`qlmanage -t -s 512`. `avatar-plex.svg` was recolored to Plex's palette and
-inset to 58% so Element's circular crop does not clip the chevron.
+A hand-made icon keeps its `.svg` next to it as the editable source, rasterized
+with `qlmanage -t -s 512`: `avatar-plex.svg` was recolored to Plex's palette and
+inset to 58% so Element's circular crop does not clip the chevron. Where the
+source project already ships a square icon, vendor that instead of redrawing it
+-- `avatar-requests.png` is Seerr's own `public/android-chrome-512x512.png`,
+copied verbatim, so it has no `.svg` beside it.
 
 Hookshot rewrites display names on restart but never touches avatars, so what
 the relay sets here survives (verified by restarting hookshot and re-firing).
