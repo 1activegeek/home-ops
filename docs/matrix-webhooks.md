@@ -102,7 +102,9 @@ logged at startup and skipped rather than left open.
 1. Add a profile to `PROFILES` with its `sender` and `rooms`.
 2. Add `TOKEN_<NAME>` to the ExternalSecret, and a `token_<name>` property to
    the `matrix-media-relay` 1Password item.
-3. **Invite the ghost to the room.** The relay registers a ghost it has not seen
+3. Drop the icon PNG next to `relay.py`, add it to the `matrix-media-relay-avatars`
+   generator and its mount, and reference it as `"avatar"` on the profile.
+4. **Invite the ghost to the room.** The relay registers a ghost it has not seen
    before, but an invite-only room cannot be self-joined.
 
 The registration call must pass `inhibit_login: true`. Synapse >= 1.139 enforces
@@ -118,22 +120,27 @@ This is the same MSC4190 enforcement that broke older Hookshot builds. It only
 bites the first time a given ghost is created, so a profile reusing a ghost
 hookshot already made will appear to work while a genuinely new sender fails.
 
-**Ghost avatars** are declared per profile with `"avatar": "<file>.png"`, and the
-PNG lives in the relay's ConfigMap next to `relay.py`. The relay uploads it and
+**Ghost avatars are declared per profile** with `"avatar": "<file>.png"`, the PNG
+living in the relay's ConfigMap next to `relay.py`. This is the intended path for
+giving every notification source its own icon: adding a webhook is one profile
+entry, its `TOKEN_<NAME>`, and its PNG. The relay uploads it and
 sets `avatar_url` on first use, recording the image's sha256 in the ghost's
 account data so restarts do not re-upload -- Synapse mints a fresh `mxc://`
 every upload, so an unconditional re-apply would leak media. Replace the PNG and
 the next request rolls the avatar over.
 
-**Room avatars** work the same way: `"room_avatar": "<file>.png"` on a profile
-sets `m.room.avatar` for every room the profile owns, hashed into room-scoped
-account data so it is applied once.
+**Room avatars are not managed here** -- they are set once against the
+homeserver and left in room state, which the nightly Synapse `pg_dump` and the
+Longhorn PVC backups already cover. To set one by hand:
 
-`m.room.avatar` requires **PL50**, and the `@_webhooks_*` ghosts sit at
-`users_default` (0), so room-level state is written as `STATE_SENDER` -- the
-hookshot bot, which does hold PL50 -- rather than as the profile's sender. If
-that sender lacks the power level Synapse returns 403, which is logged and
-skipped; the notification is unaffected.
+```
+POST /_matrix/media/v3/upload?filename=x.png                 -> {"content_uri": "mxc://..."}
+PUT  /_matrix/client/v3/rooms/{roomId}/state/m.room.avatar/?user_id={sender}
+     {"url": "mxc://..."}
+```
+
+`m.room.avatar` requires **PL50** and the `@_webhooks_*` ghosts sit at
+`users_default` (0), so use the hookshot bot, which holds PL50.
 
 Doing it this way keeps the icon reproducible after a homeserver rebuild rather
 than being one-off manual state, the same problem the room-state webhooks have.
