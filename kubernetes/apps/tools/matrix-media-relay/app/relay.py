@@ -13,7 +13,9 @@ restart.
 Callers are identified by a per-profile bearer token. The profile -- not the
 request -- decides which ghost sends and which rooms are reachable, so a leaked
 token cannot be used to post as someone else or into an unrelated room. Add a
-profile plus its TOKEN_<NAME> to onboard another notification source.
+profile plus its TOKEN_<NAME> to onboard another notification source; the ghost
+registers and joins its rooms on first use, so a public room needs no manual
+step at all.
 
 Stdlib only, so it runs on a stock python image with no build step.
 """
@@ -75,6 +77,7 @@ def _load_profiles():
 
 PROFILES = _load_profiles()
 _registered = set()
+_joined = set()
 
 
 def _authenticate(header):
@@ -146,6 +149,33 @@ def _ensure_registered(sender):
     _registered.add(sender)
 
 
+def _ensure_joined(sender, room):
+    """Join the room once per process, so onboarding a profile does not require
+    driving Element by hand.
+
+    Synapse rejects a send from a non-member with 403 whatever the join rule is,
+    so this is what makes a public notification room self-service. The same call
+    accepts a pending invite, which covers invite-only rooms too -- but it cannot
+    manufacture one, so an invite-only room with no invite still 403s here. That
+    is logged with the room and sender and then skipped: the send that follows
+    fails on its own and reports the real error, rather than this masking it.
+    """
+    key = (sender, room)
+    if key in _joined:
+        return
+    try:
+        # Idempotent: Synapse answers 200 for a user that is already a member,
+        # so there is nothing to check before calling it.
+        _matrix("POST", "/_matrix/client/v3/join/" + urllib.parse.quote(room), sender, {})
+        log.info("%s is in %s", sender, room)
+    except urllib.error.HTTPError as exc:
+        log.warning("%s could not join %s (%s): %s -- invite it if the room is "
+                    "invite-only", sender, room, exc.code, exc.read()[:200])
+    except Exception:
+        log.exception("joining %s as %s failed", room, sender)
+    _joined.add(key)
+
+
 def _ensure_avatar(sender, filename):
     """Apply the profile's avatar, uploading only when the bytes have changed.
 
@@ -187,6 +217,8 @@ def _ensure_avatar(sender, filename):
 
 def _ensure_identity(profile):
     _ensure_registered(profile["sender"])
+    for room in profile["rooms"]:
+        _ensure_joined(profile["sender"], room)
     if profile.get("avatar"):
         _ensure_avatar(profile["sender"], profile["avatar"])
 

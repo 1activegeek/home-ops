@@ -104,8 +104,15 @@ logged at startup and skipped rather than left open.
    the `matrix-media-relay` 1Password item.
 3. Drop the icon PNG next to `relay.py`, add it to the `matrix-media-relay-avatars`
    generator and its mount, and reference it as `"avatar"` on the profile.
-4. **Invite the ghost to the room.** The relay registers a ghost it has not seen
-   before, but an invite-only room cannot be self-joined.
+
+That is the whole procedure for a **public** room: on first use the relay
+registers the ghost and joins it to every room in its profile, because Synapse
+rejects a send from a non-member with 403 regardless of the join rule.
+
+An **invite-only** room still needs the ghost invited first — the join call
+accepts a pending invite but cannot manufacture one. The failure is logged with
+the sender and room and then skipped, so the send that follows reports the real
+error rather than being masked by it.
 
 The registration call must pass `inhibit_login: true`. Synapse >= 1.139 enforces
 MSC4190, and with MAS in front it rejects an appservice registration without it:

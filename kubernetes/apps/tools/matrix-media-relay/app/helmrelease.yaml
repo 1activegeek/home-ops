@@ -35,11 +35,13 @@ spec:
               # matching TOKEN_<NAME> in the ExternalSecret; one without a token
               # is logged and skipped at startup.
               #
-              # To add a source: add a profile here, add its TOKEN_<NAME>, and
-              # invite the ghost to the room (invite-only rooms cannot be
-              # self-joined). Any new sender must stay inside hookshot's
-              # exclusive @_webhooks_* namespace -- a different prefix would
-              # need its own appservice registration and a Synapse restart.
+              # To add a source: add a profile here and add its TOKEN_<NAME>.
+              # The ghost registers and joins its rooms on first use, so a
+              # public room needs nothing further; an invite-only room still
+              # needs the ghost invited, since a join cannot manufacture an
+              # invite. Any new sender must stay inside hookshot's exclusive
+              # @_webhooks_* namespace -- a different prefix would need its own
+              # appservice registration and a Synapse restart.
               PROFILES: |
                 {
                   "plex": {
