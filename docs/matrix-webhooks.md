@@ -248,26 +248,37 @@ Settings → Notifications → Webhook:
 | Notification Types | only the ones wanted (e.g. auto-approved, available) |
 
 JSON payload template — the relay reads `room`, `text`, `html`, and `img`, and
-ignores everything else:
+ignores everything else, so unrecognised keys are free to carry whatever the
+source offers:
 
 ```json
 {
   "room": "!YOUR_ROOM_ID:matrix.${SECRET_DOMAIN}",
   "img": "{{image}}",
-  "text": "{{event}}\n\n{{subject}}\n{{message}}",
-  "html": "<b>{{event}}</b><br>{{subject}}"
+  "text": "{{event}}\n\n{{subject}}\nRequested by {{requestedBy_username}}",
+  "html": "<b>{{event}}</b><br>{{subject}}<br><span data-mx-color=\"#888888\">Requested by {{requestedBy_username}}</span>"
 }
 ```
 
-Two things to know before editing that template:
+Four things to know before editing that template:
 
 - **`{{image}}` is an absolute TMDB URL**, so `image.tmdb.org` has to be in
   `IMAGE_HOSTS` or the relay rejects the request and nothing is posted. It is
-  there by default.
+  there by default. An empty `img` degrades to a plain `m.notice`, which is
+  what a test event (no media attached) produces.
+- Substitution is a plain **first-occurrence** `String.replace` per key, so a
+  placeholder repeated inside one value only expands once. Repeat it across
+  different keys instead, as `text` and `html` do above.
 - Seerr renders **one template for every enabled notification type**, so the
   wording has to work for all of them — `{{event}}` is what distinguishes
   them at runtime. Wanting genuinely different text per type means a second
   webhook agent, which Seerr does not support; use `{{event}}` instead.
+- Configuring this over the API rather than the UI means knowing that `types`
+  is a **bitmask** of the `Notification` enum in `server/lib/notifications/`
+  (`MEDIA_AVAILABLE = 8`, `MEDIA_AUTO_APPROVED = 128`, so both is `136`), and
+  that `options.jsonPayload` is posted as a **JSON string** which the server
+  double-encodes before storing — `JSON.parse(JSON.parse(...))` is what reads
+  it back.
 
 Fire a test event from Seerr's own UI (the agent has a **Test** button) rather
 than waiting for a real request. A 401 means the header is not literally
