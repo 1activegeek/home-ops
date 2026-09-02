@@ -13,7 +13,9 @@ restart.
 Callers are identified by a per-profile bearer token. The profile -- not the
 request -- decides which ghost sends and which rooms are reachable, so a leaked
 token cannot be used to post as someone else or into an unrelated room. Add a
-profile plus its TOKEN_<NAME> to onboard another notification source.
+profile plus its TOKEN_<NAME> to onboard another notification source; the ghost
+registers and joins its rooms on first use, so a public room needs no manual
+step at all.
 
 Stdlib only, so it runs on a stock python image with no build step.
 """
@@ -37,6 +39,11 @@ PORT = int(os.environ.get("PORT", "8080"))
 TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "30"))
 MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_BYTES", str(10 * 1024 * 1024)))
 AVATAR_DIR = os.environ.get("AVATAR_DIR", "/app/avatars")
+# Hosts an absolute `img` URL may be fetched from. The relay runs inside the
+# cluster, so an unrestricted fetcher would be an SSRF pivot onto every internal
+# service; the allowlist is what keeps `img` safe to accept from a caller.
+IMAGE_HOSTS = {h.strip().lower() for h in
+               os.environ.get("IMAGE_HOSTS", "image.tmdb.org").split(",") if h.strip()}
 # Account-data key holding the hash of the avatar we last applied, so the
 # image is only re-uploaded when it actually changes.
 AVATAR_STATE = "uk.co.matrix-media-relay.avatar"
@@ -70,6 +77,7 @@ def _load_profiles():
 
 PROFILES = _load_profiles()
 _registered = set()
+_joined = set()
 
 
 def _authenticate(header):
@@ -141,6 +149,33 @@ def _ensure_registered(sender):
     _registered.add(sender)
 
 
+def _ensure_joined(sender, room):
+    """Join the room once per process, so onboarding a profile does not require
+    driving Element by hand.
+
+    Synapse rejects a send from a non-member with 403 whatever the join rule is,
+    so this is what makes a public notification room self-service. The same call
+    accepts a pending invite, which covers invite-only rooms too -- but it cannot
+    manufacture one, so an invite-only room with no invite still 403s here. That
+    is logged with the room and sender and then skipped: the send that follows
+    fails on its own and reports the real error, rather than this masking it.
+    """
+    key = (sender, room)
+    if key in _joined:
+        return
+    try:
+        # Idempotent: Synapse answers 200 for a user that is already a member,
+        # so there is nothing to check before calling it.
+        _matrix("POST", "/_matrix/client/v3/join/" + urllib.parse.quote(room), sender, {})
+        log.info("%s is in %s", sender, room)
+    except urllib.error.HTTPError as exc:
+        log.warning("%s could not join %s (%s): %s -- invite it if the room is "
+                    "invite-only", sender, room, exc.code, exc.read()[:200])
+    except Exception:
+        log.exception("joining %s as %s failed", room, sender)
+    _joined.add(key)
+
+
 def _ensure_avatar(sender, filename):
     """Apply the profile's avatar, uploading only when the bytes have changed.
 
@@ -182,8 +217,42 @@ def _ensure_avatar(sender, filename):
 
 def _ensure_identity(profile):
     _ensure_registered(profile["sender"])
+    for room in profile["rooms"]:
+        _ensure_joined(profile["sender"], room)
     if profile.get("avatar"):
         _ensure_avatar(profile["sender"], profile["avatar"])
+
+
+def _read_image(resp, source):
+    ctype = (resp.headers.get("Content-Type") or "").split(";")[0].strip()
+    data = resp.read(MAX_IMAGE_BYTES + 1)
+    if not ctype.startswith("image/"):
+        # Tautulli answers an unauthenticated request with its login page, 200 OK.
+        raise ValueError("%s returned %s, not an image" % (source, ctype))
+    if len(data) > MAX_IMAGE_BYTES:
+        raise ValueError("poster exceeds MAX_IMAGE_BYTES (%d)" % MAX_IMAGE_BYTES)
+    return data, ctype
+
+
+def fetch_remote(img):
+    """Fetch an absolute poster URL, e.g. Seerr's {{image}} TMDB link.
+
+    Restricted to IMAGE_HOSTS. Redirects are refused rather than followed --
+    an allowlisted host that 302s elsewhere would otherwise walk straight past
+    the check and let a caller aim the fetcher at a cluster-internal address.
+    """
+    parsed = urllib.parse.urlsplit(img)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in ("http", "https") or host not in IMAGE_HOSTS:
+        raise ValueError("img host %r is not in IMAGE_HOSTS" % host)
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            raise ValueError("img URL redirected to %s; refusing to follow" % newurl)
+
+    opener = urllib.request.build_opener(_NoRedirect)
+    with opener.open(img, timeout=TIMEOUT) as resp:
+        return _read_image(resp, host)
 
 
 def fetch_poster(img):
@@ -196,14 +265,15 @@ def fetch_poster(img):
         "img": img, "width": 400, "height": 600, "fallback": "poster",
     })
     with urllib.request.urlopen(url, timeout=TIMEOUT) as resp:
-        ctype = (resp.headers.get("Content-Type") or "").split(";")[0].strip()
-        data = resp.read(MAX_IMAGE_BYTES + 1)
-    if not ctype.startswith("image/"):
-        # Tautulli answers an unauthenticated request with its login page, 200 OK.
-        raise ValueError("Tautulli returned %s, not an image (check the API key)" % ctype)
-    if len(data) > MAX_IMAGE_BYTES:
-        raise ValueError("poster exceeds MAX_IMAGE_BYTES (%d)" % MAX_IMAGE_BYTES)
-    return data, ctype
+        return _read_image(resp, "Tautulli")
+
+
+def fetch_image(img):
+    """`img` is either an absolute URL (Seerr hands out TMDB links) or a Plex
+    library path to be proxied through Tautulli."""
+    if img.startswith("http://") or img.startswith("https://"):
+        return fetch_remote(img)
+    return fetch_poster(img)
 
 
 def send(profile, payload):
@@ -218,7 +288,7 @@ def send(profile, payload):
     _ensure_identity(profile)
 
     if img:
-        data, ctype = fetch_poster(img)
+        data, ctype = fetch_image(img)
         filename = payload.get("filename") or ("poster." + (ctype.split("/")[-1] or "jpg"))
         mxc = _matrix("POST", "/_matrix/media/v3/upload?filename=" + urllib.parse.quote(filename),
                       sender, data, ctype, raw=True)["content_uri"]
