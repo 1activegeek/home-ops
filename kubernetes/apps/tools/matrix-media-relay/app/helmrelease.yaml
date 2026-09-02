@@ -1,0 +1,92 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: matrix-media-relay
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: matrix-media-relay
+  interval: 1h
+  values:
+    controllers:
+      main:
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: python
+              tag: 3.13-slim
+            command: ["python", "-u", "/app/relay.py"]
+            env:
+              TZ: America/New_York
+              PORT: &port 8080
+              SYNAPSE_URL: http://synapse-main.tools.svc.cluster.local:8008
+              TAUTULLI_URL: http://tautulli.media.svc.cluster.local:8181
+              SENDER: "@_webhooks_plex:matrix.${SECRET_DOMAIN}"
+            envFrom:
+              - secretRef:
+                  name: matrix-media-relay-secret
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /healthz
+                    port: *port
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+        pod:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+
+    service:
+      main:
+        controller: main
+        ports:
+          http:
+            port: *port
+
+    persistence:
+      src:
+        type: configMap
+        name: matrix-media-relay-src
+        advancedMounts:
+          main:
+            app:
+              - path: /app/relay.py
+                subPath: relay.py
+                readOnly: true
+
+    # Internal only. Tautulli reaches it in-cluster; the route is for testing.
+    route:
+      app:
+        hostnames: ["matrix-media-relay.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: matrix-media-relay
+                port: *port

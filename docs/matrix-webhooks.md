@@ -44,6 +44,66 @@ runs with `readOnlyRootFilesystem: true` and read-only secret mounts.
 - A malformed registration file **crash-loops Synapse**. Roll back the two
   synapse files if that happens.
 
+## Images: matrix-media-relay
+
+Hookshot **cannot send images**. Its generic-webhook result type is text/html
+only (no `url`/`info`/`file`), and transformation functions run in QuickJS with
+no network, so they cannot upload. Separately, Element destroys any `<img>`
+whose `src` is not an `mxc://` URI:
+
+```js
+// element-web apps/web/src/Linkify.ts
+if (!src.startsWith("mxc://")) { return { tagName, attribs: {} }; }
+```
+
+So a remote poster URL can never render, by any combination of webhook JSON.
+
+Apprise *can* upload (`POST /_matrix/media/v3/upload` → `m.image`), but sends the
+image and the text as **two separate events** with no caption support. For a
+single event carrying both, `kubernetes/apps/tools/matrix-media-relay/` fetches
+the artwork, uploads it, and sends one `m.image` with an MSC2530 caption.
+
+The caption only works when `filename` differs from `body` — if they match,
+clients render no caption at all.
+
+**Auth:** the relay uses **hookshot's appservice token** to masquerade as the
+same `@_webhooks_*` ghost that posts the text-only messages, so notifications
+keep one consistent sender. This needs no second appservice registration and
+therefore no Synapse restart. Consequence: rotating hookshot's `as_token`
+rotates the relay's too. `AS_TOKEN` and `TAUTULLI_API_KEY` are referenced
+directly from the `hookshot` and `tautulli` 1Password items rather than copied,
+so there is no drift.
+
+The relay is stdlib-only Python mounted from a ConfigMap into a stock `python`
+image — no image build, no registry, and Renovate still tracks the base tag.
+
+### Wiring Tautulli to it
+
+Tautulli's `/pms_image_proxy` requires a **web session**; only the `/api/v2`
+command form accepts an API key, which is what the relay calls. `{poster_url}`
+is empty unless notification image hosting is enabled, so pass the library path
+built from `{rating_key}` instead — the bare `/thumb` path resolves fine.
+
+Webhook URL `http://matrix-media-relay.tools.svc.cluster.local:8080/notify`, POST.
+
+JSON Headers:
+
+```json
+{"Authorization": "Bearer <auth_token from 1P matrix-media-relay>", "Content-Type": "application/json"}
+```
+
+JSON Data (Recently Added):
+
+```json
+{"room": "!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}",
+ "img": "/library/metadata/{rating_key}/thumb",
+ "text": "New {media_type!c} Available\n\n<movie>{title} ({year}) [{video_full_resolution}] - Runtime: {duration}\n{imdb_url}</movie><episode>{show_name} - S{season_num00}E{episode_num00} - {episode_name} [{video_full_resolution}]\n{thetvdb_url}</episode>",
+ "html": "<b>New {media_type!c} Available</b><br><movie><a href=\"{imdb_url}\">{title}</a> ({year}) <span data-mx-color=\"#888888\">[{video_full_resolution}] &middot; {duration}</span></movie><episode><a href=\"{thetvdb_url}\">{show_name}</a> - S{season_num00}E{episode_num00}<br>{episode_name}</episode>"}
+```
+
+Omit `img` and the relay sends a plain `m.notice` instead, so it degrades
+gracefully for sources with no artwork.
+
 ## Known-good noise
 
 Hookshot logs this on **every** start:
