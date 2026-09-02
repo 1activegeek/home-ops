@@ -18,6 +18,7 @@ profile plus its TOKEN_<NAME> to onboard another notification source.
 Stdlib only, so it runs on a stock python image with no build step.
 """
 
+import hashlib
 import hmac
 import json
 import logging
@@ -35,6 +36,10 @@ TAUTULLI_API_KEY = os.environ.get("TAUTULLI_API_KEY", "")
 PORT = int(os.environ.get("PORT", "8080"))
 TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "30"))
 MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_BYTES", str(10 * 1024 * 1024)))
+AVATAR_DIR = os.environ.get("AVATAR_DIR", "/app/avatars")
+# Account-data key holding the hash of the avatar we last applied, so the
+# image is only re-uploaded when it actually changes.
+AVATAR_STATE = "uk.co.matrix-media-relay.avatar"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("relay")
@@ -58,7 +63,8 @@ def _load_profiles():
         if not prof.get("sender") or not rooms:
             log.warning("profile %r needs both sender and rooms; skipping", name)
             continue
-        table[token] = {"name": name, "sender": prof["sender"], "rooms": list(rooms)}
+        table[token] = {"name": name, "sender": prof["sender"], "rooms": list(rooms),
+                        "avatar": prof.get("avatar")}
     return table
 
 
@@ -135,6 +141,51 @@ def _ensure_registered(sender):
     _registered.add(sender)
 
 
+def _ensure_avatar(sender, filename):
+    """Apply the profile's avatar, uploading only when the bytes have changed.
+
+    Synapse mints a fresh mxc:// on every upload, so re-uploading unconditionally
+    would leak media on each restart. The hash of what was last applied is kept
+    in the ghost's own account data, which makes this converge: edit the PNG in
+    the ConfigMap and the next request replaces the avatar, otherwise it is a
+    single cheap GET.
+
+    Hookshot rewrites display names but never touches avatars, so what is set
+    here survives its restarts.
+    """
+    path = os.path.join(AVATAR_DIR, filename)
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read()
+    except OSError as exc:
+        log.warning("avatar %s unreadable: %s", path, exc)
+        return
+    digest = hashlib.sha256(data).hexdigest()
+    state_path = "/_matrix/client/v3/user/%s/account_data/%s" % (
+        urllib.parse.quote(sender), AVATAR_STATE)
+    try:
+        if _matrix("GET", state_path, sender).get("sha256") == digest:
+            return
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:  # 404 simply means we have never set one
+            log.warning("reading avatar state for %s: %s", sender, exc)
+    try:
+        mxc = _matrix("POST", "/_matrix/media/v3/upload?filename=" + urllib.parse.quote(filename),
+                      sender, data, "image/png", raw=True)["content_uri"]
+        _matrix("PUT", "/_matrix/client/v3/profile/%s/avatar_url" % urllib.parse.quote(sender),
+                sender, {"avatar_url": mxc})
+        _matrix("PUT", state_path, sender, {"sha256": digest, "mxc": mxc})
+        log.info("avatar for %s set to %s", sender, mxc)
+    except Exception:
+        log.exception("could not set avatar for %s", sender)
+
+
+def _ensure_identity(profile):
+    _ensure_registered(profile["sender"])
+    if profile.get("avatar"):
+        _ensure_avatar(profile["sender"], profile["avatar"])
+
+
 def fetch_poster(img):
     """Tautulli's /pms_image_proxy requires a web session; only the /api/v2
     command form accepts the API key."""
@@ -164,7 +215,7 @@ def send(profile, payload):
     text = payload.get("text") or ""
     html = payload.get("html")
     img = payload.get("img")
-    _ensure_registered(sender)
+    _ensure_identity(profile)
 
     if img:
         data, ctype = fetch_poster(img)
