@@ -1,8 +1,0 @@
-# Flux's default source exclusions drop binary/media files, *.png among them, so
-# a PNG committed to git never reaches the cluster and any kustomization that
-# references it fails to build with "no such file or directory".
-#
-# matrix-media-relay ships ghost avatars as PNGs in a ConfigMap, so re-include
-# them. Scoped to that directory rather than repo-wide, to keep the rest of the
-# default exclusions intact.
-!kubernetes/apps/tools/matrix-media-relay/app/*.png

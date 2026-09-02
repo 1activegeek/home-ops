@@ -25,10 +25,6 @@ spec:
               PORT: &port 8080
               SYNAPSE_URL: http://synapse-main.tools.svc.cluster.local:8008
               TAUTULLI_URL: http://tautulli.media.svc.cluster.local:8181
-              # m.room.avatar requires PL50 and the @_webhooks_* ghosts sit at
-              # users_default (0). The hookshot bot holds PL50, so room-level
-              # state is written as it.
-              STATE_SENDER: "@hookshot:matrix.${SECRET_DOMAIN}"
               # Routing table. The profile -- not the request -- decides which
               # ghost sends and which rooms are reachable, so a leaked token is
               # confined to one sender and one room set. Each profile needs a
@@ -44,9 +40,7 @@ spec:
                 {
                   "plex": {
                     "sender": "@_webhooks_plex:matrix.${SECRET_DOMAIN}",
-                    "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"],
-                    "avatar": "avatar-plex.png",
-                    "room_avatar": "avatar-room-media-server.png"
+                    "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"]
                   }
                 }
             envFrom:
@@ -99,21 +93,6 @@ spec:
             app:
               - path: /app/relay.py
                 subPath: relay.py
-                readOnly: true
-      # Ghost avatars, referenced by "avatar" in PROFILES above. Without this
-      # mount the relay logs that the file is unreadable and skips applying the
-      # avatar -- notifications still send, so the omission is quiet.
-      avatars:
-        type: configMap
-        name: matrix-media-relay-avatars
-        advancedMounts:
-          main:
-            app:
-              - path: /app/avatars/avatar-plex.png
-                subPath: avatar-plex.png
-                readOnly: true
-              - path: /app/avatars/avatar-room-media-server.png
-                subPath: avatar-room-media-server.png
                 readOnly: true
 
     # Internal only. Tautulli reaches it in-cluster; the route is for testing.

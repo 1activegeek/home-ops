@@ -13,14 +13,6 @@ configMapGenerator:
   - name: matrix-media-relay-src
     files:
       - relay.py
-  # Ghost avatars. kustomize puts the PNG in binaryData automatically. Keeping
-  # them in git makes the avatars reproducible after a homeserver rebuild -- the
-  # relay re-uploads and re-applies them, rather than the icon being one-off
-  # manual state nothing records. avatar-plex.svg is the editable source.
-  - name: matrix-media-relay-avatars
-    files:
-      - avatar-plex.png
-      - avatar-room-media-server.png
 
 generatorOptions:
   disableNameSuffixHash: true

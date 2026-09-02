@@ -118,32 +118,6 @@ This is the same MSC4190 enforcement that broke older Hookshot builds. It only
 bites the first time a given ghost is created, so a profile reusing a ghost
 hookshot already made will appear to work while a genuinely new sender fails.
 
-**Ghost avatars** are declared per profile with `"avatar": "<file>.png"`, and the
-PNG lives in the relay's ConfigMap next to `relay.py`. The relay uploads it and
-sets `avatar_url` on first use, recording the image's sha256 in the ghost's
-account data so restarts do not re-upload -- Synapse mints a fresh `mxc://`
-every upload, so an unconditional re-apply would leak media. Replace the PNG and
-the next request rolls the avatar over.
-
-**Room avatars** work the same way: `"room_avatar": "<file>.png"` on a profile
-sets `m.room.avatar` for every room the profile owns, hashed into room-scoped
-account data so it is applied once.
-
-`m.room.avatar` requires **PL50**, and the `@_webhooks_*` ghosts sit at
-`users_default` (0), so room-level state is written as `STATE_SENDER` -- the
-hookshot bot, which does hold PL50 -- rather than as the profile's sender. If
-that sender lacks the power level Synapse returns 403, which is logged and
-skipped; the notification is unaffected.
-
-Doing it this way keeps the icon reproducible after a homeserver rebuild rather
-than being one-off manual state, the same problem the room-state webhooks have.
-`avatar-plex.svg` is the editable source; it was rasterized with
-`qlmanage -t -s 512`, recolored to Plex's palette, and inset to 58% so Element's
-circular crop does not clip the chevron.
-
-Hookshot rewrites display names on restart but never touches avatars, so what
-the relay sets here survives (verified by restarting hookshot and re-firing).
-
 Two constraints worth knowing before designing around this:
 
 - Any sender must stay inside hookshot's **exclusive `@_webhooks_*` namespace**,
