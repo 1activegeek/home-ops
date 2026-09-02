@@ -71,7 +71,8 @@ def _load_profiles():
             log.warning("profile %r needs both sender and rooms; skipping", name)
             continue
         table[token] = {"name": name, "sender": prof["sender"], "rooms": list(rooms),
-                        "avatar": prof.get("avatar")}
+                        "avatar": prof.get("avatar"),
+                        "displayname": prof.get("displayname")}
     return table
 
 
@@ -176,6 +177,30 @@ def _ensure_joined(sender, room):
     _joined.add(key)
 
 
+def _ensure_displayname(sender, name):
+    """Assert the ghost's display name on every send.
+
+    Synapse sets a new user's display name to its localpart, so a ghost with no
+    profile shows up as the raw `_webhooks_*` id. Hookshot also owns the name of
+    any ghost one of its own webhook connections uses, and re-applies its
+    `<name> (Webhook)` form when it restarts. Re-asserting here rather than
+    caching the result is what makes the relay's name win back after that: the
+    cost is one GET per notification, which is nothing at this traffic.
+    """
+    path = "/_matrix/client/v3/profile/%s/displayname" % urllib.parse.quote(sender)
+    try:
+        if _matrix("GET", path, sender).get("displayname") == name:
+            return
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:  # 404 simply means no name has ever been set
+            log.warning("reading display name for %s: %s", sender, exc)
+    try:
+        _matrix("PUT", path, sender, {"displayname": name})
+        log.info("display name for %s set to %r", sender, name)
+    except Exception:
+        log.exception("could not set display name for %s", sender)
+
+
 def _ensure_avatar(sender, filename):
     """Apply the profile's avatar, uploading only when the bytes have changed.
 
@@ -219,6 +244,8 @@ def _ensure_identity(profile):
     _ensure_registered(profile["sender"])
     for room in profile["rooms"]:
         _ensure_joined(profile["sender"], room)
+    if profile.get("displayname"):
+        _ensure_displayname(profile["sender"], profile["displayname"])
     if profile.get("avatar"):
         _ensure_avatar(profile["sender"], profile["avatar"])
 

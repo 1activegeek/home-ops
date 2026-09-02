@@ -127,6 +127,19 @@ This is the same MSC4190 enforcement that broke older Hookshot builds. It only
 bites the first time a given ghost is created, so a profile reusing a ghost
 hookshot already made will appear to work while a genuinely new sender fails.
 
+**Display names are declared per profile** with `"displayname": "<name>"`.
+Without one a ghost shows up as its raw localpart (`_webhooks_requests`),
+because Synapse sets a new user's display name to the localpart at
+registration. Unlike the avatar this is re-asserted on **every** send rather
+than cached: hookshot owns the name of any ghost one of its own webhook
+connections uses and re-applies its `<name> (Webhook)` form on restart, so
+re-checking is what wins the name back afterwards. The cost is one GET per
+notification.
+
+Dropping the `(Webhook)` suffix permanently instead means removing the hookshot
+connection that owns the ghost -- but only if nothing still posts to its URL,
+since removing the connection invalidates it.
+
 **Ghost avatars are declared per profile** with `"avatar": "<file>.png"`, the PNG
 living in the relay's ConfigMap next to `relay.py`. This is the intended path for
 giving every notification source its own icon: adding a webhook is one profile
@@ -247,18 +260,24 @@ Settings → Notifications → Webhook:
 | Authorization Header | `Bearer <token_requests>` |
 | Notification Types | only the ones wanted (e.g. auto-approved, available) |
 
-JSON payload template — the relay reads `room`, `text`, `html`, and `img`, and
-ignores everything else, so unrecognised keys are free to carry whatever the
-source offers:
+JSON payload template. Seerr's stock template is a flat dump of every variable
+it knows; the relay reads only `room`, `text`, `html`, and `img`, so the useful
+conversion is to spend those variables on one rendered card rather than carry
+the unread keys:
 
 ```json
 {
   "room": "!YOUR_ROOM_ID:matrix.${SECRET_DOMAIN}",
   "img": "{{image}}",
-  "text": "{{event}}\n\n{{subject}}\nRequested by {{requestedBy_username}}",
-  "html": "<b>{{event}}</b><br>{{subject}}<br><span data-mx-color=\"#888888\">Requested by {{requestedBy_username}}</span>"
+  "text": "{{event}}\n\n{{subject}}\nRequested by {{requestedBy_username}}\n\n{{message}}",
+  "html": "<b>{{event}}</b><br><a href=\"https://www.themoviedb.org/{{media_type}}/{{media_tmdbid}}\">{{subject}}</a><br><span data-mx-color=\"#888888\">Requested by {{requestedBy_username}}</span><blockquote>{{message}}</blockquote>"
 }
 ```
+
+`{{event}}` already reads as the headline ("Movie Request Automatically
+Approved", "Movie Now Available"), `{{subject}}` is the title and year, and
+`{{media_type}}` is `movie` or `tv` — which is exactly TMDB's own URL segment,
+so the title links to the right page with no mapping table.
 
 Four things to know before editing that template:
 
