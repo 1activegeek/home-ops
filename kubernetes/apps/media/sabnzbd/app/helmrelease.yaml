@@ -14,6 +14,32 @@ spec:
         annotations:
           reloader.stakater.com/auto: "true"
         strategy: Recreate
+        initContainers:
+          # Materialise/merge sabnzbd.ini from the 1Password seed. Also plants the
+          # canary the probes and watchdog key off - if the NFS mount is missing at
+          # start, this fails and the pod never runs, which is the intended halt.
+          seed-config:
+            image:
+              repository: ghcr.io/home-operations/sabnzbd
+              tag: 5.1.2
+            command:
+              - /bin/sh
+              - -c
+              - |
+                set -e
+                touch /data/media/.sabnzbd-canary
+                mkdir -p /downloads/incomplete /data/media/downloads/complete
+                python3 /scripts/seed-merge.py
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 25m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
         containers:
           app:
             image:
@@ -32,18 +58,37 @@ spec:
               - secretRef:
                   name: sabnzbd-secret
             probes:
+              # Liveness and readiness both assert the NAS mount is reachable AND
+              # the API answers. A hung `hard` NFS mount makes the stat block, the
+              # exec times out, and the pod is restarted / pulled from the Service
+              # so the *arrs stop queueing to it.
               liveness: &probes
                 enabled: true
                 custom: true
                 spec:
-                  httpGet:
-                    path: /api?mode=version
-                    port: &port 8080
-                  initialDelaySeconds: 0
-                  periodSeconds: 10
-                  timeoutSeconds: 1
-                  failureThreshold: 3
+                  exec:
+                    command:
+                      - python3
+                      - -c
+                      - |
+                        import os, urllib.request
+                        os.stat("/data/media/.sabnzbd-canary")
+                        urllib.request.urlopen("http://localhost:8080/api?mode=version", timeout=5)
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+                  timeoutSeconds: 10
+                  failureThreshold: 2
               readiness: *probes
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command: ["/bin/sh", "-c", "test -e /data/media/.sabnzbd-canary"]
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                  timeoutSeconds: 10
+                  failureThreshold: 30
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: false
@@ -51,11 +96,72 @@ spec:
             resources:
               requests:
                 cpu: 100m
+                memory: 512Mi
               limits:
                 memory: 2Gi
+          # Daily copy of the SABnzbd config to the NAS, independent of the
+          # Longhorn backup of the PVC - two restore paths. Runs as a sidecar
+          # rather than a CronJob because /config is RWO Longhorn and is already
+          # attached to this pod.
+          config-backup:
+            image:
+              repository: docker.io/library/busybox
+              tag: 1.37.0
+            command:
+              - /bin/sh
+              - -c
+              - |
+                DEST=/data/media/.backups/sabnzbd
+                while true; do
+                  if mkdir -p "$DEST" 2>/dev/null; then
+                    TS=$(date +%Y%m%d-%H%M%S)
+                    if tar czf "$DEST/sabnzbd-config-$TS.tar.gz" -C /config sabnzbd.ini admin 2>/dev/null; then
+                      echo "[config-backup] wrote $DEST/sabnzbd-config-$TS.tar.gz"
+                      find "$DEST" -name 'sabnzbd-config-*.tar.gz' -type f -mtime +14 -print -delete
+                    else
+                      echo "[config-backup] tar failed - skipping this cycle"
+                    fi
+                  else
+                    echo "[config-backup] destination unreachable - skipping this cycle"
+                  fi
+                  sleep 86400
+                done
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+          # Halts SABnzbd within ~30s of the NAS going away, rather than waiting
+          # out a liveness cycle. Shares the pod PID namespace so it can signal
+          # the app process directly. See docs/sabnzbd-migration.md §5a.
+          watchdog:
+            image:
+              repository: docker.io/library/busybox
+              tag: 1.37.0
+            command: ["/bin/sh", "/scripts/watchdog.sh"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                memory: 32Mi
     defaultPodOptions:
+      # Required for the watchdog to signal the SABnzbd process.
+      shareProcessNamespace: true
+      terminationGracePeriodSeconds: 30
       securityContext:
         runAsNonRoot: true
+        # 1027:100 matches ownership on the Synology export; deliberately not the
+        # repo-default 65534 (task validate:security-ctx will flag this).
         runAsUser: 1027
         runAsGroup: 100
         fsGroup: 100
@@ -64,22 +170,65 @@ spec:
         controller: sabnzbd
         ports:
           http:
-            port: *port
+            port: 8080
     persistence:
       config:
         type: persistentVolumeClaim
         storageClass: longhorn
         accessMode: ReadWriteOnce
         size: 1Gi
-        globalMounts:
-          - path: /config
-      # NFS media mount - single root for hardlink support
+        advancedMounts:
+          sabnzbd:
+            seed-config:
+              - path: /config
+            app:
+              - path: /config
+            config-backup:
+              - path: /config
+      # Incomplete/working set on local SSD, off the NAS link. Sized at ~3x the
+      # largest observed job (39GB remux); see docs/sabnzbd-migration.md §5c.
+      scratch:
+        type: persistentVolumeClaim
+        storageClass: longhorn-scratch
+        accessMode: ReadWriteOnce
+        size: 250Gi
+        advancedMounts:
+          sabnzbd:
+            seed-config:
+              - path: /downloads
+            app:
+              - path: /downloads
+      # Static PVC (not the inline `type: nfs`) so the mount carries hard/nconnect
+      # options - see pvc.yaml.
       media:
-        type: nfs
-        server: ${NFS_SERVER}
-        path: /volume1/media #remediate
-        globalMounts:
-          - path: /data/media
+        existingClaim: sabnzbd-media
+        advancedMounts:
+          sabnzbd:
+            seed-config:
+              - path: /data/media
+            app:
+              - path: /data/media
+            watchdog:
+              - path: /data/media
+            config-backup:
+              - path: /data/media
+      seed:
+        type: secret
+        name: sabnzbd-secret
+        advancedMounts:
+          sabnzbd:
+            seed-config:
+              - path: /seed
+      scripts:
+        type: configMap
+        name: sabnzbd-scripts
+        defaultMode: 0555
+        advancedMounts:
+          sabnzbd:
+            seed-config:
+              - path: /scripts
+            watchdog:
+              - path: /scripts
     route:
       app:
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]

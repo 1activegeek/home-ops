@@ -1,0 +1,169 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sabnzbd-scripts
+data:
+  # ---------------------------------------------------------------------------
+  # seed-merge.py - runs as an init container on every pod start.
+  #
+  # First boot (or PVC loss): writes the seed from 1Password verbatim, so the
+  # whole configuration is recoverable from the vault alone.
+  #
+  # Every boot after that: replaces ONLY the managed sections/keys and leaves
+  # everything SABnzbd wrote for itself untouched, so changes made in the web UI
+  # persist. Managed state (news servers, categories, folders) is
+  # 1Password-authoritative by design - a hand-edited news server should not
+  # drift silently away from source.
+  #
+  # Round-trip a deliberate UI change back into source with:
+  #   ./scripts/sabnzbd-export-config.sh
+  # ---------------------------------------------------------------------------
+  seed-merge.py: |
+    #!/usr/bin/env python3
+    import os, shutil, sys, time
+
+    SEED = "/seed/sabnzbd.ini.seed"
+    INI = "/config/sabnzbd.ini"
+
+    MANAGED_SECTIONS = {"servers", "categories"}
+    MANAGED_MISC = {
+        "download_dir", "complete_dir", "dirscan_dir", "script_dir",
+        "nzb_backup_dir", "permissions", "download_free", "complete_free",
+        "fulldisk_autoresume", "direct_unpack", "enable_unrar", "enable_7zip",
+        "enable_filejoin", "enable_tsjoin", "enable_par_cleanup",
+        "enable_all_par", "flat_unpack", "ignore_samples",
+        "deobfuscate_final_filenames", "cleanup_list", "fail_hopeless_jobs",
+        "fast_fail", "req_completion_rate", "propagation_delay",
+        "pause_on_pwrar", "unwanted_extensions",
+        "action_on_unwanted_extensions", "unwanted_extensions_mode",
+        "no_dupes", "no_smart_dupes", "dupes_propercheck", "cache_limit",
+        "bandwidth_max", "bandwidth_perc", "history_retention_option",
+        "history_retention_number",
+    }
+
+    def parse(text):
+        """SABnzbd uses configobj: [section] with optional [[subsection]]."""
+        out, sec, sub = [], None, None
+        for raw in text.splitlines():
+            line = raw.strip()
+            if line.startswith("[[") and line.endswith("]]"):
+                sub = line[2:-2]
+                out.append(("sub", sec, sub, None, None, raw))
+            elif line.startswith("[") and line.endswith("]"):
+                sec, sub = line[1:-1], None
+                out.append(("sec", sec, None, None, None, raw))
+            elif "=" in line and not line.startswith("#"):
+                k, v = line.split("=", 1)
+                out.append(("kv", sec, sub, k.strip(), v.strip(), raw))
+            else:
+                out.append(("raw", sec, sub, None, None, raw))
+        return out
+
+    def section_block(rows, name):
+        """Return the verbatim lines belonging to top-level section `name`."""
+        block, inside = [], False
+        for kind, sec, sub, k, v, raw in rows:
+            if kind == "sec":
+                inside = sec == name
+                if inside:
+                    continue
+            if inside:
+                block.append(raw)
+        while block and not block[-1].strip():
+            block.pop()
+        return block
+
+    def main():
+        if not os.path.exists(SEED):
+            sys.exit("seed not present at %s - is the ExternalSecret synced?" % SEED)
+        seed_text = open(SEED).read()
+
+        if not os.path.exists(INI):
+            os.makedirs(os.path.dirname(INI), exist_ok=True)
+            open(INI, "w").write(seed_text)
+            print("no existing sabnzbd.ini - wrote seed verbatim (%d bytes)" % len(seed_text))
+            return
+
+        shutil.copy2(INI, INI + ".bak-" + time.strftime("%Y%m%d-%H%M%S"))
+        cfgdir = os.path.dirname(INI)
+        baks = sorted(f for f in os.listdir(cfgdir) if f.startswith("sabnzbd.ini.bak-"))
+        for stale in baks[:-5]:
+            os.remove(os.path.join(cfgdir, stale))
+        cur, seed = parse(open(INI).read()), parse(seed_text)
+        seed_misc = {k: v for kind, sec, sub, k, v, _ in seed
+                     if kind == "kv" and sec == "misc" and sub is None}
+
+        out, changed, inside_managed = [], [], False
+        for kind, sec, sub, k, v, raw in cur:
+            if kind == "sec":
+                inside_managed = sec in MANAGED_SECTIONS
+                out.append(raw)
+                if inside_managed:
+                    out.extend(section_block(seed, sec))
+                    changed.append("[%s] replaced from seed" % sec)
+                continue
+            if inside_managed:
+                continue
+            if kind == "kv" and sec == "misc" and sub is None and k in MANAGED_MISC:
+                want = seed_misc.get(k)
+                if want is not None and want != v:
+                    changed.append("misc.%s: %r -> %r" % (k, v, want))
+                    out.append("%s = %s" % (k, want))
+                    continue
+            out.append(raw)
+
+        present = {k for kind, sec, sub, k, v, _ in cur
+                   if kind == "kv" and sec == "misc" and sub is None}
+        missing = [(k, v) for k, v in seed_misc.items()
+                   if k in MANAGED_MISC and k not in present]
+        if missing:
+            for i, line in enumerate(out):
+                if line.strip() == "[misc]":
+                    for k, v in missing:
+                        out.insert(i + 1, "%s = %s" % (k, v))
+                        changed.append("misc.%s added = %r" % (k, v))
+                    break
+
+        for sec in MANAGED_SECTIONS:
+            if not any(kind == "sec" and s == sec for kind, s, _, _, _, _ in cur):
+                out.append("[%s]" % sec)
+                out.extend(section_block(seed, sec))
+                changed.append("[%s] created from seed" % sec)
+
+        open(INI, "w").write("\n".join(out) + "\n")
+        print("merged seed into existing sabnzbd.ini; %d change(s)" % len(changed))
+        for c in changed:
+            print("  " + c)
+
+    main()
+
+  # ---------------------------------------------------------------------------
+  # watchdog.sh - sidecar. Halts SABnzbd the moment the NAS mount goes away,
+  # rather than waiting out a full liveness cycle. Runs in a shared PID
+  # namespace so it can signal the app container's process directly.
+  # ---------------------------------------------------------------------------
+  watchdog.sh: |
+    #!/bin/sh
+    CANARY=/data/media/.sabnzbd-canary
+    INTERVAL=15
+    FAILURES=0
+    THRESHOLD=2
+    echo "[watchdog] armed: checking $CANARY every ${INTERVAL}s, halt after $THRESHOLD consecutive failures"
+    while true; do
+      if timeout 10 test -e "$CANARY" 2>/dev/null; then
+        if [ "$FAILURES" -ne 0 ]; then
+          echo "[watchdog] storage recovered after $FAILURES failed check(s)"
+        fi
+        FAILURES=0
+      else
+        FAILURES=$((FAILURES + 1))
+        echo "[watchdog] STORAGE CHECK FAILED ($FAILURES/$THRESHOLD): $CANARY unreachable - NFS mount is down or hung"
+        if [ "$FAILURES" -ge "$THRESHOLD" ]; then
+          echo "[watchdog] HALTING SABnzbd: remote storage is unavailable, continuing would risk partial writes"
+          pkill -TERM -f 'SABnzbd.py' || pkill -TERM -f sabnzbd || echo "[watchdog] no SABnzbd process matched"
+          sleep 30
+        fi
+      fi
+      sleep "$INTERVAL"
+    done

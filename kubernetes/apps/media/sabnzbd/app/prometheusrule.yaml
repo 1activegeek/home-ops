@@ -1,0 +1,49 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sabnzbd
+spec:
+  groups:
+    - name: sabnzbd.rules
+      rules:
+        - alert: SabnzbdNotReady
+          expr: |
+            kube_pod_container_status_ready{namespace="media", pod=~"sabnzbd-.*", container="app"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: SABnzbd is not ready
+            description: >-
+              SABnzbd has failed its readiness probe for 5m. The probe asserts both
+              that the NAS mount is reachable and that the API answers, so the most
+              likely cause is the Synology NFS export being down or hung. Downloads
+              are halted and the *arrs are no longer queueing to it.
+
+        - alert: SabnzbdRestarting
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="media", pod=~"sabnzbd-.*"}[15m]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: SABnzbd is restarting repeatedly
+            description: >-
+              More than 3 container restarts in 15m. If this coincides with
+              SabnzbdNotReady, the storage watchdog is halting the process because
+              remote storage keeps disappearing.
+
+        - alert: SabnzbdScratchVolumeFilling
+          expr: |
+            kubelet_volume_stats_available_bytes{namespace="media", persistentvolumeclaim=~"sabnzbd-scratch"}
+              / kubelet_volume_stats_capacity_bytes{namespace="media", persistentvolumeclaim=~"sabnzbd-scratch"} < 0.15
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: SABnzbd scratch volume is filling up
+            description: >-
+              Less than 15% free on the incomplete/working volume. SABnzbd's own
+              download_free guard (40G) should pause the queue before it fills, but
+              a stuck post-processing job can hold space. Check for stalled unpacks.
