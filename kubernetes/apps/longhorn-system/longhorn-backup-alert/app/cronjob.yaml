@@ -16,6 +16,13 @@ spec:
       backoffLimit: 2
       ttlSecondsAfterFinished: 86400
       template:
+        metadata:
+          # Selected by the `longhorn-manager-allow-metrics` NetworkPolicy in
+          # kubernetes/apps/longhorn-system/longhorn/app/. Chart 1.12.1 locks
+          # longhorn-manager:9500 down to longhorn's own pods, so without this
+          # label the metrics read below times out and the job fails.
+          labels:
+            app.kubernetes.io/name: longhorn-backup-alert
         spec:
           restartPolicy: OnFailure
           automountServiceAccountToken: false

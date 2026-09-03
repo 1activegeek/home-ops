@@ -460,29 +460,70 @@ reproduced below — this is the only copy outside room state, so edit here
 and re-apply if you change one.
 
 **Alertmanager** — one line per alert, `@room` only when something
-critical is still firing, so resolved batches never ping:
+critical is still firing, so resolved batches never ping.
+
+Each alert carries its own links, which is the behaviour the Mattermost
+`slack_configs` receiver gave for free and a plain `webhook_configs` does not:
+Slack's schema has a title link, hookshot's payload has no link field at all,
+and `webhook_configs` has no body templating — so the links have to be *built
+here* from the payload. Alertmanager exposes no per-alert permalink, so
+`Alertmanager` and `Silence` point at its alert list and silence form filtered
+to the alert's own labels (`{alertname="…",namespace="…"}`), which is strictly
+more specific than Slack's receiver-level `titlelink`. `Graph` is the alert's
+`generatorURL` (Prometheus) and `Runbook` its `runbook_url` annotation; each is
+omitted when the payload lacks it, and every link disappears if `externalURL` is
+unset.
+
+`externalURL` is the payload field Alertmanager fills from
+`alertmanagerSpec.externalUrl` in the kube-prometheus-stack HelmRelease. Unset
+it and the alerts still render, just with no links — which is why that value is
+load-bearing rather than cosmetic:
 
 ```js
 const alerts = data.alerts || [];
 const esc = (s) => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;")
   .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const rows = alerts.map((a) => {
-  const icon = a.status === "firing" ? "🔥" : "✅";
-  const l = a.labels || {}, ann = a.annotations || {};
+const a = (href, text) => href
+  ? '<a href="' + esc(href) + '">' + esc(text) + "</a>" : esc(text);
+// Alertmanager has no per-alert permalink, so the nearest equivalent is its own
+// alert list filtered to this alert's identifying labels. The same expression
+// prefills the silence form's matchers. `instance` is left out on purpose: it
+// is an ephemeral IP:port that stops matching as soon as the target restarts.
+const base = String(data.externalURL || "").replace(/\/+$/, "");
+const matcher = (l) => "{" +
+  ["alertname", "namespace", "job_name", "pod"]
+    .filter((k) => l[k]).map((k) => k + '="' + l[k] + '"').join(",") + "}";
+const amUrl = (path, l) => base
+  ? base + path + "?filter=" + encodeURIComponent(matcher(l)) : "";
+
+const rows = alerts.map((al) => {
+  const icon = al.status === "firing" ? "🔥" : "✅";
+  const l = al.labels || {}, ann = al.annotations || {};
   const where = [l.namespace, l.pod || l.instance].filter(Boolean).join("/");
-  return icon + " <b>" + esc(l.alertname || "unknown") + "</b> [" +
+  const detail = amUrl("/#/alerts", l);
+  const links = [
+    detail ? a(detail, "Alertmanager") : "",
+    base ? a(amUrl("/#/silences/new", l), "Silence") : "",
+    al.generatorURL ? a(al.generatorURL, "Graph") : "",
+    ann.runbook_url ? a(ann.runbook_url, "Runbook") : "",
+  ].filter(Boolean).join(" &middot; ");
+  return icon + " <b>" + a(detail, l.alertname || "unknown") + "</b> [" +
     esc(l.severity || "-") + "]" + (where ? " " + esc(where) : "") + "<br>" +
-    "&nbsp;&nbsp;" + esc(ann.summary || ann.description || "");
+    "&nbsp;&nbsp;" + esc(ann.summary || ann.description || "") +
+    (links ? '<br>&nbsp;&nbsp;<span data-mx-color="#888888">' + links +
+      "</span>" : "");
 });
-const plain = alerts.map((a) => {
-  const l = a.labels || {}, ann = a.annotations || {};
-  return (a.status === "firing" ? "FIRING" : "RESOLVED") + " " +
+const plain = alerts.map((al) => {
+  const l = al.labels || {}, ann = al.annotations || {};
+  const detail = amUrl("/#/alerts", l);
+  return (al.status === "firing" ? "FIRING" : "RESOLVED") + " " +
     (l.alertname || "unknown") + " [" + (l.severity || "-") + "] " +
-    (l.namespace || "") + " - " + (ann.summary || ann.description || "");
+    (l.namespace || "") + " - " + (ann.summary || ann.description || "") +
+    (detail ? "\n  " + detail : "");
 }).join("\n");
 const critical = alerts.some(
-  (a) => (a.labels || {}).severity === "critical" && a.status === "firing");
+  (al) => (al.labels || {}).severity === "critical" && al.status === "firing");
 result = {
   version: "v2",
   empty: rows.length === 0,
