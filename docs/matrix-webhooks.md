@@ -469,84 +469,78 @@ result = {
 **Forgejo** — Forgejo sends one fixed schema per event type with **no
 discriminator in the body**; the event name is only in the
 `X-Forgejo-Event` header, which a transformation function never sees. So
-the payload shape is what identifies it, checked most-specific first:
+the payload shape is what identifies it. It also does the PR-sub-event
+filtering that Forgejo itself cannot (see Wiring Forgejo below):
 
 ```js
 // Forgejo sends one fixed schema per event type with no discriminator in the
 // body -- the event name is only in the X-Forgejo-Event header, which a
 // transformation function never sees. So the shape of the payload is what
 // identifies it, checked most-specific first.
+//
+// Scope is deliberately PRs and CI only. Forgejo's `pull_request` subscription
+// is an umbrella that expands server-side into every pull_request_* sub-event
+// with no way to narrow it, so the assign/label/milestone/comment churn is
+// filtered out HERE instead, by inspecting `action`.
 const esc = (s) => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;")
   .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const link = (href, text) =>
   href ? '<a href="' + esc(href) + '">' + esc(text) + "</a>" : esc(text);
-const first = (s) => String(s == null ? "" : s).split("\n")[0];
 
 const repo = (data.repository || {});
 const repoName = repo.full_name || "unknown";
 const repoUrl = repo.html_url || "";
-const who = (data.sender && (data.sender.login || data.sender.username)) ||
-            (data.pusher && (data.pusher.login || data.pusher.username)) || "someone";
+const who = (data.sender && (data.sender.login || data.sender.username)) || "someone";
 
 let plain = "", html = "", notify = false, empty = false;
 
-if (data.workflow_run) {
-  // CI. Only failures are worth a room notification; successes stay quiet so
-  // the room does not become a build log.
-  const w = data.workflow_run;
-  const concl = String(w.conclusion || w.status || "");
-  const ok = concl === "success";
-  if (ok || concl === "skipped") {
+if (data.run) {
+  // Forgejo Actions: {action: failure|success|recover, run: ActionRun,
+  // prior_status}. Only failure and recover are subscribed, so `success` here
+  // would be a subscription change rather than noise to filter.
+  const r = data.run;
+  const act = String(data.action || r.status || "");
+  const rRepo = (r.repository || repo);
+  const rRepoName = rRepo.full_name || repoName;
+  const trigger = (r.trigger_user && (r.trigger_user.login || r.trigger_user.username)) || who;
+  const title = r.title || ("run #" + (r.index_in_repo || r.id || ""));
+  const where = (r.prettyref ? " on " + r.prettyref : "") +
+                (r.commit_sha ? " @" + String(r.commit_sha).slice(0, 8) : "");
+  if (act === "success") {
     empty = true;
   } else {
-    notify = concl === "failure";
-    plain = "CI " + concl + ": " + (w.display_title || w.name || "workflow") +
-      " on " + repoName;
-    html = "❌ <b>CI " + esc(concl) + "</b> " +
-      link(w.html_url, w.display_title || w.name || "workflow") +
-      " on " + link(repoUrl, repoName);
+    const recovered = act === "recover";
+    notify = !recovered;
+    plain = (recovered ? "CI recovered: " : "CI failed: ") + title +
+      " in " + rRepoName + where + " (" + trigger + ")";
+    html = (recovered ? "✅ <b>CI recovered</b> " : "❌ <b>CI failed</b> ") +
+      link(r.html_url, title) + " in " + link(rRepo.html_url || repoUrl, rRepoName) +
+      "<br><span data-mx-color=\"#888888\">" + esc(where.replace(/^ /, "")) +
+      " · " + esc(trigger) + "</span>";
   }
-} else if (data.commits && data.ref) {
-  const branch = String(data.ref).replace("refs/heads/", "");
-  const n = data.commits.length;
-  plain = who + " pushed " + n + " commit(s) to " + repoName + "#" + branch;
-  const lines = data.commits.slice(0, 5).map((c) =>
-    "&nbsp;&nbsp;" + link(c.url, String(c.id || "").slice(0, 8)) + " " +
-    esc(first(c.message)));
-  html = "⬆️ <b>" + esc(who) + "</b> pushed " + n + " commit(s) to " +
-    link(repoUrl + "/src/branch/" + branch, repoName + "#" + branch) +
-    (lines.length ? "<br>" + lines.join("<br>") : "");
-  if (n > 5) html += "<br>&nbsp;&nbsp;… and " + (n - 5) + " more";
 } else if (data.pull_request) {
   const pr = data.pull_request;
   const act = String(data.action || "");
-  plain = who + " " + act + " PR #" + pr.number + " in " + repoName + ": " + pr.title;
-  html = "🔀 <b>" + esc(who) + "</b> " + esc(act) + " " +
-    link(pr.html_url, "#" + pr.number + " " + pr.title) +
-    " in " + link(repoUrl, repoName);
-} else if (data.release) {
-  const rel = data.release;
-  plain = who + " " + data.action + " release " + (rel.tag_name || "") + " in " + repoName;
-  html = "🏷️ <b>" + esc(who) + "</b> " + esc(data.action) + " release " +
-    link(rel.html_url, rel.tag_name || rel.name || "release") +
-    " in " + link(repoUrl, repoName);
-} else if (data.issue) {
-  const iss = data.issue;
-  plain = who + " " + data.action + " issue #" + iss.number + " in " + repoName + ": " + iss.title;
-  html = "📌 <b>" + esc(who) + "</b> " + esc(data.action) + " " +
-    link(iss.html_url, "#" + iss.number + " " + iss.title) +
-    " in " + link(repoUrl, repoName);
-} else if (data.action && repo.full_name) {
-  // repository created/deleted, fork, and the other repo-level actions.
-  plain = who + " " + data.action + " " + repoName;
-  html = "📦 <b>" + esc(who) + "</b> " + esc(data.action) + " " +
-    link(repoUrl, repoName);
+  // A pull_request_comment arrives with both pull_request and comment set.
+  const KEEP = ["opened", "closed", "reopened", "reviewed"];
+  if (data.comment || KEEP.indexOf(act) === -1) {
+    empty = true;
+  } else {
+    const merged = act === "closed" && pr.merged;
+    const verb = merged ? "merged" : act;
+    const icon = merged ? "🎉" : (act === "opened" ? "🔀" : (act === "closed" ? "🚫" : "💬"));
+    plain = who + " " + verb + " PR #" + pr.number + " in " + repoName + ": " + pr.title;
+    html = icon + " <b>" + esc(who) + "</b> " + esc(verb) + " " +
+      link(pr.html_url, "#" + pr.number + " " + pr.title) +
+      " in " + link(repoUrl, repoName);
+  }
 } else {
-  // Unknown shape. Say so rather than dumping the payload -- includeHookBody
-  // is false on this connection, so a silent empty would lose the event.
-  plain = "Forgejo event from " + repoName;
-  html = "📦 Forgejo event from " + link(repoUrl, repoName);
+  // Nothing else is subscribed. Say so rather than dumping the payload --
+  // includeHookBody is false here, so a silent empty would lose the event
+  // entirely and hide a subscription that was widened by accident.
+  plain = "Unsubscribed Forgejo event from " + repoName;
+  html = "📦 Unsubscribed Forgejo event from " + link(repoUrl, repoName);
 }
 
 result = {
@@ -752,29 +746,94 @@ why it is stored concealed rather than written into the manifest.
 
 ## Wiring Forgejo
 
-A **system webhook** (Site Administration → Webhooks, `/api/v1/admin/hooks`),
-not a per-repo one: it covers every repo including future ones. Hook id `2`,
-type `forgejo`, content type `json`, pointed at the in-cluster hookshot URL from
-1P `hookshot-hooks` (`forgejo_url`).
+Scope is **pull requests and CI only**. That takes two kinds of hook, because of
+a quirk worth knowing before touching any of this:
 
-Two things the API does silently:
+| Hook | Where | Events | Covers |
+|---|---|---|---|
+| System hook `2` | `/api/v1/admin/hooks` | `pull_request` | every repo, including future ones |
+| Repo hooks `4`,`5`,`6` | `/api/v1/repos/{owner}/{repo}/hooks` | `action_run_failure`, `action_run_recover` | that one repo |
 
-- **`pull_request` is an umbrella.** Asking for it expands server-side into
-  every `pull_request_*` sub-event — assign, label, milestone, comment, the
-  review ones. There is no way to subscribe to just opened/closed. If the room
-  gets loud, `PATCH /api/v1/admin/hooks/2` with an events list that omits
-  `pull_request` entirely; the other events survive a narrower list fine
-  (verified).
-- **Unknown events are dropped, not rejected.** `workflow_run` was requested and
-  silently discarded — this Forgejo (15.0.2+gitea-1.22.0) does not emit CI
-  events. The transformation function still has a `workflow_run` branch, which
-  costs nothing and starts working if a later version sends them. **So CI
-  failures do not currently reach the room.**
+All four point at the same in-cluster hookshot URL from 1P `hookshot-hooks`
+(`forgejo_url`), so they share one connection, one ghost and one transformation
+function.
 
-Creating the hook needed a `write:admin` token; the long-lived `orca_api_token`
-(user `jarvis`) only has repo scope. One was minted, used, and **deleted** — see
-`docs/matrix-webhooks.md` history rather than expecting it in 1P. Mint another
-the same way if the hook ever needs editing.
+### The quirk: system hooks reject CI events, repo hooks accept them
+
+Forgejo **does** support Actions webhooks — `action_run_failure`,
+`action_run_success`, `action_run_recover`, added in
+[forgejo#7508](https://codeberg.org/forgejo/forgejo/pulls/7508) (merged June
+2025). But on 15.0.2+gitea-1.22.0 the **system-hook** endpoint silently drops
+them, while the **repo-hook** endpoint accepts them. Verified empirically
+against this instance:
+
+```
+PATCH /api/v1/admin/hooks/2      events:[push, action_run_failure]  -> [push]
+POST  /api/v1/repos/{r}/hooks    events:[push, action_run_failure]  -> [push, action_run_failure]
+```
+
+Every candidate name was probed against the system endpoint —
+`action_run_failure`, `action_run_success`, `action_run_recover`,
+`workflow_run`, `workflow_job`, `actions`, `action_run`, `status` — and **all**
+were dropped. So the earlier note that "this Forgejo does not emit CI events"
+was wrong: it does, just not from a system hook.
+
+**Unknown events are dropped, not rejected.** The API returns 200 with a
+silently shortened list, so always read the response's `events` back rather than
+trusting the request. That is what hid this in the first place.
+
+### The other quirk: `pull_request` is an umbrella
+
+Subscribing to `pull_request` expands server-side into every `pull_request_*`
+sub-event — assign, label, milestone, comment, and the review ones. There is no
+API or UI way to subscribe to just opened/closed.
+
+So the filtering happens in the **transformation function** instead, which
+keeps only `opened`, `closed`, `reopened` and `reviewed` and returns
+`empty: true` for the rest (and for any payload carrying a `comment`, which is
+how a PR comment arrives). Verified: of seven representative payloads, the four
+intended ones posted and CI-success, PR-label and PR-comment stayed silent.
+
+`closed` with `pull_request.merged` true is rendered as **merged**, since
+Forgejo has no separate merge action.
+
+### Actions payload shape
+
+`{action: "failure"|"success"|"recover", run: ActionRun, prior_status}`. The
+useful `run` fields are `title`, `html_url`, `index_in_repo`, `prettyref`,
+`commit_sha`, `trigger_user`, `status`, `repository`. Note there is **no
+`conclusion`** field — `action` and `run.status` carry that.
+
+Only failure and recover are subscribed, so the room says when CI broke and when
+it came back, and nothing on a normal green run.
+
+### Coverage gap
+
+Repo hooks are per repo. **A newly created repo gets PR notifications
+automatically (system hook) but no CI notifications** until a hook is added to
+it. Forgejo's "default webhooks" — templates copied into new repos — would close
+this, but `/api/v1/admin/hooks` has no `type` parameter (confirmed against this
+instance's `swagger.v1.json`), so they are **UI-only**: Site Administration →
+Default Webhooks. Add one there pointing at the same URL with the two
+`action_run_*` events if repos start multiplying.
+
+### Admin token
+
+Managing any of this needs a `write:admin` token; the long-lived
+`orca_api_token` (user `jarvis`) has repo scope only. Tokens were minted for
+each change and **revoked immediately after** (revocation verified by a
+subsequent 401). Nothing admin-scoped is left in 1Password by design — mint
+another the same way:
+
+```sh
+op-session exec op run --no-masking --env-file=/dev/stdin -- sh -c '
+curl -s -X POST -u "$U:$P" -H "Content-Type: application/json" \
+  -d "{\"name\":\"tmp\",\"scopes\":[\"write:admin\",\"write:repository\"]}" \
+  https://git.<domain>/api/v1/users/$U/tokens' <<'ENV'
+U=op://homeops/forgejo/admin_username
+P=op://homeops/forgejo/admin_password
+ENV
+```
 
 ### Icon sources
 
