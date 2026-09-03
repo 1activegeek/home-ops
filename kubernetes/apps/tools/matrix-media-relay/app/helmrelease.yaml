@@ -18,7 +18,7 @@ spec:
           app:
             image:
               repository: python
-              tag: 3.13-slim
+              tag: 3.14-slim
             command: ["python", "-u", "/app/relay.py"]
             env:
               TZ: America/New_York
