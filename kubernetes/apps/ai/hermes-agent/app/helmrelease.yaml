@@ -30,7 +30,12 @@ spec:
           # everyone's memory — the post-apply greps are the safety net for a
           # patch that applies with fuzz but lands in the wrong place.
           patch-memory:
-            image:
+            # Anchored so the three containers can never drift apart: the
+            # patch is generated against one release's source, so copying
+            # files out of a different tag than the app containers run would
+            # mount mismatched code. Bump the tag here and both aliases below
+            # follow.
+            image: &image
               repository: docker.io/nousresearch/hermes-agent
               tag: v2026.8.19
             command:
@@ -65,9 +70,7 @@ spec:
             fsGroup: 10000
         containers:
           gateway:
-            image:
-              repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.8.19
+            image: *image
             args: ["gateway", "run"]
             env:
               HERMES_HOME: /opt/data
@@ -118,9 +121,7 @@ spec:
               limits:
                 memory: 3Gi
           dashboard:
-            image:
-              repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.8.19
+            image: *image
             args: ["dashboard", "--host", "0.0.0.0", "--no-open", "--insecure"]
             env:
               HERMES_HOME: /opt/data
