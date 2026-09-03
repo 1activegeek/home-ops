@@ -14,8 +14,8 @@ Callers are identified by a per-profile bearer token. The profile -- not the
 request -- decides which ghost sends and which rooms are reachable, so a leaked
 token cannot be used to post as someone else or into an unrelated room. Add a
 profile plus its TOKEN_<NAME> to onboard another notification source; the ghost
-registers and joins its rooms on first use, so a public room needs no manual
-step at all.
+registers, joins its rooms and applies its name and icon at startup, before the
+listener opens, so a public room needs no manual step at all.
 
 Stdlib only, so it runs on a stock python image with no build step.
 """
@@ -47,6 +47,10 @@ IMAGE_HOSTS = {h.strip().lower() for h in
 # Account-data key holding the hash of the avatar we last applied, so the
 # image is only re-uploaded when it actually changes.
 AVATAR_STATE = "uk.co.matrix-media-relay.avatar"
+# How long to wait at startup for a freshly-set avatar to reach a room's member
+# event. Only paid when an avatar actually changed, so normally zero.
+MEMBER_SYNC_TIMEOUT = float(os.environ.get("MEMBER_SYNC_TIMEOUT", "10"))
+MEMBER_SYNC_INTERVAL = 0.5
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("relay")
@@ -212,6 +216,9 @@ def _ensure_avatar(sender, filename):
 
     Hookshot rewrites display names but never touches avatars, so what is set
     here survives its restarts.
+
+    Returns (mxc, changed). `changed` is what tells the caller whether it is
+    worth waiting for the new avatar to reach room member events.
     """
     path = os.path.join(AVATAR_DIR, filename)
     try:
@@ -219,13 +226,14 @@ def _ensure_avatar(sender, filename):
             data = handle.read()
     except OSError as exc:
         log.warning("avatar %s unreadable: %s", path, exc)
-        return
+        return None, False
     digest = hashlib.sha256(data).hexdigest()
     state_path = "/_matrix/client/v3/user/%s/account_data/%s" % (
         urllib.parse.quote(sender), AVATAR_STATE)
     try:
-        if _matrix("GET", state_path, sender).get("sha256") == digest:
-            return
+        cached = _matrix("GET", state_path, sender)
+        if cached.get("sha256") == digest:
+            return cached.get("mxc"), False
     except urllib.error.HTTPError as exc:
         if exc.code != 404:  # 404 simply means we have never set one
             log.warning("reading avatar state for %s: %s", sender, exc)
@@ -236,8 +244,41 @@ def _ensure_avatar(sender, filename):
                 sender, {"avatar_url": mxc})
         _matrix("PUT", state_path, sender, {"sha256": digest, "mxc": mxc})
         log.info("avatar for %s set to %s", sender, mxc)
+        return mxc, True
     except Exception:
         log.exception("could not set avatar for %s", sender)
+        return None, False
+
+
+def _await_member_avatar(sender, room, mxc):
+    """Block until the ghost's avatar has reached this room's member event.
+
+    Setting `avatar_url` on the profile returns as soon as the profile is
+    written; Synapse then fans the change out into an m.room.member event per
+    room in the background. Clients render a message's sender from the member
+    state *at that event*, so a send that wins this race is displayed with no
+    avatar -- permanently, because the timeline is immutable. Waiting here is
+    what stops the first notification from a new ghost being the ugly one.
+
+    Bounded and best-effort: a timeout is logged and ignored, since a missing
+    icon is worth far less than a notification that never arrives.
+    """
+    path = "/_matrix/client/v3/rooms/%s/state/m.room.member/%s" % (
+        urllib.parse.quote(room), urllib.parse.quote(sender))
+    deadline = time.time() + MEMBER_SYNC_TIMEOUT
+    while time.time() < deadline:
+        try:
+            if _matrix("GET", path, sender).get("avatar_url") == mxc:
+                return True
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:  # 404 = not a member yet, keep waiting
+                log.warning("reading member state for %s in %s: %s", sender, room, exc)
+        except Exception:
+            log.exception("reading member state for %s in %s", sender, room)
+        time.sleep(MEMBER_SYNC_INTERVAL)
+    log.warning("avatar for %s did not reach %s within %ss; its next message may "
+                "render without an icon", sender, room, MEMBER_SYNC_TIMEOUT)
+    return False
 
 
 def _ensure_identity(profile):
@@ -247,7 +288,32 @@ def _ensure_identity(profile):
     if profile.get("displayname"):
         _ensure_displayname(profile["sender"], profile["displayname"])
     if profile.get("avatar"):
-        _ensure_avatar(profile["sender"], profile["avatar"])
+        return _ensure_avatar(profile["sender"], profile["avatar"])
+    return None, False
+
+
+def prepare_profiles():
+    """Dress every ghost before the listener opens.
+
+    Doing this lazily on the first send is what produced permanently
+    icon-less first messages: register, join, name and avatar all happened
+    inside the request that then immediately posted. Running it at startup
+    means the race is against nothing -- there is no traffic yet -- and the
+    wait above only costs anything the once, when an avatar actually changed.
+
+    Failures here are logged and swallowed on purpose. The per-send path still
+    calls _ensure_identity, so a Synapse that is briefly unreachable at boot
+    degrades to the old behaviour instead of crash-looping the relay.
+    """
+    for profile in PROFILES.values():
+        try:
+            mxc, changed = _ensure_identity(profile)
+            if changed and mxc:
+                for room in profile["rooms"]:
+                    _await_member_avatar(profile["sender"], room, mxc)
+        except Exception:
+            log.exception("preparing profile %s failed; it will be retried on "
+                          "first use", profile["name"])
 
 
 def _read_image(resp, source):
@@ -389,5 +455,9 @@ if __name__ == "__main__":
         log.error("no usable profiles; every request will be rejected")
     for p in PROFILES.values():
         log.info("profile %s -> %s rooms=%s", p["name"], p["sender"], p["rooms"])
+    # Before the listener opens, so no request can race a half-dressed ghost.
+    # The readiness probe is what makes this safe to do synchronously: the pod
+    # is not marked ready, and nothing is routed to it, until this returns.
+    prepare_profiles()
     log.info("listening on :%d", PORT)
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
