@@ -37,18 +37,21 @@ spec:
                   value: "1"
                 - name: ZONE_NAME
                   value: "${SECRET_DOMAIN}"
-                # Mattermost delivery: post to #infrastructure via the Jarvis
-                # bot token (native avatar + name). Internal cluster URL — no
-                # external DNS/TLS dependency.
-                - name: MATTERMOST_URL
-                  value: "http://mattermost-main.tools.svc.cluster.local:8065"
-                - name: MATTERMOST_CHANNEL_ID
-                  value: "6qik9sorwbfcmdzqpwuwhwk69r"
-                - name: MATTERMOST_TOKEN
+                # Matrix delivery: matrix-media-relay posts into the
+                # Infrastructure room as the @_webhooks_cloudflare ghost, with
+                # the Cloudflare icon declared in the relay's avatar ConfigMap.
+                # Internal cluster URL — no external DNS/TLS dependency, which
+                # matters for a job whose whole purpose is noticing DNS trouble.
+                # `room` is omitted deliberately: the relay falls back to the
+                # only room the cloudflare profile owns, so the room ID stays
+                # declared in one place (the relay HelmRelease).
+                - name: RELAY_URL
+                  value: "http://matrix-media-relay.tools.svc.cluster.local:8080/notify"
+                - name: RELAY_TOKEN
                   valueFrom:
                     secretKeyRef:
                       name: cloudflare-dns-monitor-secret
-                      key: MATTERMOST_TOKEN
+                      key: RELAY_TOKEN
                 - name: CF_API_TOKEN
                   valueFrom:
                     secretKeyRef:
@@ -57,12 +60,11 @@ spec:
               command: ["python3", "-c"]
               args:
                 - |
-                  import json, os, sys, urllib.request, urllib.parse
+                  import html, json, os, sys, urllib.request, urllib.parse
                   CF = os.environ["CF_API_TOKEN"]
                   ZONE = os.environ["ZONE_NAME"]
-                  MM = os.environ["MATTERMOST_URL"].rstrip("/")
-                  MM_TOKEN = os.environ["MATTERMOST_TOKEN"]
-                  MM_CHANNEL = os.environ["MATTERMOST_CHANNEL_ID"]
+                  RELAY = os.environ["RELAY_URL"]
+                  RELAY_TOKEN = os.environ["RELAY_TOKEN"]
                   STATE = "/state/seen-records.json"
                   API = "https://api.cloudflare.com/client/v4"
 
@@ -71,11 +73,14 @@ spec:
                       with urllib.request.urlopen(req, timeout=20) as r:
                           return json.load(r)
 
-                  def mm_post(message):
-                      data = json.dumps({"channel_id": MM_CHANNEL, "message": message}).encode()
+                  def relay_post(text, html_body):
+                      # No `img`, so the relay sends a plain m.notice. `room` is
+                      # omitted: the relay defaults to the only room the
+                      # cloudflare profile owns.
+                      data = json.dumps({"text": text, "html": html_body}).encode()
                       req = urllib.request.Request(
-                          MM + "/api/v4/posts", data=data,
-                          headers={"Authorization": "Bearer " + MM_TOKEN,
+                          RELAY, data=data,
+                          headers={"Authorization": "Bearer " + RELAY_TOKEN,
                                    "Content-Type": "application/json"})
                       with urllib.request.urlopen(req, timeout=20) as r:
                           r.read()
@@ -112,10 +117,24 @@ spec:
                       if sections:
                           body = "Cloudflare DNS change(s) in %s:\n\n%s" % (ZONE, "\n\n".join(sections))
                           print(body)
-                          message = "**DNS change in %s** (+%d ~%d -%d)\n\n%s" % (
-                              ZONE, len(added), len(changed), len(removed), body)
-                          mm_post(message)
-                          print("Alert dispatched to Mattermost #infrastructure.")
+                          headline = "DNS change in %s (+%d ~%d -%d)" % (
+                              ZONE, len(added), len(changed), len(removed))
+                          # Record content is attacker-influenced (that is the
+                          # point of this job), so escape it before it becomes
+                          # formatted_body -- Element sanitizes, but sending
+                          # well-formed HTML is what keeps the rendering honest.
+                          def rows(label, items):
+                              return "<b>%s</b><br>%s" % (
+                                  html.escape(label),
+                                  "<br>".join("&nbsp;&nbsp;" + html.escape(x) for x in items))
+                          parts = []
+                          if added:   parts.append(rows("Added", added))
+                          if changed: parts.append(rows("Changed", changed))
+                          if removed: parts.append(rows("Removed", removed))
+                          html_body = "<b>%s</b><br><br>%s" % (
+                              html.escape(headline), "<br><br>".join(parts))
+                          relay_post("%s\n\n%s" % (headline, body), html_body)
+                          print("Alert dispatched to Matrix #Infrastructure.")
                       else:
                           print("No DNS changes (%d total)." % len(current))
 

@@ -21,6 +21,14 @@ configMapGenerator:
     files:
       - avatar-plex.png
       - avatar-requests.png
+      - avatar-uptimekuma.png
+      - avatar-longhorn.png
+      - avatar-cloudflare.png
+  # avatar-alertmanager.png and avatar-forgejo.png are committed alongside these
+  # but deliberately NOT generated into the ConfigMap. Those two ghosts belong to
+  # hookshot, not to a relay profile, so nothing here would ever apply them --
+  # they are in git so the manual recovery step in docs/matrix-webhooks.md needs
+  # no network.
 
 generatorOptions:
   disableNameSuffixHash: true

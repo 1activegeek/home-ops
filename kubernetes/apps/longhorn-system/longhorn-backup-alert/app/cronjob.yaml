@@ -37,17 +37,19 @@ spec:
               env:
                 - name: METRICS_URL
                   value: "http://longhorn-backend.longhorn-system:9500/metrics"
-                # Mattermost delivery: post to #infrastructure via the Jarvis
-                # bot token (native avatar + name), internal cluster URL.
-                - name: MATTERMOST_URL
-                  value: "http://mattermost-main.tools.svc.cluster.local:8065"
-                - name: MATTERMOST_CHANNEL_ID
-                  value: "6qik9sorwbfcmdzqpwuwhwk69r"
-                - name: MATTERMOST_TOKEN
+                # Matrix delivery: matrix-media-relay posts into the
+                # Infrastructure room as the @_webhooks_longhorn ghost, with the
+                # Longhorn icon declared in the relay's avatar ConfigMap. `room`
+                # is omitted deliberately -- the relay falls back to the only
+                # room the longhorn profile owns, so the room ID stays declared
+                # in one place (the relay HelmRelease) instead of two.
+                - name: RELAY_URL
+                  value: "http://matrix-media-relay.tools.svc.cluster.local:8080/notify"
+                - name: RELAY_TOKEN
                   valueFrom:
                     secretKeyRef:
                       name: longhorn-backup-alert-secret
-                      key: MATTERMOST_TOKEN
+                      key: RELAY_TOKEN
               command: ["/bin/sh", "-c"]
               args:
                 - |
@@ -64,14 +66,16 @@ spec:
                   VOLS=$(printf '%s\n' "${FAILED}" | sed -n 's/.*volume="\([^"]*\)".*/\1/p' | sort -u | tr '\n' ' ')
                   # Volume names are k8s-safe (lowercase alphanumerics + dashes),
                   # so no JSON escaping beyond the static text is required.
-                  MSG="**Longhorn backup failure**: ${COUNT} backup(s) in Error state. Volume(s): ${VOLS}"
-                  echo "[$(date -u)] ${MSG}"
-                  # Post to Mattermost #infrastructure via the Jarvis bot REST API.
-                  curl -sf --max-time 20 -X POST "${MATTERMOST_URL}/api/v4/posts" \
-                    -H "Authorization: Bearer ${MATTERMOST_TOKEN}" \
+                  TXT="Longhorn backup failure: ${COUNT} backup(s) in Error state. Volume(s): ${VOLS}"
+                  HTML="<b>Longhorn backup failure</b><br>${COUNT} backup(s) in Error state.<br><span data-mx-color=\"#888888\">Volume(s): ${VOLS}</span>"
+                  echo "[$(date -u)] ${TXT}"
+                  # Post to the Infrastructure room through matrix-media-relay.
+                  # No `img`, so the relay sends a plain m.notice.
+                  curl -sf --max-time 20 -X POST "${RELAY_URL}" \
+                    -H "Authorization: Bearer ${RELAY_TOKEN}" \
                     -H "Content-Type: application/json" \
-                    -d "{\"channel_id\":\"${MATTERMOST_CHANNEL_ID}\",\"message\":\"${MSG}\"}" >/dev/null
-                  echo "[$(date -u)] Alert dispatched to Mattermost #infrastructure."
+                    -d "{\"text\":\"${TXT}\",\"html\":\"${HTML}\"}" >/dev/null
+                  echo "[$(date -u)] Alert dispatched to Matrix #Infrastructure."
               resources:
                 requests:
                   cpu: 10m
