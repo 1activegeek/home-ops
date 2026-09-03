@@ -1,0 +1,42 @@
+---
+# Static NFS PV for the media share.
+#
+# The app-template `persistence.type: nfs` shortcut builds an inline NFS volume,
+# which cannot carry mountOptions. SABnzbd needs them: `hard` so an outage blocks
+# rather than returning IO errors mid-write (a `soft` mount can corrupt an
+# in-flight unpack), and nconnect for throughput on a single 1GbE NAS link.
+# The blocking behaviour is what the canary probes and watchdog detect.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sabnzbd-media
+spec:
+  capacity:
+    storage: 1Ti # not enforced for NFS; required by the API
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - noatime
+    - nconnect=8
+    - timeo=600
+    - retrans=2
+  nfs:
+    server: ${NFS_SERVER}
+    path: /volume1/media
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sabnzbd-media
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: sabnzbd-media
+  resources:
+    requests:
+      storage: 1Ti

@@ -1,0 +1,30 @@
+---
+# Scratch storage for SABnzbd's incomplete/working directory.
+#
+# Single replica, no backups, on purpose:
+#  - The data is definitionally re-downloadable. Replicating it would double SSD
+#    write amplification on the hardest-churning workload in the cluster to
+#    protect bytes we can simply fetch again.
+#  - At numberOfReplicas: 2 a 250Gi volume consumes 500GB of cluster storage;
+#    free-to-schedule headroom at creation time was 472/434/348 GB per node.
+#  - recurringJobSelector points at the group "exclude", for which no RecurringJob
+#    exists (same trick as longhorn-nobackup) — backing up 250GB of churning
+#    temp files to the NAS would be actively harmful.
+#
+# Failure mode accepted: if the node holding the replica dies, in-flight
+# downloads are lost and SABnzbd/the *arrs re-grab them.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-scratch
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "1"
+  staleReplicaTimeout: "30"
+  dataLocality: "best-effort"
+  fromBackup: ""
+  fsType: "ext4"
+  recurringJobSelector: '[{"name":"exclude","isGroup":true}]'
