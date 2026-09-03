@@ -9,6 +9,14 @@ data:
   # Custom homeserver URLs and guests are disabled — this is a single-server,
   # internal-only deployment.
   #
+  # The integration manager is disabled outright. Element defaults to the
+  # public Scalar (scalar.vector.im), which authenticates by calling the
+  # homeserver's federation OpenID endpoint — unreachable here, since Synapse
+  # is internal-only with federation off (federation_domain_whitelist: []).
+  # "Add extensions" therefore always failed with "cannot connect to
+  # integration manager"; empty integrations_* URLs hide the button instead.
+  # Widgets still work via /addwidget, and bots/bridges via direct invite.
+  #
   # Theme: Catppuccin (https://github.com/catppuccin/element), Blue accent.
   # Registered as two selectable custom themes (Mocha = dark default, Latte =
   # light) via setting_defaults.custom_themes rather than a per-user Labs URL,
@@ -23,6 +31,9 @@ data:
       },
       "disable_custom_urls": true,
       "disable_guests": true,
+      "integrations_ui_url": "",
+      "integrations_rest_url": "",
+      "integrations_widgets_urls": [],
       "default_theme": "custom-Catppuccin Mocha (Blue)",
       "room_directory": {
         "servers": []
