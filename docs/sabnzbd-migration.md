@@ -371,6 +371,21 @@ in §4, failure detection in §5d), and local scratch storage is now in scope (�
 
 ---
 
+## 8a. P3 deployment defects found and fixed
+
+Recorded because each was a real design error, not a transient:
+
+| # | Defect | Cause | Fix |
+|---|---|---|---|
+| 1 | 250Gi scratch PVC would not schedule | Sized against Longhorn's `storageAvailable` (raw free disk) instead of `storageMaximum - storageReserved - storageScheduled`; the default 30% reservation leaves 223/186/100 GB schedulable | 150Gi, fits two nodes; `download_free` 40G → 25G (#559) |
+| 2 | SABnzbd generated its own random `api_key`, ignoring the one in 1Password | The seed omitted `api_key`/`nzb_key`/`host_whitelist` on the assumption the image's entrypoint would inject them. Its `sed` only *substitutes into lines that already exist*, so with no line to match it silently did nothing and SABnzbd invented a key on first start | The init container now writes all three from the environment itself, after the merge — no reliance on image internals |
+| 3 | `host_whitelist` contained only the pod name | Same root cause; SABnzbd auto-added its own hostname when the key was absent, which would have broken access via the route hostname | As above |
+| 4 | Watchdog log printed "every s" | `${INTERVAL}` in the ConfigMap was consumed by Flux variable substitution — the documented gotcha in `AGENTS.md`; cosmetic only, the `sleep` used the unbraced form | Unbraced `$INTERVAL` |
+| 5 | `config-backup` logged "tar failed" then slept 24h | Ran before SABnzbd had created `/config/admin`, and any failure cost a full day | 120s startup delay, tolerates a missing `admin/`, retries in 10m on failure |
+
+Defects 2 and 3 would have surfaced as a broken cutover rather than a broken deploy: SABnzbd looked healthy,
+but every `*arr` would have failed to authenticate against it.
+
 ## 9. Open items
 
 None blocking. P1 through P4 can run unattended once the P2 PR is approved; P5 waits on your explicit go.
