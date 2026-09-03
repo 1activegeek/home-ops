@@ -80,9 +80,11 @@ values = {
     "useSsl": False,
     "urlBase": "",
 }
-# whichever category field this app happens to define
+# whichever category field this app happens to define. Always set it, even to
+# "" - Prowlarr's schema ships a default category ("prowlarr") that does not
+# exist in SABnzbd, and its test rejects a category SABnzbd lacks.
 for f in tmpl.get("fields", []):
-    if f["name"] in ("tvCategory", "movieCategory", "category") and cat:
+    if f["name"] in ("tvCategory", "movieCategory", "category"):
         values[f["name"]] = cat
 
 body = dict(tmpl)
@@ -123,12 +125,23 @@ PY
   local tcode
   tcode=$(curl -s -o "/tmp/sabtest.$app" -w '%{http_code}' -X POST -H "X-Api-Key: $key" \
           -H 'Content-Type: application/json' -d "$payload" "$base/downloadclient/test")
-  if [[ "$tcode" != "200" && "$tcode" != "202" ]]; then
+  WARN_ONLY=$(python3 -c 'import json,sys
+try: d=json.load(open(sys.argv[1]))
+except Exception: print("no"); sys.exit()
+print("yes" if isinstance(d,list) and d and all(e.get("isWarning") for e in d) else "no")' "/tmp/sabtest.$app")
+
+  if [[ "$tcode" != "200" && "$tcode" != "202" && "$WARN_ONLY" != "yes" ]]; then
     log "  ✗ $app: connectivity test FAILED (HTTP $tcode)"
     head -c 400 "/tmp/sabtest.$app" >&2; echo >&2
     rc=1
   else
-    log "  ✓ $app: SABnzbd reachable and authenticated"
+    if [[ "$WARN_ONLY" == "yes" ]]; then
+      msg=$(python3 -c 'import json,sys
+print("; ".join(e.get("errorMessage","?") for e in json.load(open(sys.argv[1]))))' "/tmp/sabtest.$app")
+      log "  ! $app: reachable; advisory only ($msg)"
+    else
+      log "  ✓ $app: SABnzbd reachable and authenticated"
+    fi
     local scode
     if [[ -n "$id" ]]; then
       scode=$(curl -s -o /dev/null -w '%{http_code}' -X PUT -H "X-Api-Key: $key" \
