@@ -13,6 +13,51 @@ spec:
       main:
         annotations:
           reloader.stakater.com/auto: "true"
+        initContainers:
+          # Carries upstream PR NousResearch/hermes-agent#27183 (per-user
+          # USER.md isolation, issue #27182) into the stock image, which does
+          # not have it yet. Without it every Mattermost user in the mixos
+          # team shares one /opt/data/memories/USER.md, so one person's stated
+          # preferences are injected into everyone else's system prompt.
+          #
+          # /opt/hermes is immutable in the published image, so the three
+          # touched source files are copied to an emptyDir, patched there, and
+          # mounted back over their original paths (see persistence.hermes-patch
+          # below). Nothing is written to the image or the data PVC.
+          #
+          # Hard-fails the pod if the patch no longer applies (image bump moved
+          # the code) instead of starting unpatched and silently re-merging
+          # everyone's memory — the post-apply greps are the safety net for a
+          # patch that applies with fuzz but lands in the wrong place.
+          patch-memory:
+            image:
+              repository: docker.io/nousresearch/hermes-agent
+              tag: v2026.8.19
+            command:
+              - sh
+              - -c
+              - |
+                set -eu
+                mkdir -p /patched/agent /patched/gateway /patched/tools
+                cp /opt/hermes/agent/agent_init.py       /patched/agent/
+                cp /opt/hermes/gateway/slash_commands.py /patched/gateway/
+                cp /opt/hermes/tools/memory_tool.py      /patched/tools/
+                cd /patched
+                # --ignore-whitespace/--recount tolerate the trailing space on
+                # empty context lines being stripped in transit through the
+                # ConfigMap; -v prints each hunk offset to the init log.
+                git apply -v --ignore-whitespace --recount \
+                  /patch/27183-per-user-usermd.diff
+                grep -q "^def safe_user_key" tools/memory_tool.py
+                grep -q "mem_dir / \"users\"" tools/memory_tool.py
+                grep -q "user_id=user_id" agent/agent_init.py
+                echo "per-user USER.md patch applied"
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
         pod:
           securityContext:
             runAsUser: 10000
@@ -139,6 +184,37 @@ spec:
         path: "/volume1/syncthing/ic_documents/5 Shared/hermes"
         globalMounts:
           - path: /opt/data/shared
+
+      # See the patch-memory initContainer above. The emptyDir holds the three
+      # patched source files; each is mounted over the image's copy so both
+      # hermes processes import the patched module. Mounted read-only in the
+      # app containers — only the initContainer writes here.
+      hermes-patch:
+        type: emptyDir
+        advancedMounts:
+          main:
+            patch-memory:
+              - path: /patched
+            gateway: &patch-mounts
+              - path: /opt/hermes/tools/memory_tool.py
+                subPath: tools/memory_tool.py
+                readOnly: true
+              - path: /opt/hermes/agent/agent_init.py
+                subPath: agent/agent_init.py
+                readOnly: true
+              - path: /opt/hermes/gateway/slash_commands.py
+                subPath: gateway/slash_commands.py
+                readOnly: true
+            dashboard: *patch-mounts
+
+      hermes-patch-src:
+        type: configMap
+        name: hermes-memory-patch
+        advancedMounts:
+          main:
+            patch-memory:
+              - path: /patch
+                readOnly: true
 
       hermes-dotenv:
         type: secret
