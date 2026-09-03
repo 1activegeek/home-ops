@@ -474,10 +474,18 @@ which is not necessarily the display name):
 | Room | Source | State key | Name | Hook ID stored in |
 |---|---|---|---|---|
 | Media Server | Tautulli (standby — the active path is the relay) | `tautulli` | `Tautulli` | 1P `hookshot-hooks` (`tautulli_hook_id`, `tautulli_url`) |
-| _(tbd)_ | Alertmanager | | | 1P `hookshot-hooks` |
-| _(tbd)_ | Longhorn backup CronJob | | | 1P `hookshot-hooks` |
-| _(tbd)_ | Uptime Kuma | | | 1P `hookshot-hooks` |
-| _(tbd)_ | Forgejo | | | 1P `hookshot-hooks` |
+| Infrastructure | Alertmanager | _(pending)_ | `Alertmanager` | 1P `hookshot-hooks` |
+| Infrastructure | Forgejo | _(pending)_ | `Forgejo` | 1P `hookshot-hooks` |
+
+Longhorn, Uptime Kuma and the Cloudflare DNS monitor are **not** in this table —
+they take the relay path instead (see the relay profiles table below).
+
+Both pending rows are blocked on the same thing: **`@hookshot` must hold PL50 in
+the Infrastructure room.** The room's `state_default` is 50 and the bot joins at
+`users_default` (0), so `!hookshot webhook <name>` cannot write its connection
+state event until a room admin raises the bot to Moderator. This is not
+something the appservice token can do for itself — the AS token masquerades
+within its own namespace, and the ghosts sit at 0 like the bot.
 
 Relay profiles (no hookshot connection involved — these post straight to
 Synapse):
@@ -563,6 +571,49 @@ Every upload mints a fresh `mxc://`, so re-running this leaks the previous
 media. Run it only on a rebuild or a deliberate icon change — this is exactly
 the bookkeeping the relay's sha256 account-data cache exists to avoid, and the
 reason a relay profile is the better home for an icon when the source allows it.
+
+### Wiring Uptime Kuma to the relay
+
+Kuma's **Webhook** notification can send a user-defined body, so it reaches the
+relay directly with no hookshot connection and no transformation function.
+
+Its notification config lives in Kuma's SQLite database and has **no REST API** —
+only a socket.io interface, so this is not reproducible from the repo either.
+What is deployed (notification id `1`, `Matrix - Infrastructure`):
+
+| Field | Value |
+|---|---|
+| Notification Type | Webhook |
+| Post URL | `http://matrix-media-relay.tools.svc.cluster.local:8080/notify` |
+| Request Body | Custom Body |
+| Additional Headers | `{"Authorization": "Bearer <token_uptimekuma>"}` |
+| Default enabled | yes (auto-attached to new monitors) |
+| Apply to existing | yes — attached to all 42 monitors |
+
+Custom body:
+
+```liquid
+{%- capture text_body -%}{{ status }} - {{ name }}
+{{ msg }}{%- endcapture -%}
+{%- capture html_body -%}{{ status }} <b>{{ name | escape }}</b><br>{{ msg | escape }}<br><span data-mx-color="#888888">{{ hostnameOrURL | escape }}</span>{%- endcapture -%}
+{"text": {{ text_body | json }}, "html": {{ html_body | json }}}
+```
+
+Three things about that template are load-bearing:
+
+- The Liquid context is **not** what Kuma's older docs suggest. Confirmed from
+  the running image (`server/notification-providers/notification-provider.js`,
+  `renderTemplate`), it is exactly: `status` (already rendered as `🔴 Down` /
+  `✅ Up` / `⚠️ Test`), `name`, `hostnameOrURL`, `monitorJSON`, `heartbeatJSON`,
+  `msg`. The uppercase `STATUS`/`NAME`/`HOSTNAME_OR_URL` aliases are v1
+  compatibility shims slated for removal in v3 — do not use them.
+- `escape` then `json` is the pairing that matters: `escape` makes each value
+  safe inside `formatted_body`, and `json` makes the whole captured string safe
+  inside the request body. Without the second one a monitor name containing a
+  quote or a backslash produces invalid JSON and the notification fails
+  silently.
+- No `room` key. The relay falls back to the single room the `uptimekuma`
+  profile owns, so the room ID is declared only in the relay HelmRelease.
 
 ### Icon sources
 
