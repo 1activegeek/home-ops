@@ -105,9 +105,36 @@ logged at startup and skipped rather than left open.
 3. Drop the icon PNG next to `relay.py`, add it to the `matrix-media-relay-avatars`
    generator and its mount, and reference it as `"avatar"` on the profile.
 
-That is the whole procedure for a **public** room: on first use the relay
+That is the whole procedure for a **public** room: at startup the relay
 registers the ghost and joins it to every room in its profile, because Synapse
 rejects a send from a non-member with 403 regardless of the join rule.
+
+**Identity is applied at startup, not on first send, and that ordering is
+load-bearing.** `PUT /profile/{user}/avatar_url` returns as soon as the profile
+row is written; Synapse then fans the change out into an `m.room.member` event
+per room *in the background*. Clients render a message's sender from the member
+state **at that event**, so a send that beats the fan-out is displayed with no
+avatar — permanently, because the timeline is immutable. Doing it lazily inside
+the first request lost that race every time, which is why the first Uptime Kuma,
+Longhorn and Cloudflare messages show letter avatars and always will:
+
+```
+01:33:15 _uptimekuma  MEMBER   avatar=NO -> NO
+01:33:15 _uptimekuma  MESSAGE  ✅ Up - relay round-trip test      <- no avatar
+01:33:15 _uptimekuma  MEMBER   avatar=NO -> yes                  <- 200ms too late
+```
+
+`prepare_profiles()` now runs before the listener opens, and
+`_await_member_avatar` polls the room member event until the new `mxc://`
+actually appears (`MEMBER_SYNC_TIMEOUT`, default 10s). It is only paid when an
+avatar genuinely changed, so a normal restart waits for nothing. The readiness
+probe is what makes a synchronous startup safe: nothing is routed to the pod
+until the HTTP server is up. The timeout is bounded well inside the liveness
+budget (~100s) even if every profile changed at once, and a timeout is logged
+and ignored — a missing icon is worth far less than a dropped notification.
+
+**Note this cannot be repaired retroactively.** There is no way to refresh the
+icon on an already-sent message; only new messages pick up current state.
 
 An **invite-only** room still needs the ghost invited first — the join call
 accepts a pending invite but cannot manufacture one. The failure is logged with
