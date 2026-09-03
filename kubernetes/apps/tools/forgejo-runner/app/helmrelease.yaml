@@ -103,7 +103,7 @@ spec:
           register:
             image:
               repository: code.forgejo.org/forgejo/runner
-              tag: 12.13.2
+              tag: 13.1.0
             dependsOn: dind
             command: ["/bin/sh", "-c"]
             args:
@@ -158,7 +158,7 @@ spec:
           app:
             image:
               repository: code.forgejo.org/forgejo/runner
-              tag: 12.13.2
+              tag: 13.1.0
             command:
               ["/bin/forgejo-runner", "daemon", "--config", "/config/config.yaml"]
             env:
