@@ -428,26 +428,140 @@ Scripts run in a sandboxed QuickJS VM with a 2s limit, enabled globally by
 Anyone who can send state events in the room can rewrite the script, so keep
 room power levels tight.
 
-Assign to `result` using the v2 API. Alertmanager:
+Assign to `result` using the v2 API. Both deployed functions are
+reproduced below — this is the only copy outside room state, so edit here
+and re-apply if you change one.
+
+**Alertmanager** — one line per alert, `@room` only when something
+critical is still firing, so resolved batches never ping:
 
 ```js
 const alerts = data.alerts || [];
-const rows = alerts.map(a => {
-  const icon = a.status === 'firing' ? '🔥' : '✅';
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const rows = alerts.map((a) => {
+  const icon = a.status === "firing" ? "🔥" : "✅";
   const l = a.labels || {}, ann = a.annotations || {};
-  return `${icon} <b>${l.alertname || 'unknown'}</b> [${l.severity || '-'}] ${l.namespace || ''}<br>` +
-         `${ann.summary || ann.description || ''}`;
+  const where = [l.namespace, l.pod || l.instance].filter(Boolean).join("/");
+  return icon + " <b>" + esc(l.alertname || "unknown") + "</b> [" +
+    esc(l.severity || "-") + "]" + (where ? " " + esc(where) : "") + "<br>" +
+    "&nbsp;&nbsp;" + esc(ann.summary || ann.description || "");
 });
-const critical = alerts.some(a => (a.labels || {}).severity === 'critical' && a.status === 'firing');
+const plain = alerts.map((a) => {
+  const l = a.labels || {}, ann = a.annotations || {};
+  return (a.status === "firing" ? "FIRING" : "RESOLVED") + " " +
+    (l.alertname || "unknown") + " [" + (l.severity || "-") + "] " +
+    (l.namespace || "") + " - " + (ann.summary || ann.description || "");
+}).join("\n");
+const critical = alerts.some(
+  (a) => (a.labels || {}).severity === "critical" && a.status === "firing");
 result = {
   version: "v2",
   empty: rows.length === 0,
-  plain: `${data.status}: ${alerts.length} alert(s)`,
-  html: rows.join('<br>'),
+  plain: plain || (data.status + ": no alerts"),
+  html: rows.join("<br>"),
   msgtype: "m.notice",
-  mentions: { room: critical }
+  mentions: { room: critical },
 };
 ```
+
+**Forgejo** — Forgejo sends one fixed schema per event type with **no
+discriminator in the body**; the event name is only in the
+`X-Forgejo-Event` header, which a transformation function never sees. So
+the payload shape is what identifies it, checked most-specific first:
+
+```js
+// Forgejo sends one fixed schema per event type with no discriminator in the
+// body -- the event name is only in the X-Forgejo-Event header, which a
+// transformation function never sees. So the shape of the payload is what
+// identifies it, checked most-specific first.
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const link = (href, text) =>
+  href ? '<a href="' + esc(href) + '">' + esc(text) + "</a>" : esc(text);
+const first = (s) => String(s == null ? "" : s).split("\n")[0];
+
+const repo = (data.repository || {});
+const repoName = repo.full_name || "unknown";
+const repoUrl = repo.html_url || "";
+const who = (data.sender && (data.sender.login || data.sender.username)) ||
+            (data.pusher && (data.pusher.login || data.pusher.username)) || "someone";
+
+let plain = "", html = "", notify = false, empty = false;
+
+if (data.workflow_run) {
+  // CI. Only failures are worth a room notification; successes stay quiet so
+  // the room does not become a build log.
+  const w = data.workflow_run;
+  const concl = String(w.conclusion || w.status || "");
+  const ok = concl === "success";
+  if (ok || concl === "skipped") {
+    empty = true;
+  } else {
+    notify = concl === "failure";
+    plain = "CI " + concl + ": " + (w.display_title || w.name || "workflow") +
+      " on " + repoName;
+    html = "❌ <b>CI " + esc(concl) + "</b> " +
+      link(w.html_url, w.display_title || w.name || "workflow") +
+      " on " + link(repoUrl, repoName);
+  }
+} else if (data.commits && data.ref) {
+  const branch = String(data.ref).replace("refs/heads/", "");
+  const n = data.commits.length;
+  plain = who + " pushed " + n + " commit(s) to " + repoName + "#" + branch;
+  const lines = data.commits.slice(0, 5).map((c) =>
+    "&nbsp;&nbsp;" + link(c.url, String(c.id || "").slice(0, 8)) + " " +
+    esc(first(c.message)));
+  html = "⬆️ <b>" + esc(who) + "</b> pushed " + n + " commit(s) to " +
+    link(repoUrl + "/src/branch/" + branch, repoName + "#" + branch) +
+    (lines.length ? "<br>" + lines.join("<br>") : "");
+  if (n > 5) html += "<br>&nbsp;&nbsp;… and " + (n - 5) + " more";
+} else if (data.pull_request) {
+  const pr = data.pull_request;
+  const act = String(data.action || "");
+  plain = who + " " + act + " PR #" + pr.number + " in " + repoName + ": " + pr.title;
+  html = "🔀 <b>" + esc(who) + "</b> " + esc(act) + " " +
+    link(pr.html_url, "#" + pr.number + " " + pr.title) +
+    " in " + link(repoUrl, repoName);
+} else if (data.release) {
+  const rel = data.release;
+  plain = who + " " + data.action + " release " + (rel.tag_name || "") + " in " + repoName;
+  html = "🏷️ <b>" + esc(who) + "</b> " + esc(data.action) + " release " +
+    link(rel.html_url, rel.tag_name || rel.name || "release") +
+    " in " + link(repoUrl, repoName);
+} else if (data.issue) {
+  const iss = data.issue;
+  plain = who + " " + data.action + " issue #" + iss.number + " in " + repoName + ": " + iss.title;
+  html = "📌 <b>" + esc(who) + "</b> " + esc(data.action) + " " +
+    link(iss.html_url, "#" + iss.number + " " + iss.title) +
+    " in " + link(repoUrl, repoName);
+} else if (data.action && repo.full_name) {
+  // repository created/deleted, fork, and the other repo-level actions.
+  plain = who + " " + data.action + " " + repoName;
+  html = "📦 <b>" + esc(who) + "</b> " + esc(data.action) + " " +
+    link(repoUrl, repoName);
+} else {
+  // Unknown shape. Say so rather than dumping the payload -- includeHookBody
+  // is false on this connection, so a silent empty would lose the event.
+  plain = "Forgejo event from " + repoName;
+  html = "📦 Forgejo event from " + link(repoUrl, repoName);
+}
+
+result = {
+  version: "v2",
+  empty: empty,
+  plain: plain,
+  html: html,
+  msgtype: "m.notice",
+  mentions: { room: notify },
+};
+```
+
+Both escape every interpolated value. Element sanitizes `formatted_body`
+anyway, but a commit message containing `<` would otherwise silently lose
+the rest of the line.
 
 ## Outbound (Matrix → HTTP)
 
@@ -474,18 +588,17 @@ which is not necessarily the display name):
 | Room | Source | State key | Name | Hook ID stored in |
 |---|---|---|---|---|
 | Media Server | Tautulli (standby — the active path is the relay) | `tautulli` | `Tautulli` | 1P `hookshot-hooks` (`tautulli_hook_id`, `tautulli_url`) |
-| Infrastructure | Alertmanager | _(pending)_ | `Alertmanager` | 1P `hookshot-hooks` |
-| Infrastructure | Forgejo | _(pending)_ | `Forgejo` | 1P `hookshot-hooks` |
+| Infrastructure | Alertmanager | `Alertmanager` | `Alertmanager` | 1P `hookshot-hooks` (`alertmanager_hook_id`, `alertmanager_url`) |
+| Infrastructure | Forgejo | `Forgejo` | `Forgejo` | 1P `hookshot-hooks` (`forgejo_hook_id`, `forgejo_url`) |
 
 Longhorn, Uptime Kuma and the Cloudflare DNS monitor are **not** in this table —
 they take the relay path instead (see the relay profiles table below).
 
-Both pending rows are blocked on the same thing: **`@hookshot` must hold PL50 in
-the Infrastructure room.** The room's `state_default` is 50 and the bot joins at
-`users_default` (0), so `!hookshot webhook <name>` cannot write its connection
-state event until a room admin raises the bot to Moderator. This is not
-something the appservice token can do for itself — the AS token masquerades
-within its own namespace, and the ghosts sit at 0 like the bot.
+**`@hookshot` must hold PL50 in a room before either of these can exist.** The
+Infrastructure room's `state_default` is 50 and the bot joins at `users_default`
+(0), so it cannot write its own connection state until a room admin raises it to
+Moderator. Nothing server-side can shortcut this: the AS token masquerades only
+within its own namespace, and every `@_webhooks_*` ghost sits at 0 like the bot.
 
 Relay profiles (no hookshot connection involved — these post straight to
 Synapse):
@@ -528,43 +641,49 @@ rather than copied into every caller.
 
 Hookshot never touches avatars, and the relay only applies one while handling a
 `/notify` it is the sender for. `@_webhooks_alertmanager` and
-`@_webhooks_forgejo` are therefore hookshot's ghosts with **no relay profile**,
-so their icons are set once against the homeserver and live only in Synapse —
-**not reproducible from this repo**, the same category as a room avatar.
+`@_webhooks_forgejo` are hookshot's ghosts with **no relay profile**, so their
+icons are set once against the homeserver and live only in Synapse — **not
+reproducible from this repo**, the same category as a room avatar.
 
-This block is the recovery record. Re-run it after a homeserver rebuild:
+Their PNGs are still committed next to the relay's, deliberately **outside** the
+`matrix-media-relay-avatars` ConfigMap generator: nothing mounts them, they
+exist so this recovery step needs no network. Re-run after a homeserver rebuild
+or a deliberate icon change:
 
 ```sh
-# Run from a machine with cluster access. The AS token is read inside the pod
-# and never leaves it; PNGs come from the paths given on the command line.
-kubectl -n tools exec -i deploy/synapse-main -c app -- python3 - <<'PY'
-import json, urllib.request, urllib.parse
-tok = [l.split(':', 1)[1].strip().strip('"')
-       for l in open('/as/hookshot-registration.yml')
-       if l.strip().startswith('as_token:')][0]
-DOMAIN = 'matrix.<your domain>'
-# Fetch each icon from dashboard-icons, the same source the avatars in
-# matrix-media-relay's ConfigMap were built from.
-ICONS = {'alertmanager': 'alertmanager', 'forgejo': 'forgejo'}
-for ghost, icon in ICONS.items():
-    png = urllib.request.urlopen(
-        'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/%s.png' % icon,
-        timeout=30).read()
-    sender = '@_webhooks_%s:%s' % (ghost, DOMAIN)
-    q = urllib.parse.urlencode({'user_id': sender, 'filename': icon + '.png'})
+# From a checkout, with cluster access. The AS token is read inside the pod and
+# never leaves it; the PNGs are piped in from git, so this works offline.
+D=kubernetes/apps/tools/matrix-media-relay/app
+python3 -c "
+import base64, json
+print(json.dumps({'domain': 'matrix.<your domain>', 'avatars': {
+  '_webhooks_alertmanager': base64.b64encode(open('$D/avatar-alertmanager.png','rb').read()).decode(),
+  '_webhooks_forgejo':      base64.b64encode(open('$D/avatar-forgejo.png','rb').read()).decode()}}))
+" > /tmp/avspec.json
+
+kubectl -n tools exec -i deploy/synapse-main -c app -- sh -c 'cat > /tmp/setav.py' <<'PY'
+import base64, json, sys, urllib.parse, urllib.request
+SPEC = json.load(sys.stdin); DOMAIN = SPEC["domain"]; HS = "http://localhost:8008"
+tok = [l.split(":", 1)[1].strip().strip('"')
+       for l in open("/as/hookshot-registration.yml")
+       if l.strip().startswith("as_token:")][0]
+for ghost, b64 in SPEC["avatars"].items():
+    png = base64.b64decode(b64)
+    sender = "@%s:%s" % (ghost, DOMAIN)
+    q = urllib.parse.urlencode({"user_id": sender, "filename": ghost + ".png"})
+    req = urllib.request.Request(HS + "/_matrix/media/v3/upload?" + q, data=png,
+        headers={"Authorization": "Bearer " + tok, "Content-Type": "image/png"})
+    mxc = json.load(urllib.request.urlopen(req, timeout=60))["content_uri"]
     req = urllib.request.Request(
-        'http://localhost:8008/_matrix/media/v3/upload?' + q, data=png,
-        headers={'Authorization': 'Bearer ' + tok, 'Content-Type': 'image/png'})
-    mxc = json.load(urllib.request.urlopen(req, timeout=30))['content_uri']
-    req = urllib.request.Request(
-        'http://localhost:8008/_matrix/client/v3/profile/%s/avatar_url?%s'
-        % (urllib.parse.quote(sender), urllib.parse.urlencode({'user_id': sender})),
-        data=json.dumps({'avatar_url': mxc}).encode(), method='PUT',
-        headers={'Authorization': 'Bearer ' + tok,
-                 'Content-Type': 'application/json'})
+        HS + "/_matrix/client/v3/profile/%s/avatar_url?%s"
+        % (urllib.parse.quote(sender), urllib.parse.urlencode({"user_id": sender})),
+        data=json.dumps({"avatar_url": mxc}).encode(), method="PUT",
+        headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
     urllib.request.urlopen(req, timeout=30).read()
-    print(sender, '->', mxc)
+    print(sender, "->", mxc, file=sys.stderr)
 PY
+
+kubectl -n tools exec -i deploy/synapse-main -c app -- python3 /tmp/setav.py < /tmp/avspec.json
 ```
 
 Every upload mints a fresh `mxc://`, so re-running this leaks the previous
@@ -572,48 +691,90 @@ media. Run it only on a rebuild or a deliberate icon change — this is exactly
 the bookkeeping the relay's sha256 account-data cache exists to avoid, and the
 reason a relay profile is the better home for an icon when the source allows it.
 
-### Wiring Uptime Kuma to the relay
+## Provisioning a hookshot connection without the bot command
 
-Kuma's **Webhook** notification can send a user-defined body, so it reaches the
-relay directly with no hookshot connection and no transformation function.
+`!hookshot webhook <name>` needs a human in the room. These two were created
+directly against the homeserver instead, which requires knowing something the
+upstream docs do not say plainly:
 
-Its notification config lives in Kuma's SQLite database and has **no REST API** —
-only a socket.io interface, so this is not reproducible from the repo either.
-What is deployed (notification id `1`, `Matrix - Infrastructure`):
+**The hookId is not in the state event.** It lives in the *bot's room account
+data* under the same type, as a `{hookId: stateKey}` map. The state event holds
+only `{name, transformationFunction, includeHookBody, ...}`.
 
-| Field | Value |
-|---|---|
-| Notification Type | Webhook |
-| Post URL | `http://matrix-media-relay.tools.svc.cluster.local:8080/notify` |
-| Request Body | Custom Body |
-| Additional Headers | `{"Authorization": "Bearer <token_uptimekuma>"}` |
-| Default enabled | yes (auto-attached to new monitors) |
-| Apply to existing | yes — attached to all 42 monitors |
+That matters because of this branch in `Connections/GenericHook.js`:
 
-Custom body:
-
-```liquid
-{%- capture text_body -%}{{ status }} - {{ name }}
-{{ msg }}{%- endcapture -%}
-{%- capture html_body -%}{{ status }} <b>{{ name | escape }}</b><br>{{ msg | escape }}<br><span data-mx-color="#888888">{{ hostnameOrURL | escape }}</span>{%- endcapture -%}
-{"text": {{ text_body | json }}, "html": {{ html_body | json }}}
+```js
+if (!hookId) {
+    if (as.isNamespacedUser(event.sender)) {
+        throw new Error(`No hookId found for "${state.name}". Refusing to generate a hookId as it's owned by us.`);
+    }
 ```
 
-Three things about that template are load-bearing:
+Writing the state event as `@hookshot` — the natural choice, since it is the
+user holding PL50 — makes `isNamespacedUser` true, so hookshot **refuses** to
+mint a hookId and the connection is dead on arrival. **Seed the account data
+first**, then write the state event:
 
-- The Liquid context is **not** what Kuma's older docs suggest. Confirmed from
-  the running image (`server/notification-providers/notification-provider.js`,
-  `renderTemplate`), it is exactly: `status` (already rendered as `🔴 Down` /
-  `✅ Up` / `⚠️ Test`), `name`, `hostnameOrURL`, `monitorJSON`, `heartbeatJSON`,
-  `msg`. The uppercase `STATUS`/`NAME`/`HOSTNAME_OR_URL` aliases are v1
-  compatibility shims slated for removal in v3 — do not use them.
-- `escape` then `json` is the pairing that matters: `escape` makes each value
-  safe inside `formatted_body`, and `json` makes the whole captured string safe
-  inside the request body. Without the second one a monitor name containing a
-  quote or a backslash produces invalid JSON and the notification fails
-  silently.
-- No `room` key. The relay falls back to the single room the `uptimekuma`
-  profile owns, so the room ID is declared only in the relay HelmRelease.
+```
+PUT /_matrix/client/v3/user/{@hookshot}/rooms/{roomId}/account_data/uk.half-shot.matrix-hookshot.generic.hook
+    {"<uuid4>": "Alertmanager"}          # merge, do not overwrite other hooks
+
+PUT /_matrix/client/v3/rooms/{roomId}/state/uk.half-shot.matrix-hookshot.generic.hook/Alertmanager
+    {"name": "Alertmanager", "transformationFunction": "...", "includeHookBody": false}
+```
+
+Both calls use hookshot's AS token with `?user_id=@hookshot:...`. Hookshot picks
+the connection up live — look for `New connected added to !room: GenericHookConnection <hookId>`
+in its logs. The state key is the connection name, and the ghost is
+`@_webhooks_<name lowercased>`.
+
+**`includeHookBody: false` is not optional here.** The global config sets it
+`true`, which attaches the raw payload to every event. Hookshot's oversize
+trimming drops the rendered HTML *before* it drops that blob, so a large Forgejo
+push would arrive as a JSON dump instead of the formatted message.
+
+## Wiring Alertmanager
+
+`webhook_configs`, not `slack_configs` — hookshot reads only `text`, `html` and
+`username` from a payload, so Slack's schema lands in the room as a JSON code
+block. Config lives in
+`kubernetes/apps/monitoring/kube-prometheus-stack/app/externalsecret.yaml`, with
+the URL pulled from 1P `hookshot-hooks` (`alertmanager_url`) — the in-cluster
+`http://hookshot.tools.svc.cluster.local:9000/webhook/<hookId>` form, so the
+alerting path has no external DNS or TLS dependency on the things it alerts
+about.
+
+`max_alerts: 0` disables Alertmanager's own truncation; the transformation
+function renders one line per alert and hookshot trims oversize events itself.
+
+The hookId in that URL is the only credential a generic webhook has, which is
+why it is stored concealed rather than written into the manifest.
+
+## Wiring Forgejo
+
+A **system webhook** (Site Administration → Webhooks, `/api/v1/admin/hooks`),
+not a per-repo one: it covers every repo including future ones. Hook id `2`,
+type `forgejo`, content type `json`, pointed at the in-cluster hookshot URL from
+1P `hookshot-hooks` (`forgejo_url`).
+
+Two things the API does silently:
+
+- **`pull_request` is an umbrella.** Asking for it expands server-side into
+  every `pull_request_*` sub-event — assign, label, milestone, comment, the
+  review ones. There is no way to subscribe to just opened/closed. If the room
+  gets loud, `PATCH /api/v1/admin/hooks/2` with an events list that omits
+  `pull_request` entirely; the other events survive a narrower list fine
+  (verified).
+- **Unknown events are dropped, not rejected.** `workflow_run` was requested and
+  silently discarded — this Forgejo (15.0.2+gitea-1.22.0) does not emit CI
+  events. The transformation function still has a `workflow_run` branch, which
+  costs nothing and starts working if a later version sends them. **So CI
+  failures do not currently reach the room.**
+
+Creating the hook needed a `write:admin` token; the long-lived `orca_api_token`
+(user `jarvis`) only has repo scope. One was minted, used, and **deleted** — see
+`docs/matrix-webhooks.md` history rather than expecting it in 1P. Mint another
+the same way if the hook ever needs editing.
 
 ### Icon sources
 
