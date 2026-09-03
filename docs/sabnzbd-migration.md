@@ -236,8 +236,20 @@ Your instinct was right — the tail is entirely 1080p BluRay remuxes at 32–39
 - **Queue burst headroom:** a couple more large movies or a full season pack queued → **+80 G**
 - **`download_free` guard:** SAB pauses rather than filling the volume → **+40 G**
 
-**Recommendation: a 250Gi PVC.** That is ~3× the single-job worst case and covers a realistic burst of
+**Planned: a 250Gi PVC.** That is ~3× the single-job worst case and covers a realistic burst of
 4–5 remuxes in flight, with SAB pausing (not failing) if it somehow gets deeper than that.
+
+**Corrected at deploy time (P3): 150Gi.** The 250Gi volume would not schedule. Longhorn does not
+schedule against raw free disk (~695 GB/node) but against
+`storageMaximum - storageReserved - storageScheduled`, and the default 30% reservation (247 GB/node)
+leaves only **223 / 186 / 100 GB** schedulable. 150Gi fits on two nodes, so the volume can still
+reschedule if one is drained; 200Gi would have fit only `asgard-mpc-01` and pinned the workload there.
+`download_free` drops 40G → 25G to match the smaller volume (leaving ~125 GB usable). The class sets
+`allowVolumeExpansion: true`, so this grows in place once local SSD is expanded — no migration needed.
+
+Practical effect at 150Gi: a single 39 GB RAR'd remux (≈80 GB with its extracted output) still has room
+alongside a second job downloading. Back-to-back remuxes may briefly pause the queue on the free-space
+guard, which is safe behaviour, not failure.
 
 **On a new `longhorn-scratch` StorageClass — `numberOfReplicas: "1"`, backups excluded.** This matters:
 

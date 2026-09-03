@@ -185,13 +185,18 @@ spec:
               - path: /config
             config-backup:
               - path: /config
-      # Incomplete/working set on local SSD, off the NAS link. Sized at ~3x the
-      # largest observed job (39GB remux); see docs/sabnzbd-migration.md §5c.
+      # Incomplete/working set on local SSD, off the NAS link.
+      # 150Gi, not the 250Gi originally planned: Longhorn schedules against
+      # (storageMaximum - storageReserved - storageScheduled), and the default 30%
+      # reservation leaves only 223/186/100 GB schedulable across the three nodes.
+      # 150Gi fits on two of them, so the volume can still reschedule if a node is
+      # drained. Expandable in place (allowVolumeExpansion) once local SSD grows.
+      # See docs/sabnzbd-migration.md §5c.
       scratch:
         type: persistentVolumeClaim
         storageClass: longhorn-scratch
         accessMode: ReadWriteOnce
-        size: 250Gi
+        size: 150Gi
         advancedMounts:
           sabnzbd:
             seed-config:
