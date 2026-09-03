@@ -55,6 +55,24 @@ spec:
                     "rooms": ["!oczWlBAHrRRoVjTndB:matrix.${SECRET_DOMAIN}"],
                     "displayname": "Requests",
                     "avatar": "avatar-requests.png"
+                  },
+                  "uptimekuma": {
+                    "sender": "@_webhooks_uptimekuma:matrix.${SECRET_DOMAIN}",
+                    "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
+                    "displayname": "Uptime Kuma",
+                    "avatar": "avatar-uptimekuma.png"
+                  },
+                  "longhorn": {
+                    "sender": "@_webhooks_longhorn:matrix.${SECRET_DOMAIN}",
+                    "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
+                    "displayname": "Longhorn",
+                    "avatar": "avatar-longhorn.png"
+                  },
+                  "cloudflare": {
+                    "sender": "@_webhooks_cloudflare:matrix.${SECRET_DOMAIN}",
+                    "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
+                    "displayname": "Cloudflare",
+                    "avatar": "avatar-cloudflare.png"
                   }
                 }
             envFrom:
@@ -122,6 +140,15 @@ spec:
                 readOnly: true
               - path: /app/avatars/avatar-requests.png
                 subPath: avatar-requests.png
+                readOnly: true
+              - path: /app/avatars/avatar-uptimekuma.png
+                subPath: avatar-uptimekuma.png
+                readOnly: true
+              - path: /app/avatars/avatar-longhorn.png
+                subPath: avatar-longhorn.png
+                readOnly: true
+              - path: /app/avatars/avatar-cloudflare.png
+                subPath: avatar-cloudflare.png
                 readOnly: true
 
     # Internal only. Tautulli reaches it in-cluster; the route is for testing.

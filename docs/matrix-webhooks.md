@@ -486,6 +486,99 @@ Synapse):
 |---|---|---|---|
 | Media Server | Tautulli → `/notify` | `@_webhooks_plex` | `Plex` |
 | Media Server | Seerr → `/notify` | `@_webhooks_requests` | `Requests` |
+| Infrastructure | Uptime Kuma → `/notify` | `@_webhooks_uptimekuma` | `Uptime Kuma` |
+| Infrastructure | Longhorn backup CronJob → `/notify` | `@_webhooks_longhorn` | `Longhorn` |
+| Infrastructure | Cloudflare DNS monitor CronJob → `/notify` | `@_webhooks_cloudflare` | `Cloudflare` |
+
+## The Infrastructure room
+
+Room ID `!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}` — **public, unencrypted**,
+which is what lets the relay ghosts self-join on first use with no invite.
+
+Five infrastructure sources land here, split across the two delivery paths for
+one reason: **whether the sender can shape its own JSON body.**
+
+| Source | Path | Why |
+|---|---|---|
+| Alertmanager | hookshot + JS transform | `webhook_configs` has no body templating |
+| Forgejo | hookshot + JS transform | fixed Forgejo webhook schema |
+| Uptime Kuma | relay | its webhook notification supports a custom JSON body |
+| Longhorn backup alert | relay | our CronJob, we own the payload |
+| Cloudflare DNS monitor | relay | our CronJob, we own the payload |
+
+The split is not cosmetic. A relay-delivered source gets a **clean display
+name** and a **git-declared avatar**; a hookshot-delivered one inherits
+hookshot's hardcoded `<name> (Webhook)` suffix and gets no avatar at all unless
+one is applied by hand (see below). So prefer the relay whenever the sender can
+emit `{"text": ..., "html": ...}` on its own.
+
+Neither CronJob sends `room`. The relay falls back to the single room its
+profile owns, which keeps the room ID declared once — in the relay HelmRelease —
+rather than copied into every caller.
+
+### Avatars for hookshot-delivered ghosts
+
+Hookshot never touches avatars, and the relay only applies one while handling a
+`/notify` it is the sender for. `@_webhooks_alertmanager` and
+`@_webhooks_forgejo` are therefore hookshot's ghosts with **no relay profile**,
+so their icons are set once against the homeserver and live only in Synapse —
+**not reproducible from this repo**, the same category as a room avatar.
+
+This block is the recovery record. Re-run it after a homeserver rebuild:
+
+```sh
+# Run from a machine with cluster access. The AS token is read inside the pod
+# and never leaves it; PNGs come from the paths given on the command line.
+kubectl -n tools exec -i deploy/synapse-main -c app -- python3 - <<'PY'
+import json, urllib.request, urllib.parse
+tok = [l.split(':', 1)[1].strip().strip('"')
+       for l in open('/as/hookshot-registration.yml')
+       if l.strip().startswith('as_token:')][0]
+DOMAIN = 'matrix.<your domain>'
+# Fetch each icon from dashboard-icons, the same source the avatars in
+# matrix-media-relay's ConfigMap were built from.
+ICONS = {'alertmanager': 'alertmanager', 'forgejo': 'forgejo'}
+for ghost, icon in ICONS.items():
+    png = urllib.request.urlopen(
+        'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/%s.png' % icon,
+        timeout=30).read()
+    sender = '@_webhooks_%s:%s' % (ghost, DOMAIN)
+    q = urllib.parse.urlencode({'user_id': sender, 'filename': icon + '.png'})
+    req = urllib.request.Request(
+        'http://localhost:8008/_matrix/media/v3/upload?' + q, data=png,
+        headers={'Authorization': 'Bearer ' + tok, 'Content-Type': 'image/png'})
+    mxc = json.load(urllib.request.urlopen(req, timeout=30))['content_uri']
+    req = urllib.request.Request(
+        'http://localhost:8008/_matrix/client/v3/profile/%s/avatar_url?%s'
+        % (urllib.parse.quote(sender), urllib.parse.urlencode({'user_id': sender})),
+        data=json.dumps({'avatar_url': mxc}).encode(), method='PUT',
+        headers={'Authorization': 'Bearer ' + tok,
+                 'Content-Type': 'application/json'})
+    urllib.request.urlopen(req, timeout=30).read()
+    print(sender, '->', mxc)
+PY
+```
+
+Every upload mints a fresh `mxc://`, so re-running this leaks the previous
+media. Run it only on a rebuild or a deliberate icon change — this is exactly
+the bookkeeping the relay's sha256 account-data cache exists to avoid, and the
+reason a relay profile is the better home for an icon when the source allows it.
+
+### Icon sources
+
+Ghost icons come from
+[`homarr-labs/dashboard-icons`](https://github.com/homarr-labs/dashboard-icons),
+already the source Homepage and the Authentik launcher blueprints use, so the
+room matches the dashboards.
+
+`avatar-uptimekuma.png` is upstream's 512×512 PNG **vendored verbatim** — per the
+rule above, a project shipping a square icon gets copied, not redrawn. The other
+three are not square (Forgejo 328×512, Longhorn 621×512, Cloudflare 1132×512) and
+Element's circular crop would clip them, so each keeps an `avatar-*.svg` beside
+it: a 512×512 canvas embedding the upstream SVG inset to 68–86%, rasterized with
+`qlmanage -t -s 512`. Longhorn's canvas is filled `#5F224A` — its own brand
+purple, taken from the upstream SVG — so the crop reads as white horns on a
+solid purple disc instead of a clipped rounded-rect card.
 
 ## Verification
 
