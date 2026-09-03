@@ -1,0 +1,40 @@
+---
+# Restores metrics access to longhorn-manager:9500, which chart 1.12.1 broke.
+#
+# `networkPolicies.enabled` is false (chart default, and our intent), but 1.12.1
+# regressed the gate on the internal-traffic policies from
+# `.Values.networkPolicies.enabled` to `.Values.networkPolicies.restrictInternalTraffic`,
+# which defaults to *true*. So six NetworkPolicies ship even with network
+# policies "disabled", and `longhorn-manager` allows ingress only from
+# longhorn's own pods. That silently cut two things off at 2026-08-23 15:11
+# (helm revision 26): Prometheus' `longhorn-backend` scrape -> TargetDown, and
+# the longhorn-backup-alert CronJob's metrics read -> KubeJobFailed.
+#
+# NetworkPolicies are additive -- the effective allow-list is the union across
+# every policy selecting a pod -- so this grants the two callers back without
+# editing a Helm-owned object (which Flux would fight) and without turning the
+# internal restriction off wholesale. It is also inert if upstream fixes the
+# gate and the chart policies disappear.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-manager-allow-metrics
+spec:
+  podSelector:
+    matchLabels:
+      app: longhorn-manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Prometheus, via the `longhorn` ServiceMonitor.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+        # longhorn-backup-alert CronJob (same namespace, so podSelector only).
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: longhorn-backup-alert
+      ports:
+        - port: 9500
+          protocol: TCP
