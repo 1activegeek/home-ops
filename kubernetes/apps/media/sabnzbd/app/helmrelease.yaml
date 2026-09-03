@@ -22,6 +22,17 @@ spec:
             image:
               repository: ghcr.io/home-operations/sabnzbd
               tag: 5.1.2
+            env:
+              SABNZBD__HOST_WHITELIST_ENTRIES: >-
+                sabnzbd,
+                sabnzbd.media,
+                sabnzbd.media.svc,
+                sabnzbd.media.svc.cluster,
+                sabnzbd.media.svc.cluster.local,
+                sabnzbd.${SECRET_DOMAIN}
+            envFrom:
+              - secretRef:
+                  name: sabnzbd-secret
             command:
               - /bin/sh
               - -c
@@ -112,19 +123,27 @@ spec:
               - -c
               - |
                 DEST=/data/media/.backups/sabnzbd
+                # Let SABnzbd finish creating /config/admin on a cold start.
+                sleep 120
                 while true; do
+                  NEXT=86400
                   if mkdir -p "$DEST" 2>/dev/null; then
                     TS=$(date +%Y%m%d-%H%M%S)
-                    if tar czf "$DEST/sabnzbd-config-$TS.tar.gz" -C /config sabnzbd.ini admin 2>/dev/null; then
-                      echo "[config-backup] wrote $DEST/sabnzbd-config-$TS.tar.gz"
+                    SRC="sabnzbd.ini"
+                    [ -d /config/admin ] && SRC="$SRC admin"
+                    if tar czf "$DEST/sabnzbd-config-$TS.tar.gz" -C /config $SRC 2>/dev/null; then
+                      echo "[config-backup] wrote $DEST/sabnzbd-config-$TS.tar.gz ($SRC)"
                       find "$DEST" -name 'sabnzbd-config-*.tar.gz' -type f -mtime +14 -print -delete
                     else
-                      echo "[config-backup] tar failed - skipping this cycle"
+                      echo "[config-backup] tar failed - retrying in 10m"
+                      rm -f "$DEST/sabnzbd-config-$TS.tar.gz"
+                      NEXT=600
                     fi
                   else
-                    echo "[config-backup] destination unreachable - skipping this cycle"
+                    echo "[config-backup] destination unreachable - retrying in 10m"
+                    NEXT=600
                   fi
-                  sleep 86400
+                  sleep "$NEXT"
                 done
             securityContext:
               allowPrivilegeEscalation: false

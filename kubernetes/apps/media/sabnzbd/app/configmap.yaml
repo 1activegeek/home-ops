@@ -26,6 +26,17 @@ data:
     SEED = "/seed/sabnzbd.ini.seed"
     INI = "/config/sabnzbd.ini"
 
+    # Written from the environment (ExternalSecret / HelmRelease), never from the
+    # seed. The upstream entrypoint tries to sed these in, but its sed only
+    # matches lines that already exist - and a seed that omits them leaves
+    # SABnzbd free to generate its own random api_key and to whitelist nothing
+    # but the pod name, which breaks both the *arrs and the route.
+    FROM_ENV = {
+        "api_key": "SABNZBD__API_KEY",
+        "nzb_key": "SABNZBD__NZB_KEY",
+        "host_whitelist": "SABNZBD__HOST_WHITELIST_ENTRIES",
+    }
+
     MANAGED_SECTIONS = {"servers", "categories"}
     MANAGED_MISC = {
         "download_dir", "complete_dir", "dirscan_dir", "script_dir",
@@ -74,6 +85,35 @@ data:
             block.pop()
         return block
 
+    def apply_env(path):
+        """Force the identity keys in [misc] to match the environment."""
+        want = {k: os.environ[e] for k, e in FROM_ENV.items() if os.environ.get(e)}
+        if not want:
+            print("WARNING: none of %s are set - SABnzbd will invent its own"
+                  % ", ".join(FROM_ENV.values()))
+            return
+        lines, seen, sec = open(path).read().splitlines(), set(), None
+        out = []
+        for line in lines:
+            t = line.strip()
+            if t.startswith("[") and not t.startswith("[["):
+                sec = t[1:-1]
+            key = t.split("=")[0].strip() if "=" in t and not t.startswith("[") else None
+            if sec == "misc" and key in want:
+                out.append("%s = %s" % (key, want[key]))
+                seen.add(key)
+                continue
+            out.append(line)
+        missing = [k for k in want if k not in seen]
+        if missing:
+            for i, line in enumerate(out):
+                if line.strip() == "[misc]":
+                    for k in missing:
+                        out.insert(i + 1, "%s = %s" % (k, want[k]))
+                    break
+        open(path, "w").write("\n".join(out) + "\n")
+        print("identity keys applied from env: %s" % ", ".join(sorted(want)))
+
     def main():
         if not os.path.exists(SEED):
             sys.exit("seed not present at %s - is the ExternalSecret synced?" % SEED)
@@ -83,6 +123,7 @@ data:
             os.makedirs(os.path.dirname(INI), exist_ok=True)
             open(INI, "w").write(seed_text)
             print("no existing sabnzbd.ini - wrote seed verbatim (%d bytes)" % len(seed_text))
+            apply_env(INI)
             return
 
         shutil.copy2(INI, INI + ".bak-" + time.strftime("%Y%m%d-%H%M%S"))
@@ -135,6 +176,7 @@ data:
         print("merged seed into existing sabnzbd.ini; %d change(s)" % len(changed))
         for c in changed:
             print("  " + c)
+        apply_env(INI)
 
     main()
 
@@ -149,7 +191,7 @@ data:
     INTERVAL=15
     FAILURES=0
     THRESHOLD=2
-    echo "[watchdog] armed: checking $CANARY every ${INTERVAL}s, halt after $THRESHOLD consecutive failures"
+    echo "[watchdog] armed: checking $CANARY every $INTERVAL""s, halt after $THRESHOLD consecutive failures"
     while true; do
       if timeout 10 test -e "$CANARY" 2>/dev/null; then
         if [ "$FAILURES" -ne 0 ]; then
