@@ -373,6 +373,60 @@ means the registration `url` points at the webhooks listener (9000) instead of
 the appservice port (9993). Anything else means the bridge is fine; ignore the
 warning.
 
+## Trap: a HelmRelease whose *first* install failed stalls forever
+
+Found 2026-09-02, six days after the fact. Hookshot's pod was healthy and every
+webhook worked, but `flux get helmreleases -n tools` showed:
+
+```
+Stalled   True   MissingRollbackTarget  Failed to perform remediation:
+                 missing target release for rollback: cannot remediate failed release
+Ready     False  UpgradeFailed
+```
+
+`helm -n tools history hookshot` told the story:
+
+```
+1  Aug 27 23:44  failed  Release "hookshot" failed: timeout waiting for: [Deployment/tools/hookshot status: 'InProgress']
+2  Aug 27 23:54  failed  Upgrade "hookshot" failed: failed early due to stalled resources: [Deployment/tools/hookshot status: 'Failed']
+```
+
+Both attempts landed inside the ~95 minute Synapse outage documented below, so
+the Deployment never went Ready in time. **The install itself failed**, which
+means there was never a `deployed` revision — and with no good revision to roll
+back to, Flux's remediation cannot run, sets `Stalled`, and **stops retrying
+permanently**. It does not self-heal even after the underlying problem is fixed.
+
+This is the nasty part: **nothing looks broken.** The pod runs, the bridge
+works, notifications deliver. The only symptom is a HelmRelease that quietly
+stopped being managed. The consequence only arrives later — evict or reschedule
+that pod and Flux will not bring it back.
+
+Recovery, once the underlying cause is actually fixed:
+
+```sh
+flux -n tools reconcile helmrelease hookshot --force
+```
+
+`--force` is required specifically because `Stalled` means Flux will not retry
+on its own. This produced `revision 3 ... deployed` with **no pod restart** —
+Helm applied an identical spec, so nothing rolled. Chart version was unchanged
+(`5.0.1` in `ocirepository.yaml`, same as both failed attempts), so this was
+purely Helm bookkeeping catching up with reality.
+
+If `--force` is not enough, the next step is deleting the failed release secrets
+(`kubectl -n tools delete secret -l owner=helm,name=hookshot`) and letting Flux
+install fresh — the live resources carry `meta.helm.sh/release-name` and
+`app.kubernetes.io/managed-by: Helm`, so Helm 3 **adopts** them rather than
+colliding. Verify those annotations are present before trying it.
+
+**Worth checking periodically**, since this failure mode is invisible from the
+application side:
+
+```sh
+flux get helmreleases -A --status-selector ready=false
+```
+
 ## Trap: ESO and Helm apply the appservice change separately
 
 This took Synapse down for ~95 minutes on first deploy. It will recur on a
