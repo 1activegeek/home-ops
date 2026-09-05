@@ -1,7 +1,10 @@
 # Postgres Consolidation onto CloudNativePG
 
-Runbook for migrating the cluster's ten standalone `postgres:18-alpine` sidecar
+Runbook for migrating the cluster's nine standalone `postgres:18-alpine` sidecar
 containers onto the shared CloudNativePG cluster in the `database` namespace.
+
+Mattermost was a tenth. It was decommissioned in favour of the Matrix stack
+rather than migrated, so its sidecar is gone without ever moving.
 
 This **supersedes** the "Database Strategy: Individual DBs Per App" decision in
 `deployment-plan.md`.
@@ -9,10 +12,11 @@ This **supersedes** the "Database Strategy: Individual DBs Per App" decision in
 ## Why
 
 The per-app sidecar pattern gave isolation, but at a cost that grew with app
-count: ten single-instance databases with no HA, ten `pg_dump` CronJobs, ten
-manual major-version upgrades (see `.taskfiles/db-migrations/`), and no metrics
-or alerting on any of them. A single CNPG cluster gives declarative roles and
-databases, automatic failover, PodMonitor metrics, and one backup job.
+count: one single-instance database with no HA per app, one `pg_dump` CronJob
+per app, one manual major-version upgrade per app (see
+`.taskfiles/db-migrations/`), and no metrics or alerting on any of them. A
+single CNPG cluster gives declarative roles and databases, automatic failover,
+PodMonitor metrics, and one backup job.
 
 The trade is real and worth stating plainly: **this creates a single failure
 domain.** CNPG down means Forgejo, Authentik (and therefore SSO), Synapse and
@@ -28,7 +32,6 @@ failover and alerting, not eliminated.
 | atuin | tools | `atuin` | `atuin` |
 | zipline | tools | `zipline` | `zipline` |
 | mas | tools | `mas` | `mas` |
-| mattermost | tools | `mattermost` | `mattermost` |
 | nextcloud | tools | `nextcloud` | `nextcloud` |
 | synapse | tools | `synapse` | `synapse` (C collation) |
 | n8n | ai | `n8n` | `n8n` |
@@ -92,11 +95,10 @@ Manifests: `kubernetes/apps/database/postgres/app/`.
 | 3 | **zipline** | Small | Already uses a `postgres-init` init container — remove it. File uploads are a separate PVC; don't touch. |
 | 4 | **mas** | Small, but **Synapse depends on it for auth** — migrate well before Synapse | DSN lives inside `config.yaml` in `mas-secret`. MAS runs its own schema migrations at boot. |
 | 5 | **n8n** | Medium | `N8N_ENCRYPTION_KEY` must be unchanged or **every stored credential becomes unreadable**. Confirm it comes from the ExternalSecret, not a file generated on the PVC. |
-| 6 | **mattermost** | Medium | Validates the DSN strictly: `postgres://user:pass@host:5432/db?sslmode=disable&connect_timeout=10` |
-| 7 | **teslamate** | Large time-series; longest dump/restore | Check for `cube`/`earthdistance` extensions (add to `Database.spec.extensions`). The teslamate-grafana datasource secret needs updating too. |
-| 8 | **nextcloud** | Big and chatty; ~30 connections — this is the app that will make you care about `max_connections` | `occ maintenance:mode --on` first. After cutover: `occ maintenance:repair` and `occ db:add-missing-indices`. |
-| 9 | **synapse** | Schema-sensitive | **Hard requirement: `LC_COLLATE=C`, `LC_CTYPE=C`.** Use the `Database` CR with `localeCollate: C`, `localeCType: C` and **`template: template0`** (locale cannot be overridden from `template1`). Synapse refuses to start otherwise. Verify before restoring: `SELECT datcollate, datctype FROM pg_database WHERE datname='synapse'` |
-| 10 | **authentik** | **PG 17 → 18** and it is the IdP: breaking it costs SSO to Forgejo, Headlamp and Grafana | Dump using the **PG 18** `pg_dump` client against the 17 server (forward, never backward). Set `postgresql.enabled: false` on the bitnami subchart and drop the two `valuesFrom` targetPaths. Keep the PG17 PVC. **Verify the static kubeconfig works before starting** — apiserver OIDC goes with it. Do this last, on a day you can afford downtime. |
+| 6 | **teslamate** | Large time-series; longest dump/restore | Check for `cube`/`earthdistance` extensions (add to `Database.spec.extensions`). The teslamate-grafana datasource secret needs updating too. |
+| 7 | **nextcloud** | Big and chatty; ~30 connections — this is the app that will make you care about `max_connections` | `occ maintenance:mode --on` first. After cutover: `occ maintenance:repair` and `occ db:add-missing-indices`. |
+| 8 | **synapse** | Schema-sensitive | **Hard requirement: `LC_COLLATE=C`, `LC_CTYPE=C`.** Use the `Database` CR with `localeCollate: C`, `localeCType: C` and **`template: template0`** (locale cannot be overridden from `template1`). Synapse refuses to start otherwise. Verify before restoring: `SELECT datcollate, datctype FROM pg_database WHERE datname='synapse'` |
+| 9 | **authentik** | **PG 17 → 18** and it is the IdP: breaking it costs SSO to Forgejo, Headlamp and Grafana | Dump using the **PG 18** `pg_dump` client against the 17 server (forward, never backward). Set `postgresql.enabled: false` on the bitnami subchart and drop the two `valuesFrom` targetPaths. Keep the PG17 PVC. **Verify the static kubeconfig works before starting** — apiserver OIDC goes with it. Do this last, on a day you can afford downtime. |
 
 For Synapse:
 

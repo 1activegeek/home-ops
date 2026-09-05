@@ -16,9 +16,11 @@ spec:
         initContainers:
           # Carries upstream PR NousResearch/hermes-agent#27183 (per-user
           # USER.md isolation, issue #27182) into the stock image, which does
-          # not have it yet. Without it every Mattermost user in the mixos
-          # team shares one /opt/data/memories/USER.md, so one person's stated
-          # preferences are injected into everyone else's system prompt.
+          # not have it yet. Without it every platform user shares one
+          # /opt/data/memories/USER.md, so one person's stated preferences are
+          # injected into everyone else's system prompt. Matrix access is
+          # currently allowlisted to one user, so this guards the moment
+          # MATRIX_ALLOWED_USERS widens rather than a present-day leak.
           #
           # /opt/hermes is immutable in the published image, so the three
           # touched source files are copied to an emptyDir, patched there, and
@@ -99,10 +101,10 @@ spec:
               # value is deliberately treated as unset (falls through to
               # config.yaml) rather than as false.
               #
-              # Safe for the existing platform wiring: Mattermost (WebSocket)
-              # and Matrix (/sync long-poll) are outbound-connecting adapters,
-              # so the /p/<profile>/webhooks/<route> path change that
-              # multiplexing introduces applies to no registered webhook here.
+              # Safe for the existing platform wiring: Matrix (/sync
+              # long-poll) is an outbound-connecting adapter, so the
+              # /p/<profile>/webhooks/<route> path change that multiplexing
+              # introduces applies to no registered webhook here.
               # The default profile likewise keeps the unprefixed /v1/... API
               # listener on :8642 — only secondary profiles move to
               # /p/<profile>/v1/... — so open-webui's OPENAI_API_BASE_URL is

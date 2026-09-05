@@ -111,7 +111,6 @@ front of it - for an internal-only route that is a deliberate choice, not an omi
 | Plex | internal | `external_identity_exception` | Uses Plex.tv identity model |
 | Authentik | external | `public_exception` | It is the IdP. Admin console is 404'd at the public edge |
 | Echo, Flux webhook, Tesla pubkey | external | `public_exception` | Webhook and probe endpoints |
-| Mattermost | internal | `none` | Team Edition licence-gates OIDC; internal-only LAN access |
 | Grimmory | internal | `none` | OIDC explicitly disabled in its config |
 | All other internal apps | internal | `none` | Internal-only; no gateway auth and no OIDC configured |
 
