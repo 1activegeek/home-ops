@@ -7,8 +7,8 @@ data:
   # Upstream PR NousResearch/hermes-agent#27183 ("Add per-user USER.md
   # isolation in MemoryStore"), which closes issue #27182. NOT merged
   # upstream as of 2026-09-02 — carried here as a runtime patch so the
-  # multi-user Mattermost adapter stops writing every person's preferences
-  # into one shared /opt/data/memories/USER.md.
+  # gateway stops writing every person's preferences into one shared
+  # /opt/data/memories/USER.md once more than one user is allowlisted.
   #
   # What it does: MemoryStore gains user_id/platform; when a platform
   # identity is present USER.md moves to memories/users/<safe_key>/USER.md

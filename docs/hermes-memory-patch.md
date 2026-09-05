@@ -19,10 +19,14 @@ Hermes keeps two built-in memory files under its home directory:
 | `MEMORY.md` | global | what the agent has learned |
 | `USER.md` | **was** global | who the user is and how they want things done |
 
-Both are injected into every conversation's system prompt. The Mattermost adapter here
-runs with `MATTERMOST_ALLOW_ALL_USERS=true`, so every person in the team shares one
-`USER.md` — one person's stated preferences end up in everyone else's prompt. That is
-preference contamination and a mild privacy leak.
+Both are injected into every conversation's system prompt. Without the patch every
+person on a platform shares one `USER.md` — one person's stated preferences end up in
+everyone else's prompt. That is preference contamination and a mild privacy leak.
+
+It was written when the Mattermost adapter ran with `MATTERMOST_ALLOW_ALL_USERS=true`
+and anyone in the team could reach the bot. Mattermost is decommissioned and Matrix
+access is allowlisted to one user, so the patch currently guards nothing in practice —
+it is what makes widening `MATRIX_ALLOWED_USERS` safe, and stays for that reason.
 
 The patch partitions `USER.md` per platform identity:
 
@@ -30,8 +34,8 @@ The patch partitions `USER.md` per platform identity:
 - no identity (TUI, cron, one-shot) → the original global `memories/USER.md`
 - `MEMORY.md` stays global — shared agent knowledge is intentional
 
-`<safe_key>` is `<platform>-<id>` for filesystem-safe identifiers (Mattermost/Slack ids,
-numeric Telegram ids). Anything else — emails, unicode handles, hostile values like
+`<safe_key>` is `<platform>-<id>` for filesystem-safe identifiers (Slack ids, numeric
+Telegram ids). Anything else — emails, unicode handles, hostile values like
 `../../etc` — collapses to a stable `h-<sha256[:20]>` digest, so a platform-supplied
 identifier can never contribute a raw path component.
 
