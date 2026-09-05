@@ -23,7 +23,6 @@ resources:
   - ./code-server/ks.yaml
   - ./webtop/ks.yaml
   - ./nextcloud/ks.yaml
-  - ./mattermost/ks.yaml
   - ./synapse/ks.yaml
   - ./mas/ks.yaml
   - ./element/ks.yaml
