@@ -1,7 +1,7 @@
 ---
 # Discovered automatically: kube-prometheus-stack sets
 # ruleSelectorNilUsesHelmValues: false, so PrometheusRules in any namespace are
-# picked up. Alerts deliver to Mattermost via the alertmanager config secret.
+# picked up. Alerts deliver to Matrix via the alertmanager config secret.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
