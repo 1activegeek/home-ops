@@ -223,22 +223,6 @@ entries:
       slug: matrix-account
   - model: authentik_core.application
     identifiers:
-      slug: mattermost
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/mattermost.png
-      meta_launch_url: https://matter.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Mattermost
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: mattermost
-  - model: authentik_core.application
-    identifiers:
       slug: metube
     attrs:
       backchannel_providers: []

@@ -44,6 +44,13 @@ entries:
     identifiers:
       name: home-assistant-oidc-provider
 
+  # Mattermost was decommissioned in favour of the Matrix stack. Dropping the tile from
+  # 40-launcher-apps.yaml leaves the application in place, so remove it explicitly.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: mattermost
+
   # Bound to no flow. Superseded by passwordless-webauthn-validation in 10-auth-experience.yaml.
   - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
     state: absent
