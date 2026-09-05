@@ -78,13 +78,13 @@ spec:
     alertmanager:
       enabled: true
       alertmanagerSpec:
-        # Public-facing URL so the "receiver" link in every Mattermost alert
+        # Public-facing URL so the "receiver" link in every Matrix alert
         # resolves from a browser instead of http://kps-alertmanager...:9093.
         # Route: kubernetes/.../kube-prometheus-stack httproute (alertmanager.<domain>).
         externalUrl: https://alertmanager.${SECRET_DOMAIN}
         # Full config rendered by the alertmanager ExternalSecret. Delivery is
-        # Mattermost #infrastructure via a Slack-compatible incoming webhook
-        # (api_url inline; the operator's parser rejects *_file indirection).
+        # the Matrix Infrastructure room via a matrix-hookshot generic webhook
+        # (url inline; the operator's parser rejects *_file indirection).
         configSecret: alertmanager-config
         storage:
           volumeClaimTemplate:
