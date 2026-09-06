@@ -74,7 +74,11 @@ spec:
                   # Volume names are k8s-safe (lowercase alphanumerics + dashes),
                   # so no JSON escaping beyond the static text is required.
                   TXT="Longhorn backup failure: ${COUNT} backup(s) in Error state. Volume(s): ${VOLS}"
-                  HTML="<b>Longhorn backup failure</b><br>${COUNT} backup(s) in Error state.<br><span data-mx-color=\"#888888\">Volume(s): ${VOLS}</span>"
+                  # House card format for the Infrastructure room: a
+                  # <blockquote> is the only per-message frame Element
+                  # renders (left bar + indent), which is what keeps
+                  # consecutive alerts from the same sender readable.
+                  HTML="<blockquote><span data-mx-color=\"#f04747\"><b>🔴 BACKUP FAILURE &middot; Longhorn</b></span><br>${COUNT} backup(s) in Error state.<br><span data-mx-color=\"#888888\">Volume(s): ${VOLS}</span></blockquote>"
                   echo "[$(date -u)] ${TXT}"
                   # Post to the Infrastructure room through matrix-media-relay.
                   # No `img`, so the relay sends a plain m.notice.

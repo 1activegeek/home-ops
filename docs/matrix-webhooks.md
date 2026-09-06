@@ -445,6 +445,60 @@ as a pretty-printed JSON code block.
 - **Fixed-schema senders** (Alertmanager, Uptime Kuma, Forgejo): need a JS
   transformation function.
 
+### The card format
+
+Every source in the Infrastructure room renders one notification as one
+**`<blockquote>` card**:
+
+```html
+<blockquote><span data-mx-color="#f04747"><b>🔴 DOWN &middot; Bazarr</b></span><br>
+Request failed with status code 503<br>
+<span data-mx-color="#888888">https://bazarr.${SECRET_DOMAIN}</span></blockquote>
+```
+
+The reason is that Element groups consecutive events from one sender into a
+single visual run with no separator, and every up/down pair from Uptime Kuma
+comes from the same ghost. Without a frame, ten alerts read as one paragraph
+and the only thing distinguishing up from down is a small emoji.
+
+`<blockquote>` is the **only per-message frame available**. Matrix's HTML
+subset has no `div`, no `class`, and no stylesheet; Element renders a
+blockquote as an indented block with a left vertical bar, which is exactly the
+separation a Discord embed gets from its colored left edge. `<hr>` is also in
+the subset but draws a rule *between* messages rather than framing one, and it
+collapses when Element groups events.
+
+Colors are carried by `data-mx-color` on a `<span>` — the one styling hook the
+subset allows. `data-mx-bg-color` exists in the spec but is not reliable across
+clients, so the status word is colored rather than badged:
+
+| State | Color | Used by |
+|---|---|---|
+| Down / failing / error | `#f04747` | Uptime Kuma, Alertmanager firing, Longhorn, Forgejo CI failure, PR closed |
+| Up / resolved / recovered | `#43b581` | Uptime Kuma, Alertmanager resolved, Forgejo CI recover, PR opened |
+| Warning / change / test | `#faa61a` | Cloudflare DNS change, Uptime Kuma test, PR reviewed |
+| Merged | `#a371f7` | Forgejo PR merged |
+| Secondary text (URLs, metadata) | `#888888` | every card's last line |
+
+The headline is `ICON STATUS &middot; Subject` with the status word **spelled
+out and upper-cased**, so the state survives when the emoji does not render and
+is legible without decoding an icon.
+
+Two rules that fall out of this and are easy to get wrong:
+
+- **Do not join cards with `<br>`.** A blockquote carries its own margins;
+  a separator between two of them adds a blank line inside the run. The
+  Alertmanager function renders a batch as `rows.join("")` for this reason.
+- **Element's `<blockquote>` styling is what does the work**, so a source that
+  emits `text` only (no `html`) gets no frame. Every source in the room sends
+  both.
+
+A client-side complement, for anyone who wants the separation without the
+markup: Element → Settings → Appearance → **Message layout: Message bubbles**
+gives every event its own background and repeats the sender. That is a
+per-device preference and changes nothing server-side, so the cards stay the
+mechanism that works on every client.
+
 ### Transformation functions
 
 They live in the room state event's `transformationFunction` key and must be set
@@ -497,8 +551,13 @@ const matcher = (l) => "{" +
 const amUrl = (path, l) => base
   ? base + path + "?filter=" + encodeURIComponent(matcher(l)) : "";
 
+// Each alert renders as its own <blockquote> card. A blockquote is the only
+// per-message frame Element draws (left bar + indent), so it is what stops a
+// batch of alerts -- and a run of consecutive events from the same ghost --
+// from reading as one undifferentiated wall of text. The status word is
+// spelled out and colored rather than left to the icon alone.
 const rows = alerts.map((al) => {
-  const icon = al.status === "firing" ? "🔥" : "✅";
+  const firing = al.status === "firing";
   const l = al.labels || {}, ann = al.annotations || {};
   const where = [l.namespace, l.pod || l.instance].filter(Boolean).join("/");
   const detail = amUrl("/#/alerts", l);
@@ -508,11 +567,13 @@ const rows = alerts.map((al) => {
     al.generatorURL ? a(al.generatorURL, "Graph") : "",
     ann.runbook_url ? a(ann.runbook_url, "Runbook") : "",
   ].filter(Boolean).join(" &middot; ");
-  return icon + " <b>" + a(detail, l.alertname || "unknown") + "</b> [" +
+  return '<blockquote><span data-mx-color="' + (firing ? "#f04747" : "#43b581") +
+    '"><b>' + (firing ? "🔥 FIRING" : "✅ RESOLVED") + " &middot; " +
+    a(detail, l.alertname || "unknown") + "</b></span> [" +
     esc(l.severity || "-") + "]" + (where ? " " + esc(where) : "") + "<br>" +
-    "&nbsp;&nbsp;" + esc(ann.summary || ann.description || "") +
-    (links ? '<br>&nbsp;&nbsp;<span data-mx-color="#888888">' + links +
-      "</span>" : "");
+    esc(ann.summary || ann.description || "") +
+    (links ? '<br><span data-mx-color="#888888">' + links + "</span>" : "") +
+    "</blockquote>";
 });
 const plain = alerts.map((al) => {
   const l = al.labels || {}, ann = al.annotations || {};
@@ -528,7 +589,7 @@ result = {
   version: "v2",
   empty: rows.length === 0,
   plain: plain || (data.status + ": no alerts"),
-  html: rows.join("<br>"),
+  html: rows.join(""),
   msgtype: "m.notice",
   mentions: { room: critical },
 };
@@ -561,7 +622,12 @@ const repoName = repo.full_name || "unknown";
 const repoUrl = repo.html_url || "";
 const who = (data.sender && (data.sender.login || data.sender.username)) || "someone";
 
-let plain = "", html = "", notify = false, empty = false;
+// `head` is the colored, framed first line of the card; `rest` is everything
+// after it. They are assembled into one <blockquote> at the bottom -- the only
+// per-message frame Element draws, and what keeps consecutive events from this
+// ghost visually separated.
+let plain = "", head = "", rest = "", color = "#888888";
+let notify = false, empty = false;
 
 if (data.run) {
   // Forgejo Actions: {action: failure|success|recover, run: ActionRun,
@@ -582,8 +648,10 @@ if (data.run) {
     notify = !recovered;
     plain = (recovered ? "CI recovered: " : "CI failed: ") + title +
       " in " + rRepoName + where + " (" + trigger + ")";
-    html = (recovered ? "✅ <b>CI recovered</b> " : "❌ <b>CI failed</b> ") +
-      link(r.html_url, title) + " in " + link(rRepo.html_url || repoUrl, rRepoName) +
+    color = recovered ? "#43b581" : "#f04747";
+    head = recovered ? "✅ <b>CI RECOVERED</b>" : "❌ <b>CI FAILED</b>";
+    rest = " " + link(r.html_url, title) +
+      " in " + link(rRepo.html_url || repoUrl, rRepoName) +
       "<br><span data-mx-color=\"#888888\">" + esc(where.replace(/^ /, "")) +
       " · " + esc(trigger) + "</span>";
   }
@@ -598,18 +666,27 @@ if (data.run) {
     const merged = act === "closed" && pr.merged;
     const verb = merged ? "merged" : act;
     const icon = merged ? "🎉" : (act === "opened" ? "🔀" : (act === "closed" ? "🚫" : "💬"));
+    color = merged ? "#a371f7"
+      : (act === "opened" ? "#43b581" : (act === "closed" ? "#f04747" : "#faa61a"));
     plain = who + " " + verb + " PR #" + pr.number + " in " + repoName + ": " + pr.title;
-    html = icon + " <b>" + esc(who) + "</b> " + esc(verb) + " " +
-      link(pr.html_url, "#" + pr.number + " " + pr.title) +
-      " in " + link(repoUrl, repoName);
+    head = icon + " <b>" + verb.toUpperCase() + "</b>";
+    rest = " " + link(pr.html_url, "#" + pr.number + " " + pr.title) +
+      " in " + link(repoUrl, repoName) +
+      "<br><span data-mx-color=\"#888888\">" + esc(who) + "</span>";
   }
 } else {
   // Nothing else is subscribed. Say so rather than dumping the payload --
   // includeHookBody is false here, so a silent empty would lose the event
   // entirely and hide a subscription that was widened by accident.
   plain = "Unsubscribed Forgejo event from " + repoName;
-  html = "📦 Unsubscribed Forgejo event from " + link(repoUrl, repoName);
+  head = "📦 <b>UNSUBSCRIBED EVENT</b>";
+  rest = " from " + link(repoUrl, repoName);
 }
+
+const html = head
+  ? '<blockquote><span data-mx-color="' + color + '">' + head + "</span>" +
+    rest + "</blockquote>"
+  : "";
 
 result = {
   version: "v2",
@@ -794,6 +871,59 @@ in its logs. The state key is the connection name, and the ghost is
 `true`, which attaches the raw payload to every event. Hookshot's oversize
 trimming drops the rendered HTML *before* it drops that blob, so a large Forgejo
 push would arrive as a JSON dump instead of the formatted message.
+
+## Wiring Uptime Kuma
+
+Uptime Kuma takes the **relay** path, because its Webhook notification supports
+a **custom JSON body** — so it emits `{"text": ..., "html": ...}` itself and
+needs no transformation function.
+
+> **This config lives in Uptime Kuma's SQLite DB** (`/app/data/kuma.db`, table
+> `notification`, the `config` JSON blob), not in git and not in a ConfigMap.
+> The template below is the recovery record. Edit it in the UI:
+> Settings → Notifications → *Matrix - Infrastructure*.
+
+| Field | Value |
+|---|---|
+| Notification Type | Webhook |
+| Post URL | `http://matrix-media-relay.tools.svc.cluster.local:8080/notify` |
+| Request Body | Custom Body |
+| Additional Headers | `{"Authorization": "Bearer <token_uptimekuma>"}` (1P `matrix-media-relay`) |
+
+Custom Body (Liquid):
+
+```liquid
+{%- assign color = "#faa61a" -%}
+{%- if heartbeatJSON.status == 1 -%}{%- assign color = "#43b581" -%}{%- endif -%}
+{%- if heartbeatJSON.status == 0 -%}{%- assign color = "#f04747" -%}{%- endif -%}
+{%- capture prefix %}[{{ name }}] [{{ status }}] {% endcapture -%}
+{%- assign detail = msg | remove_first: prefix -%}
+{%- capture text_body -%}{{ status }} - {{ name }}
+{{ detail }}
+{{ hostnameOrURL }}{%- endcapture -%}
+{%- capture html_body -%}<blockquote><span data-mx-color="{{ color }}"><b>{{ status | upcase }} &middot; {{ name | escape }}</b></span><br>{{ detail | escape }}<br><span data-mx-color="#888888">{{ hostnameOrURL | escape }}</span></blockquote>{%- endcapture -%}
+{"text": {{ text_body | json }}, "html": {{ html_body | json }}}
+```
+
+Four things about the template context, which is built in
+`server/notification-providers/notification-provider.js`:
+
+- **`status` already carries the emoji** — it is `"✅ Up"`, `"🔴 Down"` or
+  `"⚠️ Test"`, not a bare word. `| upcase` leaves the emoji alone and yields
+  `✅ UP`, which is why the headline needs no icon of its own.
+- **`heartbeatJSON` is `null` for a test notification**, so the color has to
+  default before being narrowed. `heartbeatJSON.status` is the numeric
+  heartbeat state (`0` down, `1` up) — the string in `status` is derived from
+  it, so branch on the number.
+- **`msg` repeats the headline**: Uptime Kuma sends
+  `[Bazarr] [🔴 Down] Request failed with status code 503`. The template
+  removes that `[name] [status] ` prefix with `remove_first` so the card's
+  second line is just the reason. `remove_first` on a rebuilt prefix is used
+  rather than splitting on `] `, which would truncate any error text that
+  happens to contain a bracket.
+- **`| json` is what makes this safe.** Monitor names and error strings are
+  interpolated into a JSON document; the filter quotes and escapes them.
+  `| escape` handles the separate HTML-escaping problem inside `html_body`.
 
 ## Wiring Alertmanager
 
