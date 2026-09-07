@@ -131,8 +131,17 @@ spec:
                           if added:   parts.append(rows("Added", added))
                           if changed: parts.append(rows("Changed", changed))
                           if removed: parts.append(rows("Removed", removed))
-                          html_body = "<b>%s</b><br><br>%s" % (
-                              html.escape(headline), "<br><br>".join(parts))
+                          # House card format for the Infrastructure room: a
+                          # <blockquote> is the only per-message frame Element
+                          # renders (left bar + indent), which is what keeps
+                          # consecutive alerts from one sender readable.
+                          html_body = (
+                              "<blockquote>"
+                              "<span data-mx-color=\"#faa61a\"><b>&#9888;&#65039; DNS CHANGE &middot; %s</b></span>"
+                              "<br>%s</blockquote>" % (
+                                  html.escape("%s (+%d ~%d -%d)" % (
+                                      ZONE, len(added), len(changed), len(removed))),
+                                  "<br><br>".join(parts)))
                           relay_post("%s\n\n%s" % (headline, body), html_body)
                           print("Alert dispatched to Matrix #Infrastructure.")
                       else:
