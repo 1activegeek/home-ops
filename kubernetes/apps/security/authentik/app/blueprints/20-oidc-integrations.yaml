@@ -168,7 +168,8 @@ entries:
       refresh_token_validity: days=30
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: user_username
-  - model: authentik_core.application
+  - id: app-matrix
+    model: authentik_core.application
     identifiers:
       slug: matrix
     attrs:
@@ -184,6 +185,22 @@ entries:
       policy_engine_mode: any
       provider: !KeyOf 'provider-matrix'
       slug: matrix
+  # An application with no bindings is open to every authenticated user, and a first login here
+  # provisions a Synapse account through MAS. Bind the matrix-users group so account creation is an
+  # explicit act: add the person to the group in authentik, then they can sign in. Membership is
+  # managed in the UI, not in a blueprint (see 00-foundation.yaml).
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'app-matrix'
+      group: !Find [authentik_core.group, [name, matrix-users]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      negate: false
+      policy: null
+      timeout: 30
+      user: null
   - id: provider-grafana
     model: authentik_providers_oauth2.oauth2provider
     identifiers:
