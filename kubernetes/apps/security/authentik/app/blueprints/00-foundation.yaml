@@ -5,8 +5,10 @@
 # this file, which guarantees these objects exist before they are referenced with !Find — blueprint
 # files are discovered with rglob() and have no inherent ordering.
 #
-# tier1/2/3 are access tiers. Membership is user data and is deliberately NOT declared here: listing
-# `users` would reconcile group membership away on every apply.
+# tier1/2/3 are access tiers. matrix-users gates the Matrix application specifically, because a
+# successful OIDC login there provisions a real Synapse account via MAS — an unbound application
+# would let any authentik user mint one. Membership is user data and is deliberately NOT declared
+# here: listing `users` would reconcile group membership away on every apply.
 #
 # headlamp-email-verified exists because kube-apiserver requires an `email_verified` claim when
 # oidc-username-claim=email, and authentik's built-in `email` scope hardcodes it to false. The
@@ -41,6 +43,14 @@ entries:
       attributes: {}
       is_superuser: false
       name: tier3
+      parents: []
+  - model: authentik_core.group
+    identifiers:
+      name: matrix-users
+    attrs:
+      attributes: {}
+      is_superuser: false
+      name: matrix-users
       parents: []
   - id: scope-headlamp-email
     model: authentik_providers_oauth2.scopemapping
