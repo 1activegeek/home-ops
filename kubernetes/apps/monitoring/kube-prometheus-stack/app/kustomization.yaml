@@ -7,3 +7,4 @@ resources:
   - ./externalsecret.yaml
   - ./httproute.yaml
   - ./configmap.yaml
+  - ./prometheusrule.yaml

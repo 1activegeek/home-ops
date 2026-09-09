@@ -2,6 +2,18 @@ machine:
   kubelet:
     extraConfig:
       serializeImagePulls: false
+      # Image GC must fire well BEFORE the hard-eviction line, or it never runs
+      # in time. Kubernetes defaults put imageGCHighThresholdPercent (85% used)
+      # at exactly the same point as evictionHard imagefs.available<15%, so the
+      # first thing that ever reclaims image garbage is a mass pod eviction.
+      # 2026-09-06: asgard-mpc-03 sat at 81% full for days, a 43-PR Renovate
+      # merge triggered a cluster-wide rollout, and the resulting image pulls
+      # crossed 15% -> DiskPressure -> 46 CoreDNS pods evicted. GC then freed
+      # 34 GiB that had been reclaimable the whole time.
+      imageGCHighThresholdPercent: 75
+      imageGCLowThresholdPercent: 65
+      # Prune images unused for a week regardless of disk pressure.
+      imageMaximumGCAge: 168h
     nodeIP:
       validSubnets:
         - 10.0.3.0/24
