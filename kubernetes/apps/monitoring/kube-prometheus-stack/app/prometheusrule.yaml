@@ -1,0 +1,59 @@
+---
+# Node disk-pressure coverage. The 2026-09-06 incident (43 Renovate PRs merged
+# in 90s -> cluster-wide rollout -> image-pull storm -> asgard-mpc-03 crossed
+# evictionHard imagefs.available<15% -> 46 CoreDNS pods evicted) produced ZERO
+# alerts. The stock kube-prometheus-stack rules all miss this shape:
+#   * NodeFilesystemAlmostOutOfSpace needs <5% free; the node bottomed at 15.6%.
+#   * NodeFilesystemSpaceFillingUp needs predict_linear() < 0 over 6h; the disk
+#     was dead flat at 81% full for days, so nothing was "filling up".
+#   * KubePodNotReady matches phase=~"Pending|Unknown" only — Failed/Evicted
+#     pods are invisible to it.
+#   * Nothing in the stack alerts on the node DiskPressure condition at all.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: node-disk-pressure
+spec:
+  groups:
+    - name: node-disk-pressure
+      rules:
+        - alert: KubeNodeDiskPressure
+          expr: kube_node_status_condition{condition="DiskPressure", status="true"} == 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.node }} is under DiskPressure"
+            description: >-
+              kubelet on {{ $labels.node }} has crossed an eviction threshold and
+              is shedding pods. Check /var usage and image GC on that node.
+
+        - alert: NodeEphemeralHeadroomLow
+          # The EPHEMERAL partition is capped at 95GB in talos/talconfig.yaml and
+          # holds containerd, etcd and pod logs. Warn while there is still room
+          # to act — evictionHard fires at 15%, image GC at 25% after the
+          # machine-kubelet.yaml patch.
+          expr: |
+            node_filesystem_avail_bytes{job="node-exporter", mountpoint="/var"}
+              / node_filesystem_size_bytes{job="node-exporter", mountpoint="/var"}
+              < 0.30
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.instance }} /var only {{ $value | humanizePercentage }} free"
+            description: >-
+              Sustained low headroom on the EPHEMERAL partition. A rollout wave
+              that pulls a few GiB of images will trip DiskPressure from here.
+
+        - alert: KubePodEvicted
+          # KubePodNotReady never sees these — it filters to Pending|Unknown.
+          expr: kube_pod_status_reason{reason="Evicted"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} was evicted"
+            description: >-
+              Evicted pods persist as Failed objects until deleted. A burst of
+              these means a node crossed a resource eviction threshold.
