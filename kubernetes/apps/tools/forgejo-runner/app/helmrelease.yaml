@@ -35,7 +35,7 @@ spec:
               #   statat var/run/act/actions/...: path escapes from parent
               # Re-evaluate when act_runner stages actions somewhere other than
               # /var/run, or upstream act works around the symlink.
-              tag: 27.5.1-dind
+              tag: 29.8.0-dind
             restartPolicy: Always
             # dockerd listens on a UNIX SOCKET ONLY — no TCP listener exists.
             #
@@ -197,7 +197,7 @@ spec:
             image:
               repository: docker.io/library/docker
               # Kept in step with the dind daemon above.
-              tag: 27.5.1-cli
+              tag: 29.8.0-cli
             command: ["/bin/sh", "-c"]
             args:
               - |
