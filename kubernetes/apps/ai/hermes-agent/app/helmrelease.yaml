@@ -22,10 +22,17 @@ spec:
           # currently allowlisted to one user, so this guards the moment
           # MATRIX_ALLOWED_USERS widens rather than a present-day leak.
           #
-          # /opt/hermes is immutable in the published image, so the three
+          # /opt/hermes is immutable in the published image, so the four
           # touched source files are copied to an emptyDir, patched there, and
           # mounted back over their original paths (see persistence.hermes-patch
           # below). Nothing is written to the image or the data PVC.
+          #
+          # The diff itself is a real file at ./patches/27183-per-user-usermd.diff
+          # (rendered into the ConfigMap by kustomize configMapGenerator), so it
+          # can be regenerated and CI-tested. On an image bump, CI runs
+          # scripts/hermes-patch/verify.sh against the NEW tag and fails the PR
+          # if the patch no longer applies — forward-port it with
+          # scripts/hermes-patch/regen.sh before merging. See patches/README.md.
           #
           # Hard-fails the pod if the patch no longer applies (image bump moved
           # the code) instead of starting unpatched and silently re-merging
@@ -46,18 +53,22 @@ spec:
               - |
                 set -eu
                 mkdir -p /patched/agent /patched/gateway /patched/tools
-                cp /opt/hermes/agent/agent_init.py       /patched/agent/
-                cp /opt/hermes/gateway/slash_commands.py /patched/gateway/
-                cp /opt/hermes/tools/memory_tool.py      /patched/tools/
+                cp /opt/hermes/agent/agent_init.py        /patched/agent/
+                cp /opt/hermes/gateway/slash_commands.py  /patched/gateway/
+                cp /opt/hermes/tools/memory_tool.py       /patched/tools/
+                # v2026.9.11 split MemoryStore out of memory_tool.py into this
+                # module; it now carries the bulk of the patch.
+                cp /opt/hermes/tools/memory_tool_store.py /patched/tools/
                 cd /patched
                 # --ignore-whitespace/--recount tolerate the trailing space on
                 # empty context lines being stripped in transit through the
                 # ConfigMap; -v prints each hunk offset to the init log.
                 git apply -v --ignore-whitespace --recount \
                   /patch/27183-per-user-usermd.diff
-                grep -q "^def safe_user_key" tools/memory_tool.py
-                grep -q "mem_dir / \"users\"" tools/memory_tool.py
-                grep -q "user_id=user_id" agent/agent_init.py
+                grep -q "^def safe_user_key" tools/memory_tool_store.py
+                grep -q "mem_dir / \"users\"" tools/memory_tool_store.py
+                grep -q "user_id=getattr(agent" agent/agent_init.py
+                grep -q "user_id=getattr(event.source" gateway/slash_commands.py
                 echo "per-user USER.md patch applied"
             resources:
               requests:
@@ -201,6 +212,9 @@ spec:
             gateway: &patch-mounts
               - path: /opt/hermes/tools/memory_tool.py
                 subPath: tools/memory_tool.py
+                readOnly: true
+              - path: /opt/hermes/tools/memory_tool_store.py
+                subPath: tools/memory_tool_store.py
                 readOnly: true
               - path: /opt/hermes/agent/agent_init.py
                 subPath: agent/agent_init.py

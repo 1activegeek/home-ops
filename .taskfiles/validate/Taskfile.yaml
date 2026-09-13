@@ -151,11 +151,14 @@ tasks:
       - which dig
 
   hermes-patch:
-    desc: Dry-run the carried hermes-agent patch against the pinned image tag
+    desc: Apply + behaviour-test the carried hermes-agent patch on the pinned image tag
+    # Delegates to scripts/hermes-patch/verify.sh, the same script
+    # .github/workflows/hermes-patch.yaml runs, so the local check and the CI
+    # gate can never diverge. It uses docker when a daemon is up and a throwaway
+    # pod otherwise, and skips green when neither is available.
     cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-hermes-patch.sh"
     preconditions:
-      - which kubectl
-      - which yq
+      - which python3
 
   security-ctx:
     desc: Flag images running as UID 65534 that may require a different UID
