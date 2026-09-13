@@ -1,0 +1,162 @@
+diff --git a/agent/agent_init.py b/agent/agent_init.py
+--- a/agent/agent_init.py
++++ b/agent/agent_init.py
+@@ -1262,6 +1262,11 @@
+                     user_char_limit=mem_config.get("user_char_limit", 1375),
+                     memory_enabled=agent._memory_enabled,
+                     user_profile_enabled=agent._user_profile_enabled,
++                    # Gateway identity params are set as agent._<name> before
++                    # _init_memory() runs (see _GATEWAY_IDENTITY_PARAMS); absent on
++                    # TUI/cron, which keeps the global USER.md.
++                    user_id=getattr(agent, "_user_id", None),
++                    platform=platform,
+                 )
+                 agent._memory_store.load_from_disk()
+ 
+diff --git a/gateway/slash_commands.py b/gateway/slash_commands.py
+--- a/gateway/slash_commands.py
++++ b/gateway/slash_commands.py
+@@ -842,8 +842,14 @@
+         from tools.memory_tool import load_on_disk_store
+         # Apply approved writes against a fresh on-disk store (the gateway has no long-lived agent;
+         # the store persists to the same MEMORY/USER.md and honors the configured char limits).
++        # Pass the sender's platform identity so approved target="user" writes land in
++        # the same per-user USER.md partition the live agent uses.
++        store = load_on_disk_store(
++            user_id=getattr(event.source, "user_id", None),
++            platform=getattr(event.source, "platform", None),
++        )
+         out = handle_pending_subcommand(
+-            wa.MEMORY, event.get_command_args().strip().split(), memory_store=load_on_disk_store(),
++            wa.MEMORY, event.get_command_args().strip().split(), memory_store=store,
+             set_mode_fn=self._write_approval_setter("memory", event))
+         return out if out is not None else (
+             "Unknown /memory subcommand. Use: pending, approve <id>, reject <id>, approval <on|off>."
+diff --git a/tools/memory_tool.py b/tools/memory_tool.py
+--- a/tools/memory_tool.py
++++ b/tools/memory_tool.py
+@@ -41,22 +41,30 @@
+ 
+ 
+ from tools.memory_tool_store import (  # noqa: E402,F401  (re-exports)
+-    ENTRY_DELIMITER, MEMORY_BLOCK_HEADERS, MemoryStore, _scan_memory_content)
++    ENTRY_DELIMITER, MEMORY_BLOCK_HEADERS, MemoryStore, safe_user_key, _scan_memory_content)
+ 
+ 
+-def load_on_disk_store() -> "MemoryStore":
++def load_on_disk_store(user_id=None, platform=None) -> "MemoryStore":
+     """Fresh on-disk MemoryStore with configured limits/flags for contexts with no live
+     agent (gateway, Desktop, ``/memory``) so approvals enforce the SAME caps as
+-    ``agent_init``. Falls back to defaults if config can't load; never raises."""
++    ``agent_init``. Falls back to defaults if config can't load; never raises.
++
++    Pass the platform user identity (``user_id`` / ``platform``) when the calling
++    context has one — e.g. the gateway ``/memory`` approval handler — so approved
++    ``target="user"`` writes land in the same per-user USER.md partition the live
++    agent uses, not the global fallback."""
+     try:
+         from hermes_cli.config import load_config
+         config = load_config() or {}
+         mem_cfg = get_builtin_memory_config(config)
+         memory_enabled, user_profile_enabled = get_builtin_memory_store_flags(config)
+         store = MemoryStore(int(mem_cfg.get("memory_char_limit", 2200)), int(mem_cfg.get("user_char_limit", 1375)),
+-                            memory_enabled=memory_enabled, user_profile_enabled=user_profile_enabled)
++                            memory_enabled=memory_enabled, user_profile_enabled=user_profile_enabled,
++                            user_id=user_id, platform=platform)
+     except Exception:
+-        store = MemoryStore()  # config optional — fall back to defaults rather than break /memory
++        # config optional — fall back to defaults rather than break /memory, but keep the
++        # identity so the fallback store still writes to the right partition.
++        store = MemoryStore(user_id=user_id, platform=platform)
+     store.load_from_disk()
+     return store
+ 
+diff --git a/tools/memory_tool_store.py b/tools/memory_tool_store.py
+--- a/tools/memory_tool_store.py
++++ b/tools/memory_tool_store.py
+@@ -3,7 +3,9 @@
+ Module state that tests monkeypatch (``get_memory_dir``, ``fcntl``/``msvcrt``) stays
+ in ``tools.memory_tool`` and is read lazily."""
+ 
++import hashlib
+ import logging
++import re
+ import time
+ from contextlib import contextmanager, suppress
+ from pathlib import Path
+@@ -61,6 +63,35 @@
+     if len({entries[i] for i in matches}) > 1:
+         return None, True
+     return (matches[0] if matches else None), False
++
++
++_SAFE_KEY_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
++
++
++def safe_user_key(user_id, platform=None) -> str:
++    """Collapse a platform-supplied user identifier into a filesystem-safe,
++    platform-qualified directory name.
++
++    Platform IDs that are already safe tokens (Slack ``U03G89W2A10``, Telegram
++    numeric IDs, Discord snowflakes) stay human-readable — qualified as
++    ``<platform>-<id>`` when the platform is known so equal raw IDs from
++    different platforms can never collide. Anything else (emails, Matrix MXIDs,
++    unicode display handles, hostile values like ``../../etc``) is reduced to a
++    stable ``h-<sha256[:20]>`` digest, so an attacker-controlled identifier can
++    never contribute raw path components under ``memories/users/``.
++
++    ``platform`` is normalized through ``.value`` first: the agent passes a plain
++    string ("matrix") while the gateway passes a ``Platform`` enum, and
++    ``str(Platform.MATRIX)`` is "Platform.MATRIX". Without this the two callers
++    derive DIFFERENT keys for the same person and their USER.md silently forks.
++    """
++    uid = str(user_id)
++    plat = getattr(platform, "value", platform)
++    plat = str(plat) if plat else None
++    if _SAFE_KEY_RE.fullmatch(uid) and (plat is None or _SAFE_KEY_RE.fullmatch(plat)):
++        return f"{plat}-{uid}" if plat else uid
++    raw = f"{plat or ''}:{uid}"
++    return "h-" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
+ 
+ 
+ class MemoryStore:
+@@ -75,11 +106,17 @@
+     _MAX_CONSOLIDATION_FAILURES_PER_TURN = 3
+ 
+     def __init__(self, memory_char_limit: int = 2200, user_char_limit: int = 1375, *,
+-                 memory_enabled: bool = True, user_profile_enabled: bool = True):
++                 memory_enabled: bool = True, user_profile_enabled: bool = True,
++                 user_id: Optional[str] = None, platform=None):
+         self.memory_entries: List[str] = []
+         self.user_entries: List[str] = []
+         self.memory_char_limit, self.user_char_limit = memory_char_limit, user_char_limit
+         self.memory_enabled, self.user_profile_enabled = memory_enabled, user_profile_enabled
++        # Per-user USER.md partitioning key. When a platform user identity is present,
++        # USER.md lives at memories/users/<safe_key>/USER.md so each platform user gets
++        # their own preference store. None (TUI, cron, one-shot, single-user default)
++        # keeps the global USER.md — no behavior change.
++        self._user_key = safe_user_key(user_id, platform) if user_id else None
+         self._system_prompt_snapshot: Dict[str, str] = {"memory": "", "user": ""}
+         self._consolidation_failures = 0  # per turn; reset by reset_consolidation_failures()
+ 
+@@ -158,10 +195,17 @@
+                 with suppress(OSError):
+                     _flock(True)
+ 
+-    @staticmethod
+-    def _path_for(target: str) -> Path:
++    def _path_for(self, target: str) -> Path:
+         from tools import memory_tool  # get_memory_dir is monkeypatched there
+-        return memory_tool.get_memory_dir() / ("USER.md" if target == "user" else "MEMORY.md")
++        mem_dir = memory_tool.get_memory_dir()
++        if target == "user":
++            # Per-user partition when a platform identity is present; global USER.md for
++            # TUI / one-shot / no-identity contexts so existing single-user deployments
++            # see no change. load_from_disk() already mkdirs path.parent.
++            if self._user_key:
++                return mem_dir / "users" / self._user_key / "USER.md"
++            return mem_dir / "USER.md"
++        return mem_dir / "MEMORY.md"
+ 
+     def _entries_for(self, target: str) -> List[str]:
+         return self.user_entries if target == "user" else self.memory_entries

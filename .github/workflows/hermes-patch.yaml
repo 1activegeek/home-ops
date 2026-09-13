@@ -1,0 +1,39 @@
+---
+# hermes-agent runs a patched image: an initContainer applies
+# kubernetes/apps/ai/hermes-agent/app/patches/27183-per-user-usermd.diff over the
+# published source at boot, and HARD-FAILS the pod if the patch no longer applies
+# (starting unpatched would merge every platform user's memory into one USER.md).
+#
+# That guard is correct but it fires at runtime, which means a bad image bump is
+# discovered as a CrashLoopBackOff rather than a red check. This job moves the
+# failure left: it runs the same patch against the tag the PR proposes, so a bump
+# that breaks the patch fails HERE. scripts/renovate-triage/triage.py only
+# auto-merges PRs whose checks are green, so a red run also keeps the bump out of
+# the safe bucket.
+name: "Hermes Patch"
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "kubernetes/apps/ai/hermes-agent/**"
+      - "scripts/hermes-patch/**"
+      - ".github/workflows/hermes-patch.yaml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Carried Patch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install PyYAML
+        run: pip install --disable-pip-version-check --quiet pyyaml
+
+      - name: Verify the patch against the pinned image tag
+        run: ./scripts/hermes-patch/verify.sh

@@ -5,10 +5,12 @@ This document explains what it does, how to upgrade the image without breaking i
 and how to remove it once upstream ships the change.
 
 - **Upstream issue:** [NousResearch/hermes-agent#27182](https://github.com/NousResearch/hermes-agent/issues/27182)
-- **Upstream PR:** [#27183](https://github.com/NousResearch/hermes-agent/pull/27183) — open, unmerged as of 2026-09-03
+- **Upstream PR:** [#27183](https://github.com/NousResearch/hermes-agent/pull/27183) — open, unmerged as of 2026-09-13
 - **Manifests:** `kubernetes/apps/ai/hermes-agent/app/`
-  (`configmap-memory-patch.yaml`, `helmrelease.yaml`)
-- **Pre-merge check:** `task validate:hermes-patch`
+  (`patches/27183-per-user-usermd.diff`, `kustomization.yaml`, `helmrelease.yaml`)
+- **Tooling:** `scripts/hermes-patch/` — `verify.sh`, `regen.sh`, `smoke_test.py`
+- **Pre-merge check:** `task validate:hermes-patch`, and automatically in CI via
+  `.github/workflows/hermes-patch.yaml`
 
 ## Why the patch exists
 
@@ -35,9 +37,16 @@ The patch partitions `USER.md` per platform identity:
 - `MEMORY.md` stays global — shared agent knowledge is intentional
 
 `<safe_key>` is `<platform>-<id>` for filesystem-safe identifiers (Slack ids, numeric
-Telegram ids). Anything else — emails, unicode handles, hostile values like
+Telegram ids). Anything else — emails, Matrix MXIDs, unicode handles, hostile values like
 `../../etc` — collapses to a stable `h-<sha256[:20]>` digest, so a platform-supplied
 identifier can never contribute a raw path component.
+
+**One deliberate deviation from the upstream PR:** `safe_user_key` normalizes
+`platform` through `.value` before using it. `agent_init` passes a plain string
+(`"matrix"`) while the gateway passes a `Platform` enum, and `str(Platform.MATRIX)` is
+`"Platform.MATRIX"` — without the normalization the live agent and the `/memory`
+approval path derive *different* keys for the same person and their `USER.md` silently
+forks in two. `smoke_test.py` asserts the two agree.
 
 Fully backward compatible: the new parameters default to `None`, so every call site
 without an identity behaves exactly as before.
@@ -46,12 +55,16 @@ without an identity behaves exactly as before.
 
 `/opt/hermes` is immutable in the published image, so nothing is rewritten in place:
 
-1. `configmap-memory-patch.yaml` holds the upstream diff (upstream's test file stripped —
-   the image ships no test runner).
-2. The `patch-memory` initContainer copies the three touched source files
-   (`tools/memory_tool.py`, `agent/agent_init.py`, `gateway/slash_commands.py`) out of the
-   image onto an `emptyDir`, applies the diff there, then greps the result to catch a
-   patch that applied with fuzz but landed in the wrong place.
+1. `patches/27183-per-user-usermd.diff` holds the upstream diff (upstream's test file
+   stripped — the image ships no test runner). It is a real file, rendered into the
+   `hermes-memory-patch` ConfigMap by the `configMapGenerator` in `kustomization.yaml`,
+   so it can be regenerated, reviewed and CI-tested as a diff rather than hand-maintained
+   inside a YAML literal block.
+2. The `patch-memory` initContainer copies the four touched source files
+   (`tools/memory_tool_store.py`, `tools/memory_tool.py`, `agent/agent_init.py`,
+   `gateway/slash_commands.py`) out of the image onto an `emptyDir`, applies the diff
+   there, then greps the result to catch a patch that applied with fuzz but landed in the
+   wrong place.
 3. The patched copies are mounted back over their original paths in the `gateway` and
    `dashboard` containers via `subPath`.
 
@@ -67,48 +80,80 @@ can only happen on a tag bump we make.
 
 ## Upgrading the image
 
-The check below is what keeps the fail-closed design safe. Run it **before** merging any
-tag bump.
+**This is gated in CI.** `.github/workflows/hermes-patch.yaml` runs the verification on
+every PR touching `kubernetes/apps/ai/hermes-agent/**`, so a Renovate bump that breaks
+the patch turns the check red instead of the pod. That also keeps it out of
+`scripts/renovate-triage/triage.py --merge-safe`, which only auto-merges PRs whose checks
+are green — which is precisely what went wrong on 2026-09-13 (below).
+
+The same script backs `task validate:hermes-patch`, part of `task validate:preflight`
+and `task validate:all`. It uses docker when a daemon is up (what CI does) and a
+throwaway pod in the cluster otherwise.
 
 ```sh
 # 1. Bump the tag — one edit; the anchor propagates it to all three containers.
 $EDITOR kubernetes/apps/ai/hermes-agent/app/helmrelease.yaml
 
-# 2. Dry-run the carried patch against the new image, inside the cluster.
-#    Needs a working KUBECONFIG; run from the main checkout, or export one.
-task validate:hermes-patch
+# 2. Apply + behaviour-test the carried patch against the new image.
+task validate:hermes-patch            # or: scripts/hermes-patch/verify.sh
 ```
 
-The task spins a throwaway pod on the newly pinned tag, applies the diff to a copy of the
-three files, and deletes the pod. Green means the upgrade is safe to merge. It is also
-part of `task validate:preflight` and `task validate:all`.
+Verification runs the initContainer's *own* script, extracted from `helmrelease.yaml`
+rather than copied, so the check and the deployment can never drift. It then mounts the
+patched files the way the Deployment does and runs `scripts/hermes-patch/smoke_test.py`
+against them: partitioned vs global paths, `Platform` enum/string agreement, `MEMORY.md`
+staying global, and path-traversal resistance. Static greps only prove the patch landed;
+the smoke test proves it still *means* the same thing.
 
-If it fails, the patch no longer matches upstream's code. Either:
+### When the check goes red
+
+The diff is generated against one release's source, so an upstream refactor breaks it.
+Forward-port it with a real 3-way merge rather than re-deriving it by hand:
 
 ```sh
-# Regenerate the diff from the PR, drop the tests hunk, re-embed under
-# data."27183-per-user-usermd.diff" in configmap-memory-patch.yaml.
-gh pr diff 27183 --repo NousResearch/hermes-agent
+# base = <old-tag> sources, ours = base + current diff, theirs = <new-tag> sources
+scripts/hermes-patch/regen.sh v2026.9.11 v2026.10.02
+
+# If it reports a conflict, resolve the markers in the work dir it names, then:
+scripts/hermes-patch/regen.sh --emit <work-dir>
+
+# Always finish here — a clean merge is not proof the patch is still correct.
+scripts/hermes-patch/verify.sh
 ```
 
-…or, if #27183 has landed upstream, remove the patch entirely (below). Re-run the task
-until it is green, then merge.
+If `regen.sh` reports that a targeted file **no longer exists**, upstream moved the code
+and no merge can find its new home — port it by hand (the script leaves the extracted
+sources for you) and update the file list in the initContainer's copy commands, its
+post-apply greps, and the `hermes-patch` mounts in `helmrelease.yaml`.
+
+If #27183 has landed upstream, remove the patch entirely (below) instead.
+
+### Prior art: the 2026-09-13 outage
+
+Renovate PR #580 bumped `v2026.8.31 ➔ v2026.9.11` and was swept into a batch merge by
+the triage script. That release split `MemoryStore` out of `tools/memory_tool.py` into
+the new `tools/memory_tool_store.py` and reworked the imports; every hunk failed, the
+initContainer hard-failed as designed, and hermes-agent sat in `Init:CrashLoopBackOff`
+for about four hours. The check to prevent it already existed as
+`task validate:hermes-patch` — but it needed cluster access, so it had never run in CI,
+and nothing forced anyone to run it locally. Hence the docker backend and the workflow.
 
 ## Removing the patch once upstream merges
 
 1. Confirm the release actually contains it — `safe_user_key` should exist in
-   `tools/memory_tool.py` in the new image.
+   `tools/memory_tool_store.py` in the new image.
 2. **Compare the merged key scheme against ours.** If upstream changed the path layout or
    the key format (for example dropped the `<platform>-` qualification, or hashed
    differently), the existing per-user directories become orphaned — the data is still
    on the PVC, but the agent will look elsewhere and users appear to have "forgotten".
    Rename the directories under `memories/users/` to the new scheme before cutting over.
-3. Delete `configmap-memory-patch.yaml`, its `kustomization.yaml` entry, the
-   `patch-memory` initContainer, and the `hermes-patch` / `hermes-patch-src` volumes.
-   Keep the anchored `image:` block.
-4. Delete `.taskfiles/validate/scripts/validate-hermes-patch.sh` and its
-   `validate:hermes-patch` task entries. (The script already self-skips with a green
-   result if the ConfigMap is gone, so ordering here is forgiving.)
+3. Delete the `patches/` directory, the `configMapGenerator` block in
+   `kustomization.yaml`, the `patch-memory` initContainer, and the `hermes-patch` /
+   `hermes-patch-src` volumes and their mounts. Keep the anchored `image:` block.
+4. Delete `scripts/hermes-patch/`, `.taskfiles/validate/scripts/validate-hermes-patch.sh`
+   and its `validate:hermes-patch` task entries, and
+   `.github/workflows/hermes-patch.yaml`. (`verify.sh` already self-skips with a green
+   result once `patches/` is gone, so ordering here is forgiving.)
 5. Delete this document.
 
 ## What survives an upgrade
