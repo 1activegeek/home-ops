@@ -337,8 +337,8 @@ Branch: `1activegeek/nzbget-sabnzbd-conversion`. Never commit to main (Flux depl
 | **P0** ✅ | Discovery — NZBGet config, arr/Prowlarr state, NFS layout, size distribution | done |
 | **P1** ✅ | Connectivity-tested all 12 servers (5 pass / 7 fail); generated the `sabnzbd.ini` seed — priorities preserved, 7 dead servers disabled with notes, failure-detection baked in — validated every key against SABnzbd 5.1.2 source; pushed to 1Password `sabnzbd.config_seed` (6262 bytes) | done |
 | **P2** ✅ | Manifests: `longhorn-scratch` SC, 250Gi scratch PVC, NFS PV/PVC with mount options, canary probes, watchdog sidecar, seed-merge init container, config-backup CronJob, PrometheusRule, uncomment ks. validated | **PR open — your approval** |
-| **P3** | Deploy. Verify: pod healthy, per-server connection report, one manual test NZB → download → unpack → lands in `complete/<cat>`. Pull the NFS mount and confirm the pod halts and recovers. | verification report |
-| **P4** | **Pre-stage, everything disabled.** Add SABnzbd as a download client to Sonarr, Radarr, Radarr4k and Prowlarr with `enable: false`, correct categories, and run each client's built-in **Test** to prove connectivity and auth. NZBGet stays enabled and untouched. Nothing changes behaviourally. | pre-flight report for you to validate |
+| **P3** ✅ | Deploy. Verify: pod healthy, per-server connection report, one manual test NZB → download → unpack → lands in `complete/<cat>`. Pull the NFS mount and confirm the pod halts and recovers. | verification report |
+| **P4** ✅ | **Pre-stage, everything disabled.** Add SABnzbd as a download client to Sonarr, Radarr, Radarr4k and Prowlarr with `enable: false`, correct categories, and run each client's built-in **Test** to prove connectivity and auth. NZBGet stays enabled and untouched. Nothing changes behaviourally. | pre-flight report for you to validate |
 | **P5** | 🔒 **CUTOVER — gated on your explicit go.** Flip `enable: true` on the four SAB clients, `enable: false` on the four NZBGet clients. Delete the stale remote path mappings. Retire unpackerr. | your word |
 | **P6** | Soak 7 days, then retire NZBGet on the Synology and reclaim `/downloads/{queue,tmp,nzb,incomplete}` | — |
 
@@ -385,6 +385,45 @@ Recorded because each was a real design error, not a transient:
 
 Defects 2 and 3 would have surfaced as a broken cutover rather than a broken deploy: SABnzbd looked healthy,
 but every `*arr` would have failed to authenticate against it.
+
+## 8b. P3 / P4 verification results (2026-09-02)
+
+**P3 — deployed and verified.**
+
+| Check | Result |
+|---|---|
+| Pod | 3/3 Running; scratch bound at 150Gi (147G free), NFS at `/data/media`, config on Longhorn |
+| Seed | 12 servers + 6 categories loaded, priorities preserved, 7 dead servers disabled |
+| Identity | `api_key` / `nzb_key` match 1Password; `host_whitelist` carries the pod name plus all six entries |
+| Route | `https://sabnzbd.<domain>` → 200, valid TLS |
+| Settings | every §4/§5d value confirmed live via the API (`direct_unpack`, `propagation_delay=15`, `pause_on_pwrar=2`, `fail_hopeless_jobs`, `req_completion_rate=100.2`, `download_free=25G`, …) |
+| **End-to-end** | 167.4 MB test NZB: **downloaded in 1s at 90.9 MB/s**, quick-check OK, deobfuscated, landed in `complete/software/`. Served by three tier-0 servers at once — NewsDemon 88.3 MB, NewsGroupNinja 65.0 MB, Usenet.farm 14.1 MB. Test artifacts removed afterwards. |
+| **Storage-loss drill** | Canary removed → watchdog flagged 2 failures in 30s and SIGTERMed SABnzbd → readiness went false (pulled from the Service), liveness restarted it, startup probe held it down → sustained restart loop = halted. Canary restored → **recovered automatically in ~50s**, no intervention. |
+
+The breadth-first server strategy is doing exactly what it was designed to do: a single 167 MB job was
+satisfied by three different tier-0 providers in parallel.
+
+*Drill caveat:* removing the canary exercises the detection and halt path, not a genuinely hung `hard`
+NFS mount. The probe timeouts that cover that case (`timeoutSeconds: 10`) are configured but untested —
+a real NAS outage is the only way to exercise them.
+
+**P4 — staged, disabled, connectivity-tested.**
+
+| App | SABnzbd client | Category | NZBGet |
+|---|---|---|---|
+| Sonarr | staged, `enable=false`, auth OK | `tvshows` | still enabled |
+| Radarr | staged, `enable=false`, auth OK | `movies` | still enabled |
+| Radarr4k | staged, `enable=false`, auth OK | `movies-4k` | still enabled |
+| Prowlarr | staged, `enable=false`, reachable | *(none)* | still enabled |
+
+Prowlarr returns an advisory "a category is recommended" because no category is set. It only uses one for
+its own interactive grabs — the `*arr`s each set their own — so rather than invent a SABnzbd category to
+silence a soft warning, the script treats an all-`isWarning` response as a pass. Adding a dedicated
+`prowlarr` category later is a reasonable enhancement (§8) if interactive grabs landing in the root of
+`complete/` becomes annoying.
+
+**Nothing is live.** P5 is `./scripts/sabnzbd-cutover.sh`, dry-run verified: it flips four enable flags
+and deletes the three stale remote path mappings. `--rollback` reverses the flags.
 
 ## 9. Open items
 
