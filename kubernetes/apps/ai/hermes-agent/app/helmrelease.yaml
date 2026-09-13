@@ -37,9 +37,19 @@ spec:
             # files out of a different tag than the app containers run would
             # mount mismatched code. Bump the tag here and both aliases below
             # follow.
+            #
+            # PINNED to v2026.8.31, the last release the carried patch applies
+            # against. v2026.9.11 (#580) reworked the imports at the top of
+            # tools/memory_tool.py and shifted agent_init.py / slash_commands.py,
+            # so all three hunks failed and the pod sat in Init:CrashLoopBackOff
+            # (the hard-fail above working as intended). Renovate is disabled for
+            # this image in .renovaterc.json5 until the patch is regenerated or
+            # upstream merges NousResearch/hermes-agent#27183 — at which point
+            # drop the init container, the ConfigMap, and the Renovate rule
+            # together.
             image: &image
               repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.9.11
+              tag: v2026.8.31
             command:
               - sh
               - -c

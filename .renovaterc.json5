@@ -45,6 +45,12 @@
   },
   packageRules: [
     {
+      description: "Pin hermes-agent to v2026.8.31 - the image is patched at init with NousResearch/hermes-agent#27183 (per-user USER.md isolation, not merged upstream); the patch is generated against one release's source, so any bump breaks `git apply` and hard-fails the pod into Init:CrashLoopBackOff (v2026.9.11 did exactly this). Re-enable once the patch is regenerated against the newer source, or delete this rule together with the init container and ConfigMap once upstream merges #27183.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/nousresearch/hermes-agent"],
+      enabled: false,
+    },
+    {
       description: "Pin onepassword-connect chart to 2.2.1 - chart 2.3.0 changed credentials mounting from base64 env var to raw JSON file, incompatible with current SOPS secret encoding. Fix by re-encoding the 1password-credentials.json SOPS secret as raw JSON before upgrading.",
       matchManagers: ["helmv3", "helm-values"],
       matchPackageNames: ["connect"],
