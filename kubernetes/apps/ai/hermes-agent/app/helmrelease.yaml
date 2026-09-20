@@ -39,7 +39,7 @@ spec:
             # follow.
             image: &image
               repository: docker.io/nousresearch/hermes-agent
-              tag: v2026.9.11
+              tag: v2026.9.14
             command:
               - sh
               - -c
