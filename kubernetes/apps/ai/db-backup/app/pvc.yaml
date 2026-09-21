@@ -1,4 +1,15 @@
 ---
+# Shared by db-backup-n8n, db-backup-librechat and db-backup-qdrant.
+#
+# Sizing is driven almost entirely by qdrant: a full snapshot is ~300MiB and
+# grows with the index, while n8n is ~0.5MiB/dump and librechat <10KiB/dump.
+# At RETENTION_DAYS=7 / KEEP_MIN=3 that is ~2.1GiB today and ~4.2GiB if
+# snapshots double, against ~0.1GiB for the other two. 10Gi leaves room for
+# that growth plus the free-space headroom each job reserves before it writes.
+#
+# `longhorn` supports online expansion (allowVolumeExpansion: true), so raising
+# this value is applied in place — no pod restart or data loss. Shrinking is
+# NOT supported: this number can only go up.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -11,4 +22,4 @@ spec:
   storageClassName: longhorn
   resources:
     requests:
-      storage: 5Gi
+      storage: 10Gi
