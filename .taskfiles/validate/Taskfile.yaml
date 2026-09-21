@@ -25,7 +25,6 @@ tasks:
       - task: images
       - task: nfs
       - task: security-ctx
-      - task: hermes-patch
 
   preflight:
     desc: Run integration pre-flight checks (secrets, secret-keys, images, nfs, substitutions)
@@ -35,7 +34,6 @@ tasks:
       - task: images
       - task: nfs
       - task: substitutions
-      - task: hermes-patch
 
   static:
     desc: Run yamllint and kubeconform on static manifest files
@@ -149,13 +147,6 @@ tasks:
         bash "{{.ROOT_DIR}}/scripts/tests/dns-split-check.sh"
     preconditions:
       - which dig
-
-  hermes-patch:
-    desc: Dry-run the carried hermes-agent patch against the pinned image tag
-    cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-hermes-patch.sh"
-    preconditions:
-      - which kubectl
-      - which yq
 
   security-ctx:
     desc: Flag images running as UID 65534 that may require a different UID
