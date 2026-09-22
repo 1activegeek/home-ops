@@ -1,7 +1,11 @@
 [env]
 _.python.venv = { path = "{{config_root}}/.venv", create = true }
 KUBECONFIG = "{{config_root}}/kubeconfig"
-SOPS_AGE_KEY_FILE = "{{config_root}}/age.key"
+# The age key lives at the XDG path that .sops.yaml already declares as key_file,
+# not at the upstream template's repo-root ./age.key (which is gitignored and has
+# never existed in this checkout). The old value made `task talos:generate-config`
+# and `task bootstrap:*` fail their `test -f` preconditions before running.
+SOPS_AGE_KEY_FILE = "{{env.HOME}}/.config/sops/age/home-ops.key"
 TALOSCONFIG = "{{config_root}}/talos/clusterconfig/talosconfig"
 
 [tools]
