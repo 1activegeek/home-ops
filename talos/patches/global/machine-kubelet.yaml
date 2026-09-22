@@ -10,9 +10,27 @@ machine:
       # merge triggered a cluster-wide rollout, and the resulting image pulls
       # crossed 15% -> DiskPressure -> 46 CoreDNS pods evicted. GC then freed
       # 34 GiB that had been reclaimable the whole time.
-      imageGCHighThresholdPercent: 75
-      imageGCLowThresholdPercent: 65
+      #
+      # The GC trigger must also sit BELOW the NodeEphemeralHeadroomLow alert,
+      # not above it. That rule fires at <30% free (70% used). At the original
+      # 75 there was a 70-75% dead band where the alert fired continuously and
+      # pressure-GC could never engage — asgard-mpc-02 sat in it at 70.3% used.
+      # At 68 the ordering is correct: GC engages at 32% free, so the alert at
+      # 30% free only fires when GC ran and still could not keep up.
+      #
+      # Post-GC steady state is 58% used (42% free), which clears the alert with
+      # 12 points of margin and leaves 27 points of runway to evictionHard
+      # (imagefs.available<15%) — the 2026-09-06 rollout wave consumed 34 GiB,
+      # so that margin is sized to survive a repeat.
+      imageGCHighThresholdPercent: 68
+      imageGCLowThresholdPercent: 58
       # Prune images unused for a week regardless of disk pressure.
+      #
+      # NOTE: kubelet keeps image age records in memory and re-detects every
+      # image at startup, so applying this resets the clock — nothing becomes
+      # age-eligible until 168h after the kubelet restart. Verified 2026-09-21:
+      # asgard-mpc-01 reclaimed zero bytes in 13 minutes. Pressure-GC above is
+      # what actually reclaims on the day you apply it.
       imageMaximumGCAge: 168h
     nodeIP:
       validSubnets:
