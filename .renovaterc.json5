@@ -52,6 +52,12 @@
       enabled: false,
     },
     {
+      description: "Constrain kubelet to what the pinned Talos release supports. Renovate bumps ghcr.io/siderolabs/kubelet and ghcr.io/siderolabs/installer independently, and in b2423aa it moved kubernetesVersion to v1.37.0 while talosVersion sat at v1.13.10 — a pair talhelper rejects, which broke `talhelper genconfig` and blocked `task talos:apply-node` entirely. Raise allowedVersions in lockstep with a talosVersion bump that supports the newer minor.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/siderolabs/kubelet"],
+      allowedVersions: "<1.37",
+    },
+    {
       description: "Override Helmfile Dependency Name",
       matchDatasources: ["docker"],
       matchManagers: ["helmfile"],
