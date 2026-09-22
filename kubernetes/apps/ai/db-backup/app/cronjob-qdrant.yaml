@@ -37,43 +37,163 @@ spec:
                   secretKeyRef:
                     name: qdrant-secret
                     key: api_key
+              # A full Qdrant snapshot is ~300MiB and grows with the index, so
+              # this one job dominates the shared db-backups PVC. The index is
+              # rebuildable from the source documents and consecutive daily
+              # snapshots are near-duplicates, so it keeps a shorter history
+              # than the logical DB dumps that share this volume.
               - name: RETENTION_DAYS
-                value: "14"
+                value: "7"
+              # Age/space pruning never drops below this many good snapshots.
+              - name: KEEP_MIN
+                value: "3"
+              # Free space the job insists on before it starts downloading.
+              - name: MIN_FREE_MB
+                value: "512"
               command: ["/bin/sh", "-c"]
               args:
                 - |
                   set -eu
+                  # NOTE: the parent Kustomization intentionally declares no
+                  # postBuild substituteFrom, so shell/heredoc content below
+                  # needs no $${} escaping — same as every other db-backup
+                  # CronJob in this repo.
                   python3 - <<'PY'
-                  import os, json, glob, time, urllib.request
-                  base = "http://qdrant.ai.svc.cluster.local:6333"
-                  key = os.environ["QDRANT_API_KEY"]
-                  ret = int(os.environ.get("RETENTION_DAYS", "14"))
-                  def call(method, path, raw=False):
-                      req = urllib.request.Request(base + path, method=method, headers={"api-key": key})
-                      r = urllib.request.urlopen(req, timeout=300)
-                      return r.read() if raw else json.loads(r.read())
+                  import glob, json, os, shutil, sys, time, urllib.request
+
+                  # -------------------------------------------------------------
+                  # Retention runs BEFORE the snapshot download so a full volume
+                  # can self-heal. The old order (download first, prune second)
+                  # deadlocked: once the PVC filled, the write raised ENOSPC, the
+                  # script aborted, and the prune never ran — so the volume could
+                  # never recover without hand surgery.
+                  #
+                  # Two guards stop "prune first" from quietly shrinking the
+                  # snapshot set:
+                  #   KEEP_MIN   pruning never drops below this many snapshots.
+                  #   *.partial  the download lands on a temp name and is renamed
+                  #              only on success, so a failed run can never leave
+                  #              a 0-byte file that looks like a snapshot.
+                  # If the floor is reached and there is still no room the job
+                  # fails loudly — the correct signal that the PVC is undersized.
+                  # -------------------------------------------------------------
+                  BACKUPS = "/backups"
+                  PREFIX = "qdrant-"
+                  BASE = "http://qdrant.ai.svc.cluster.local:6333"
+
+                  KEY = os.environ["QDRANT_API_KEY"]
+                  RET = int(os.environ.get("RETENTION_DAYS", "7"))
+                  KEEP = int(os.environ.get("KEEP_MIN", "3"))
+                  MIN_FREE = int(os.environ.get("MIN_FREE_MB", "512")) * 1048576
+
+                  def free_bytes():
+                      return shutil.disk_usage(BACKUPS).free
+
+                  def mib(n):
+                      return n // 1048576
+
+                  def open_stream(method, path):
+                      req = urllib.request.Request(BASE + path, method=method,
+                                                   headers={"api-key": KEY})
+                      return urllib.request.urlopen(req, timeout=300)
+
+                  def call(method, path):
+                      with open_stream(method, path) as r:
+                          body = r.read()
+                      return json.loads(body) if body else None
+
+                  def snapshots():
+                      """Valid local snapshots, newest first: (mtime, size, path)."""
+                      out = []
+                      for p in glob.glob(os.path.join(BACKUPS, PREFIX + "*")):
+                          if p.endswith(".partial") or not os.path.isfile(p):
+                              continue
+                          try:
+                              st = os.stat(p)
+                          except OSError:
+                              continue
+                          if st.st_size > 0:
+                              out.append((st.st_mtime, st.st_size, p))
+                      out.sort(reverse=True)
+                      return out
+
+                  def reap():
+                      """0-byte files are never valid backups; *.partial are corpses."""
+                      for p in glob.glob(os.path.join(BACKUPS, PREFIX + "*")):
+                          if not os.path.isfile(p):
+                              continue
+                          try:
+                              if p.endswith(".partial") or os.path.getsize(p) == 0:
+                                  os.remove(p)
+                                  print("reaped", p, flush=True)
+                          except OSError as e:
+                              print("warn: could not reap", p, e, flush=True)
+
+                  def prune_age():
+                      cutoff = time.time() - RET * 86400
+                      files = snapshots()
+                      while len(files) > KEEP and files[-1][0] < cutoff:
+                          p = files.pop()[2]
+                          os.remove(p)
+                          print("prune(age>%dd): %s" % (RET, p), flush=True)
+                      return files
+
+                  # 1 + 2. Reap turds, then age-prune with the KEEP_MIN floor.
+                  reap()
+                  files = prune_age()
+
+                  # 3. Space prune with the same floor. Required headroom is the
+                  #    larger of MIN_FREE_MB and 125% of the newest snapshot.
+                  need = MIN_FREE
+                  if files:
+                      need = max(need, int(files[0][1] * 1.25))
+                  while free_bytes() < need and len(files) > KEEP:
+                      p = files.pop()[2]
+                      os.remove(p)
+                      print("prune(space):", p, flush=True)
+                  print("free=%dMiB need=%dMiB kept=%d"
+                        % (mib(free_bytes()), mib(need), len(files)), flush=True)
+                  if free_bytes() < need:
+                      sys.exit("ERROR: %dMiB free, need %dMiB, and KEEP_MIN=%d snapshots "
+                               "must be kept. Grow the db-backups PVC."
+                               % (mib(free_bytes()), mib(need), KEEP))
+
+                  # 4. Snapshot, stream to a partial, rename only on success.
                   ts = time.strftime("%Y%m%d-%H%M%S")
                   print("Creating full Qdrant snapshot...", flush=True)
-                  res = call("POST", "/snapshots")
-                  name = res["result"]["name"]
+                  name = call("POST", "/snapshots")["result"]["name"]
                   print("snapshot:", name, flush=True)
-                  data = call("GET", "/snapshots/" + name, raw=True)
-                  out = "/backups/qdrant-%s-%s" % (ts, name)
-                  with open(out, "wb") as f:
-                      f.write(data)
-                  print("wrote", out, os.path.getsize(out), "bytes", flush=True)
-                  # delete server-side snapshot so qdrant PVC does not grow
+
+                  out = os.path.join(BACKUPS, "qdrant-%s-%s" % (ts, name))
+                  tmp = out + ".partial"
                   try:
-                      call("DELETE", "/snapshots/" + name)
-                      print("deleted server-side snapshot", flush=True)
-                  except Exception as e:
-                      print("warn: could not delete server snapshot:", e, flush=True)
-                  # prune local
-                  cutoff = time.time() - ret * 86400
-                  for p in glob.glob("/backups/qdrant-*"):
-                      if os.path.getmtime(p) < cutoff:
-                          os.remove(p); print("pruned", p, flush=True)
-                  print("done", flush=True)
+                      # Streamed rather than read() into memory: a ~300MiB
+                      # snapshot against a 512Mi limit would eventually OOM.
+                      with open_stream("GET", "/snapshots/" + name) as r:
+                          with open(tmp, "wb") as f:
+                              shutil.copyfileobj(r, f, 4 * 1048576)
+                      if os.path.getsize(tmp) == 0:
+                          raise RuntimeError("downloaded snapshot is empty")
+                      os.replace(tmp, out)
+                      print("wrote", out, os.path.getsize(out), "bytes", flush=True)
+                  finally:
+                      if os.path.exists(tmp):
+                          os.remove(tmp)
+                          print("removed partial", tmp, flush=True)
+                      # Always drop the server-side snapshot, even when the
+                      # download failed, so qdrant's own PVC does not grow.
+                      try:
+                          call("DELETE", "/snapshots/" + name)
+                          print("deleted server-side snapshot", flush=True)
+                      except Exception as e:
+                          print("warn: could not delete server snapshot:", e, flush=True)
+
+                  # 5. Post-write age prune: the new snapshot now counts toward
+                  #    KEEP_MIN, so one the pre-write floor protected may now
+                  #    legitimately age out.
+                  files = prune_age()
+                  print("done: %d snapshots, %dMiB free"
+                        % (len(files), mib(free_bytes())), flush=True)
                   PY
               volumeMounts:
                 - name: backups
