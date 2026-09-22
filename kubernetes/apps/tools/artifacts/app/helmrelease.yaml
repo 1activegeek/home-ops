@@ -8,6 +8,38 @@ spec:
     kind: OCIRepository
     name: artifacts
   interval: 1h
+  # ONE-TIME REMEDIATION — remove both fields once this HelmRelease is Ready.
+  #
+  # This Deployment predates the chart rendering `strategy: type: Recreate`
+  # (app-template selects it because the controller mounts NFS volumes, so two
+  # pods must never run at once). The live object is still
+  # `type: RollingUpdate` carrying Kubernetes' DEFAULTED
+  # `rollingUpdate: maxSurge 25% / maxUnavailable 25%`. Nothing owns that
+  # defaulted block — it has no field manager — so server-side apply sets the
+  # type but cannot drop it, and the API rejects the result:
+  #
+  #   spec.strategy.rollingUpdate: Forbidden:
+  #   may not be specified when strategy `type` is 'Recreate'
+  #
+  # The upgrade then fails, auto-rolls back, and the release stays stuck.
+  # Kubernetes only defaults rollingUpdate in; it never clears it when the type
+  # changes, so the live object has to be rewritten wholesale once.
+  #
+  # `force` alone does NOT do that: the CRD is explicit that it "is ignored for
+  # server-side apply". It only takes effect on the client-side path, so both
+  # fields are needed — serverSideApply: disabled to get there, force to make
+  # Helm PUT-replace the object instead of patching it. A replace sends the
+  # spec without rollingUpdate, which is what finally clears it. The pod
+  # restarts; Recreate already tears the old one down first, so no extra
+  # downtime. The alternative is a manual `kubectl delete deploy`, which
+  # AGENTS.md rules out ("GitOps-Only Changes").
+  #
+  # Do not leave these on: client-side apply gives up SSA's field-manager
+  # tracking, and force turns an immutable-field error into a silent
+  # delete/recreate.
+  upgrade:
+    serverSideApply: "disabled"
+    force: true
   values:
     controllers:
       artifacts:

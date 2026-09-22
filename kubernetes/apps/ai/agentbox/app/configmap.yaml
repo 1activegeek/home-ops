@@ -121,10 +121,17 @@ data:
     ZRC
 
     # 4. Tailscale up with SSH (userspace mode -> no NET_ADMIN / tun) -------
-    # NOTE: TS_* runtime vars are written $${...} so Flux's postBuild
-    # substituteFrom (cluster-secrets) does NOT rewrite them to empty strings.
-    # Flux renders $${VAR} -> ${VAR}, leaving the runtime shell to expand it.
-    # Bare $HOME/$BIN survive substitution; only brace-form ${VAR} is eaten.
+    # NOTE: TS_* runtime vars are written with a doubled dollar so Flux's
+    # postBuild substituteFrom (cluster-secrets) does NOT rewrite them to empty
+    # strings. Flux collapses the doubled dollar back to a single one, leaving
+    # the runtime shell to expand the variable. Bare $HOME/$BIN survive
+    # substitution; only the brace form is eaten.
+    #
+    # Do NOT write a bare brace-form example anywhere in this file, comments
+    # included: Flux substitutes the whole rendered manifest, not just the
+    # shell code, so an illustrative one in a comment is indistinguishable from
+    # a real reference. Under kustomize-controller's strict mode that is a hard
+    # error, and it wedged this Kustomization for three weeks in Sep 2026.
     if [ -x "$BIN/tailscaled" ] && [ -n "$${TS_AUTHKEY:-}" ]; then
       log "starting tailscaled (userspace) + tailscale up --ssh"
       "$BIN/tailscaled" \
