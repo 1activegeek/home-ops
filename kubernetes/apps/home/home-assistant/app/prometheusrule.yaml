@@ -1,0 +1,24 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: home-assistant
+spec:
+  groups:
+    - name: home-assistant.rules
+      rules:
+        - alert: HomeAssistantOOMKilled
+          # last_terminated_reason stays set until the next termination, so
+          # gate it on a fresh restart to fire once per kill, not forever.
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="home", pod=~"home-assistant-.*", container="app"}[15m]) > 0
+              and on (namespace, pod, container)
+            kube_pod_container_status_last_terminated_reason{namespace="home", pod=~"home-assistant-.*", container="app", reason="OOMKilled"} == 1
+          labels:
+            severity: critical
+          annotations:
+            summary: Home Assistant was OOM-killed
+            description: >-
+              The app container hit its memory limit and restarted. Check the HA
+              log for WebSocket "pending messages" floods from frontend clients
+              just before the kill. The SQLite recorder did not shut down cleanly.
