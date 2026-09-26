@@ -110,3 +110,31 @@ spec:
 
     kubeStateMetrics:
       enabled: true
+
+    # Subchart values for kube-state-metrics itself (the block above is only the
+    # kube-prometheus-stack toggle).
+    kube-state-metrics:
+      # kube-state-metrics' /livez probes its connection to the API server, so a
+      # brief API-server slowdown kills the pod. At the chart defaults
+      # (failureThreshold 3, periodSeconds 10) roughly 30s of unreachability is
+      # fatal.
+      #
+      # 2026-09-20: a Flux apply wave from a merged Renovate batch briefly
+      # saturated the API server. ksm logged exactly three consecutive
+      # "Failed to contact API server for /livez: got 0" at 15:11:49, 15:11:59
+      # and 15:12:09 and was killed after 63 days of uptime. Every kube_* series
+      # vanished, so every alert derived from them resolved and then re-fired
+      # ~15 minutes later — Alertmanager re-notified the lot and flooded Matrix
+      # with alerts for problems that were hours old and already known. The same
+      # signature appears on 2026-09-06 and 2026-09-13, both merge waves.
+      #
+      # ksm is a metrics exporter on nobody's critical path. Losing it costs far
+      # more (a blind spot plus an alert storm) than tolerating a slow API
+      # server for a minute or two. 10 x 10s gives ~100s of headroom, and a
+      # genuinely wedged process is still restarted.
+      #
+      # Readiness is deliberately left at the defaults: it probes /readyz on the
+      # metrics port and reflects whether ksm can actually serve a scrape.
+      livenessProbe:
+        failureThreshold: 10
+        timeoutSeconds: 10
