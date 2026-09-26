@@ -74,12 +74,14 @@ spec:
                   periodSeconds: 10
             securityContext:
               privileged: true  # Required for AlarmDecoder USB serial access
+            # Steady state is 1.0-1.3GiB; a frontend reconnect storm OOM-killed
+            # the pod at the old 2Gi limit on 2026-09-24.
             resources:
               requests:
                 cpu: 100m
-                memory: 512Mi
+                memory: 1280Mi
               limits:
-                memory: 2Gi
+                memory: 3Gi
           code-server:
             image:
               repository: ghcr.io/coder/code-server
