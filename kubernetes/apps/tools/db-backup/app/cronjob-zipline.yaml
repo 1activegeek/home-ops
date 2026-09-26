@@ -39,18 +39,120 @@ spec:
                     key: DATABASE_URL
               - name: RETENTION_DAYS
                 value: "14"
+              # Age/space pruning never drops below this many good backups.
+              - name: KEEP_MIN
+                value: "7"
+              # Free space the job insists on before it starts dumping.
+              - name: MIN_FREE_MB
+                value: "128"
+              - name: BACKUP_GLOB
+                value: "zipline-*.dump"
               command: ["/bin/sh", "-c"]
               args:
                 - |
                   set -eu
+                  # ---------------------------------------------------------
+                  # Retention runs BEFORE the dump so a full volume can
+                  # self-heal. The old order (dump first, prune second)
+                  # deadlocked under `set -e`: once the PVC filled, the dump
+                  # aborted with ENOSPC and the prune never ran, so the volume
+                  # could never recover without hand surgery.
+                  #
+                  # Two guards stop "prune first" from quietly shrinking the
+                  # backup set:
+                  #   KEEP_MIN   pruning never drops below this many backups.
+                  #   *.partial  the dump is written to a temp name and only
+                  #              renamed on success, so a failed run can never
+                  #              leave a 0-byte file that looks like a backup.
+                  # If the floor is reached and there is still no room the job
+                  # fails loudly - that is the correct signal that the PVC is
+                  # genuinely undersized.
+                  #
+                  # Ported from kubernetes/apps/ai/db-backup (cronjob-n8n.yaml).
+                  #
+                  # NOTE: the parent Kustomization intentionally declares no
+                  # postBuild substituteFrom, so shell ${VAR} below needs no
+                  # $${} escaping - same as every other db-backup CronJob here.
+                  # ---------------------------------------------------------
+                  LIST=/tmp/backups.list
+
+                  free_mb() { df -Pk /backups | awk 'NR==2 {print int($4/1024)}'; }
+
+                  refresh_list() {
+                    find /backups -maxdepth 1 -type f -name "${BACKUP_GLOB}" \
+                      ! -name '*.partial' ! -size 0 \
+                      -exec stat -c '%Y %n' {} \; 2>/dev/null \
+                      | sort -rn > "${LIST}" || : > "${LIST}"
+                  }
+
+                  count_backups() { wc -l < "${LIST}" | tr -d ' '; }
+
+                  # Delete the oldest entry in LIST and echo the path removed.
+                  drop_oldest() {
+                    line=$(tail -n 1 "${LIST}")
+                    path=${line#* }
+                    rm -f "${path}"
+                    sed '$d' "${LIST}" > "${LIST}.tmp" && mv "${LIST}.tmp" "${LIST}"
+                    echo "${path}"
+                  }
+
+                  prune_age() {
+                    refresh_list
+                    while [ "$(count_backups)" -gt "${KEEP_MIN}" ]; do
+                      line=$(tail -n 1 "${LIST}")
+                      [ "${line%% *}" -lt "${CUTOFF}" ] || break
+                      echo "prune(age>${RETENTION_DAYS}d): $(drop_oldest)"
+                    done
+                  }
+
+                  # 1. Reap turds. A 0-byte file is never a valid backup, and an
+                  #    abandoned *.partial is the corpse of a crashed run.
+                  echo "Reaping empty files and abandoned partials"
+                  find /backups -maxdepth 1 -type f \
+                    \( -name "${BACKUP_GLOB}" -o -name "${BACKUP_GLOB}.partial" \) \
+                    \( -size 0 -o -name '*.partial' \) -print -delete || true
+
+                  # 2. Age prune, floored at KEEP_MIN.
+                  CUTOFF=$(( $(date +%s) - RETENTION_DAYS * 86400 ))
+                  prune_age
+
+                  # 3. Space prune, floored at KEEP_MIN. Required headroom is
+                  #    the larger of MIN_FREE_MB and 125% of the newest backup.
+                  NEED_MB=${MIN_FREE_MB}
+                  if [ -s "${LIST}" ]; then
+                    newest=$(head -n 1 "${LIST}"); newest=${newest#* }
+                    nmb=$(( $(stat -c %s "${newest}") / 1048576 * 5 / 4 + 1 ))
+                    if [ "${nmb}" -gt "${NEED_MB}" ]; then NEED_MB=${nmb}; fi
+                  fi
+                  while [ "$(free_mb)" -lt "${NEED_MB}" ] && [ "$(count_backups)" -gt "${KEEP_MIN}" ]; do
+                    echo "prune(space): $(drop_oldest)"
+                  done
+                  echo "free=$(free_mb)MiB need=${NEED_MB}MiB kept=$(count_backups)"
+                  if [ "$(free_mb)" -lt "${NEED_MB}" ]; then
+                    echo "ERROR: $(free_mb)MiB free, need ${NEED_MB}MiB, and KEEP_MIN=${KEEP_MIN} backups must be kept. Grow the db-backups PVC." >&2
+                    exit 1
+                  fi
+
+                  # 4. Dump to a partial and rename only on success.
                   TS=$(date +%Y%m%d-%H%M%S)
                   OUT="/backups/zipline-${TS}.dump"
+                  TMP="${OUT}.partial"
+                  trap 'rm -f "${TMP}"' EXIT INT TERM
                   echo "[$(date -u)] pg_dump zipline (url) -> ${OUT}"
-                  pg_dump --no-owner --no-privileges --format=custom --compress=9 --file="${OUT}" "${DATABASE_URL}"
+                  pg_dump --no-owner --no-privileges --format=custom --compress=9 --file="${TMP}" "${DATABASE_URL}"
+                  if [ ! -s "${TMP}" ]; then
+                    echo "ERROR: pg_dump produced an empty file" >&2
+                    exit 1
+                  fi
+                  mv "${TMP}" "${OUT}"
+                  trap - EXIT INT TERM
                   ls -lh "${OUT}"
-                  echo "Pruning zipline-*.dump older than ${RETENTION_DAYS}d"
-                  find /backups -name 'zipline-*.dump' -type f -mtime +${RETENTION_DAYS} -print -delete
-                  echo "done"
+
+                  # 5. Post-write age prune: the new backup now counts toward
+                  #    KEEP_MIN, so a backup the pre-write floor protected may
+                  #    legitimately age out now.
+                  prune_age
+                  echo "done: $(count_backups) backups, $(free_mb)MiB free"
               volumeMounts:
                 - name: backups
                   mountPath: /backups

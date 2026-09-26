@@ -63,20 +63,138 @@ spec:
                       key: password
                 - name: RETENTION_DAYS
                   value: "14"
+                # Age/space pruning never drops below this many good RUNS.
+                # One run = globals + one dump per database, so the unit here
+                # is the run, not the file (see the script below).
+                - name: KEEP_MIN
+                  value: "7"
+                # Free space the job insists on before it starts dumping.
+                - name: MIN_FREE_MB
+                  value: "128"
               command: ["/bin/sh", "-c"]
               args:
                 - |
                   set -eu
-                  TS=$(date +%Y%m%d-%H%M%S)
+                  # ---------------------------------------------------------
+                  # Retention runs BEFORE the dump so a full volume can
+                  # self-heal. The old order (dump first, prune second)
+                  # deadlocked under `set -e`: once the PVC filled, the dump
+                  # aborted with ENOSPC and the prune never ran, so the volume
+                  # could never recover without hand surgery.
+                  #
+                  # Ported from kubernetes/apps/ai/db-backup (cronjob-n8n.yaml)
+                  # with one structural difference: every other db-backup job
+                  # writes ONE file per run, this one writes a SET - globals
+                  # plus a dump per database - and the set grows as apps
+                  # migrate onto this cluster. So the unit of retention here is
+                  # the RUN (grouped by timestamp), not the file:
+                  #   KEEP_MIN   pruning never drops below this many RUNS.
+                  #   *.partial  every file in the set is written to a temp
+                  #              name and the whole set is promoted only after
+                  #              the last database dumps clean, so a run that
+                  #              dies halfway leaves no half-set and no 0-byte
+                  #              lookalikes.
+                  # If the floor is reached and there is still no room the job
+                  # fails loudly - that is the correct signal that the PVC is
+                  # genuinely undersized.
+                  #
+                  # NOTE: the parent Kustomization intentionally declares no
+                  # postBuild substituteFrom, so shell ${VAR} below needs no
+                  # $${} escaping - same as every other db-backup CronJob here.
+                  # ---------------------------------------------------------
+                  LIST=/tmp/runs.list
 
-                  echo "[$(date -u)] pg_dumpall --globals-only"
+                  free_mb() { df -Pk /backups | awk 'NR==2 {print int($4/1024)}'; }
+
+                  # Every file belonging to one run, identified by its timestamp.
+                  run_find() {
+                    find /backups -maxdepth 1 -type f \
+                      \( -name "globals-$1.sql" -o -name "*-$1.dump" \) 2>/dev/null
+                  }
+
+                  # One line per run, "<mtime> <ts>", newest first.
+                  refresh_list() {
+                    find /backups -maxdepth 1 -type f \
+                      \( -name 'globals-*.sql' -o -name '*.dump' \) \
+                      ! -name '*.partial' ! -size 0 \
+                      -exec stat -c '%Y %n' {} \; 2>/dev/null \
+                      | awk '{ n = $2; sub(/.*\//, "", n)
+                               if (match(n, /[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]/))
+                                 print $1, substr(n, RSTART, 15) }' \
+                      | sort -rn | awk '!seen[$2]++' > "${LIST}" || : > "${LIST}"
+                  }
+
+                  count_runs() { wc -l < "${LIST}" | tr -d ' '; }
+
+                  # Delete every file of the oldest run and echo the timestamp removed.
+                  drop_oldest() {
+                    line=$(tail -n 1 "${LIST}")
+                    ts=${line#* }
+                    run_find "${ts}" | while read -r f; do rm -f "${f}"; done
+                    sed '$d' "${LIST}" > "${LIST}.tmp" && mv "${LIST}.tmp" "${LIST}"
+                    echo "${ts}"
+                  }
+
+                  prune_age() {
+                    refresh_list
+                    while [ "$(count_runs)" -gt "${KEEP_MIN}" ]; do
+                      line=$(tail -n 1 "${LIST}")
+                      [ "${line%% *}" -lt "${CUTOFF}" ] || break
+                      echo "prune(age>${RETENTION_DAYS}d): run $(drop_oldest)"
+                    done
+                  }
+
+                  # 1. Reap turds. A 0-byte file is never a valid backup, and an
+                  #    abandoned *.partial is the corpse of a crashed run.
+                  echo "Reaping empty files and abandoned partials"
+                  find /backups -maxdepth 1 -type f \
+                    \( -name 'globals-*.sql*' -o -name '*.dump*' \) \
+                    \( -size 0 -o -name '*.partial' \) -print -delete || true
+
+                  # 2. Age prune, floored at KEEP_MIN runs.
+                  CUTOFF=$(( $(date +%s) - RETENTION_DAYS * 86400 ))
+                  prune_age
+
+                  # 3. Space prune, floored at KEEP_MIN runs. Required headroom
+                  #    is the larger of MIN_FREE_MB and 125% of the newest RUN
+                  #    (all its files summed, not just the biggest one).
+                  NEED_MB=${MIN_FREE_MB}
+                  if [ -s "${LIST}" ]; then
+                    newest=$(head -n 1 "${LIST}"); newest=${newest#* }
+                    nbytes=$(find /backups -maxdepth 1 -type f \
+                    \( -name "globals-${newest}.sql" -o -name "*-${newest}.dump" \) \
+                    -exec stat -c %s {} \; 2>/dev/null | awk '{s+=$1} END {print s+0}')
+                    nmb=$(( nbytes / 1048576 * 5 / 4 + 1 ))
+                    if [ "${nmb}" -gt "${NEED_MB}" ]; then NEED_MB=${nmb}; fi
+                  fi
+                  while [ "$(free_mb)" -lt "${NEED_MB}" ] && [ "$(count_runs)" -gt "${KEEP_MIN}" ]; do
+                    echo "prune(space): run $(drop_oldest)"
+                  done
+                  echo "free=$(free_mb)MiB need=${NEED_MB}MiB kept=$(count_runs) runs"
+                  if [ "$(free_mb)" -lt "${NEED_MB}" ]; then
+                    echo "ERROR: $(free_mb)MiB free, need ${NEED_MB}MiB, and KEEP_MIN=${KEEP_MIN} runs must be kept. Grow the db-backups PVC." >&2
+                    exit 1
+                  fi
+
+                  # 4. Dump the whole set to *.partial names. Nothing is promoted
+                  #    until every database has dumped clean, so a run that dies
+                  #    halfway never leaves a half-set behind.
+                  TS=$(date +%Y%m%d-%H%M%S)
+                  cleanup() { rm -f "/backups/globals-${TS}.sql.partial"; rm -f /backups/*-"${TS}".dump.partial; }
+                  trap cleanup EXIT INT TERM
+
+                  GLOBALS="/backups/globals-${TS}.sql"
+                  echo "[$(date -u)] pg_dumpall --globals-only -> ${GLOBALS}"
                   # pg_dumpall's --dbname takes a CONNECTION STRING, not a bare
                   # database name the way pg_dump's does. Passing `postgres`
                   # fails with: missing "=" after "postgres" in connection info
                   # string.
                   pg_dumpall --globals-only --no-role-passwords \
-                    --dbname="dbname=postgres" > "/backups/globals-${TS}.sql"
-                  ls -lh "/backups/globals-${TS}.sql"
+                    --dbname="dbname=postgres" > "${GLOBALS}.partial"
+                  if [ ! -s "${GLOBALS}.partial" ]; then
+                    echo "ERROR: pg_dumpall produced an empty file" >&2
+                    exit 1
+                  fi
 
                   DBS=$(psql --dbname=postgres -Atc \
                     "SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn")
@@ -85,15 +203,26 @@ spec:
                     OUT="/backups/${DB}-${TS}.dump"
                     echo "[$(date -u)] pg_dump ${DB} -> ${OUT}"
                     pg_dump --dbname="${DB}" --no-owner --no-privileges \
-                      --format=custom --compress=9 --file="${OUT}"
-                    ls -lh "${OUT}"
+                      --format=custom --compress=9 --file="${OUT}.partial"
+                    if [ ! -s "${OUT}.partial" ]; then
+                      echo "ERROR: pg_dump ${DB} produced an empty file" >&2
+                      exit 1
+                    fi
                   done
 
-                  echo "Pruning dumps older than ${RETENTION_DAYS}d"
-                  find /backups -maxdepth 1 -type f \
-                    \( -name '*.dump' -o -name 'globals-*.sql' \) \
-                    -mtime +${RETENTION_DAYS} -print -delete
-                  echo "done"
+                  # Promote the complete set.
+                  for p in "${GLOBALS}.partial" /backups/*-"${TS}".dump.partial; do
+                    [ -f "${p}" ] || continue
+                    mv "${p}" "${p%.partial}"
+                  done
+                  trap - EXIT INT TERM
+                  ls -lh "${GLOBALS}" /backups/*-"${TS}".dump
+
+                  # 5. Post-write age prune: the new run now counts toward
+                  #    KEEP_MIN, so a run the pre-write floor protected may
+                  #    legitimately age out now.
+                  prune_age
+                  echo "done: $(count_runs) runs, $(free_mb)MiB free"
               volumeMounts:
                 - name: backups
                   mountPath: /backups
