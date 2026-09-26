@@ -25,8 +25,22 @@ echo ""
 NFS_SERVER_IP="${NFS_SERVER:-}"
 
 if [[ -z "$NFS_SERVER_IP" ]]; then
-  if [[ -f "${REPO_ROOT}/age.key" ]]; then
-    NFS_SERVER_IP=$(SOPS_AGE_KEY_FILE="${REPO_ROOT}/age.key" sops -d "$SOPS_FILE" 2>/dev/null | \
+  # Honour SOPS_AGE_KEY_FILE from the environment (Taskfile/mise set it) instead of
+  # hardcoding the repo-root key, which does not exist in this checkout — that is
+  # why this check has always silently skipped with "Could not resolve NFS_SERVER".
+  # Try each candidate and take the first that actually EXISTS. Keying off "is the
+  # variable set" rather than "does the file exist" is what made this silently skip:
+  # SOPS_AGE_KEY_FILE pointed at a repo-root age.key that has never been present.
+  AGE_KEY=""
+  for candidate in \
+    "${SOPS_AGE_KEY_FILE:-}" \
+    "${REPO_ROOT}/age.key" \
+    "${HOME}/.config/sops/age/home-ops.key"
+  do
+    [[ -n "$candidate" && -f "$candidate" ]] && { AGE_KEY="$candidate"; break; }
+  done
+  if [[ -n "$AGE_KEY" ]]; then
+    NFS_SERVER_IP=$(SOPS_AGE_KEY_FILE="$AGE_KEY" sops -d "$SOPS_FILE" 2>/dev/null | \
       yq eval '.stringData.NFS_SERVER' - 2>/dev/null || true)
   fi
 fi
@@ -74,10 +88,28 @@ while IFS= read -r -d '' file; do
     CHECKED_PATHS["$path_key"]=1
     ((CHECKED++)) || true
 
-    if echo "$NFS_EXPORTS" | grep -qx "$path"; then
-      echo -e "${GREEN}✓${NC} ${resolved_server}:${path} — exported and accessible"
+    # A path is valid if it IS an export or lives UNDER one. Synology exports the
+    # top-level share (/volume1/syncthing) and subdirectories of it are perfectly
+    # mountable, so the previous exact `grep -qx` match reported 7 of 10 working
+    # paths as "NOT exported". That was invisible until the SOPS key path was
+    # fixed, because the whole check used to bail out early with a skip.
+    matched_export=""
+    while IFS= read -r exp; do
+      [[ -z "$exp" ]] && continue
+      if [[ "$path" == "$exp" || "$path" == "$exp"/* ]]; then
+        # Longest match wins, so a nested export is preferred over its parent.
+        if [[ ${#exp} -gt ${#matched_export} ]]; then matched_export="$exp"; fi
+      fi
+    done <<< "$NFS_EXPORTS"
+
+    if [[ -n "$matched_export" ]]; then
+      if [[ "$path" == "$matched_export" ]]; then
+        echo -e "${GREEN}✓${NC} ${resolved_server}:${path} — exported and accessible"
+      else
+        echo -e "${GREEN}✓${NC} ${resolved_server}:${path} — under export ${matched_export}"
+      fi
     else
-      echo -e "${RED}✗${NC} ${resolved_server}:${path} — NOT exported"
+      echo -e "${RED}✗${NC} ${resolved_server}:${path} — NOT exported (no export is a prefix of this path)"
       echo "   File: ${rel_file}"
       ((ERRORS++)) || true
     fi

@@ -14,7 +14,12 @@ vars:
 
 env:
   KUBECONFIG: '{{.ROOT_DIR}}/kubeconfig'
-  SOPS_AGE_KEY_FILE: '{{.ROOT_DIR}}/age.key'
+  # Prefer the upstream template's repo-root ./age.key when someone has actually
+  # put one there; otherwise fall back to the XDG path .sops.yaml declares as
+  # key_file, which is where this cluster's key really lives. Hardcoding the
+  # repo-root path broke every task guarded by `test -f '{{.SOPS_AGE_KEY_FILE}}'`.
+  SOPS_AGE_KEY_FILE:
+    sh: 'if [ -f "{{.ROOT_DIR}}/age.key" ]; then echo "{{.ROOT_DIR}}/age.key"; else echo "$HOME/.config/sops/age/home-ops.key"; fi'
   TALOSCONFIG: '{{.TALOSCONFIG}}'
 
 includes:
