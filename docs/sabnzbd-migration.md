@@ -57,7 +57,7 @@ rejects any Host header not on that list, which is a real failure mode we hit du
 | `kubernetes/apps/media/sabnzbd/app/service.yaml` | Selectorless Service + EndpointSlice → `${NFS_SERVER}:10008` |
 | `kubernetes/apps/media/sabnzbd/app/httproute.yaml` | `sabnzbd.${SECRET_DOMAIN}` on envoy-internal |
 | `scripts/sabnzbd-build-seed.py` | Builds the config seed from live NZBGet + probes every news server |
-| `scripts/sabnzbd-apply-config.py` | Pushes the seed to 1Password and into SABnzbd over its API; `--verify` reads back |
+| `scripts/sabnzbd-apply-config.py` | Pushes the seed to 1Password and into SABnzbd over its API; `--verify` reads back, `--export` captures live config as the new seed |
 | `scripts/sabnzbd-prestage-arrs.sh` | Stages SABnzbd as a **disabled** client in all four apps |
 | `scripts/sabnzbd-cutover.sh` | Flips the enable flags; `--rollback` reverses |
 
@@ -99,6 +99,10 @@ configuration is applied **over SABnzbd's HTTP API**.
   `[misc]` one key per `set_config` call, `[servers]` and `[categories]` through SABnzbd's dedicated
   handlers. Nothing is printed — not the seed, not credentials, not the API key.
 - `--verify` reads the live config back for an independent check.
+- `--export` is the reverse direction: it captures SABnzbd's *live* config as the new seed. That is the
+  round-trip path once NZBGet is retired and `--build` has no source left, and it is also how a deliberate
+  UI change gets made permanent. It refuses to write a seed whose server passwords look masked or empty,
+  because silently replacing 12 working credentials with stars would be unrecoverable.
 
 Every key emitted was validated against SABnzbd 5.1.3's own `cfg.py`. That check caught four plausible
 but non-existent keys during the cluster build (`quick_check`, `par2_multicore`,

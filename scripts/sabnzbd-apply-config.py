@@ -18,6 +18,12 @@ never prints server credentials or the API key.
   # read back what SABnzbd actually has, no writes
   op-session exec python3 scripts/sabnzbd-apply-config.py --verify
 
+  # capture SABnzbd's live config back into 1Password as the new seed
+  op-session exec python3 scripts/sabnzbd-apply-config.py --export --push
+
+--export is the round-trip path once NZBGet is retired and --build no longer has a
+source to read from. It also captures deliberate UI changes.
+
 Requires an active op-session. --apply additionally needs SABnzbd reachable.
 """
 import argparse, json, os, re, subprocess, sys, tempfile, urllib.parse, urllib.request
@@ -175,6 +181,59 @@ def apply_all(seed):
     return 0
 
 
+def export_live():
+    """Read SABnzbd's live config and render it back into seed (ini) form.
+
+    mode=get_config returns real server passwords (get_dict's for_public_api
+    defaults to False), but we refuse to write a seed whose credentials look
+    masked or empty - silently replacing 12 working server passwords with stars
+    would be unrecoverable from here.
+    """
+    key = api_key()
+    cfg = call(key, mode="get_config").get("config")
+    if not cfg:
+        sys.exit("could not read config from %s" % SAB_URL)
+
+    servers = cfg.get("servers", [])
+    if not servers:
+        sys.exit("refusing to export: SABnzbd reports no servers")
+    for s in servers:
+        pw = str(s.get("password") or "")
+        if not pw or set(pw) <= {"*"}:
+            sys.exit("refusing to export: server %r has an empty or masked password - "
+                     "SABnzbd's API is withholding credentials, so the export would "
+                     "destroy them in 1Password" % s.get("displayname", s.get("name")))
+
+    L = ["__version__ = 19", "__encoding__ = utf-8", "[misc]"]
+    for k, v in sorted(cfg["misc"].items()):
+        if k in MISC_SKIP:
+            continue
+        L.append("%s = %s" % (k, v))
+    L += ["", "[servers]"]
+    for s in servers:
+        L.append("[[%s]]" % s["name"])
+        for f in ("displayname", "host", "port", "username", "password", "connections",
+                  "ssl", "ssl_verify", "ssl_ciphers", "priority", "retention", "timeout",
+                  "enable", "optional", "required", "expire_date", "quota",
+                  "usage_at_start", "notes"):
+            if f in s:
+                v = s[f]
+                L.append("%s = %s" % (f, int(v) if isinstance(v, bool) else v))
+        L.append("")
+    L += ["[categories]"]
+    for c in cfg.get("categories", []):
+        L.append("[[%s]]" % c["name"])
+        for f in ("order", "pp", "script", "dir", "newzbin", "priority"):
+            if f in c:
+                L.append("%s = %s" % (f, c[f]))
+        L.append("")
+    text = "\n".join(L) + "\n"
+    print("exported live config: %d bytes | %d servers (%d enabled) | %d categories"
+          % (len(text), len(servers), sum(1 for s in servers if s.get("enable")),
+             len(cfg.get("categories", []))))
+    return text
+
+
 def verify():
     key = api_key()
     cfg = call(key, mode="get_config").get("config")
@@ -209,17 +268,21 @@ def verify():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--build", action="store_true", help="rebuild the seed from NZBGet")
+    ap.add_argument("--export", action="store_true",
+                    help="capture SABnzbd's live config as the seed (use after NZBGet retires)")
     ap.add_argument("--push", action="store_true", help="store the seed in 1Password")
     ap.add_argument("--apply", action="store_true", help="push the seed into SABnzbd")
     ap.add_argument("--verify", action="store_true", help="read back SABnzbd's live config")
     a = ap.parse_args()
-    if not any((a.build, a.push, a.apply, a.verify)):
-        ap.error("nothing to do - pass at least one of --build/--push/--apply/--verify")
+    if not any((a.build, a.export, a.push, a.apply, a.verify)):
+        ap.error("nothing to do - pass at least one of --build/--export/--push/--apply/--verify")
+    if a.build and a.export:
+        ap.error("--build and --export are two different sources for the seed; pick one")
 
-    seed = build_seed() if a.build else None
+    seed = build_seed() if a.build else (export_live() if a.export else None)
     if a.push:
         if seed is None:
-            ap.error("--push needs --build")
+            ap.error("--push needs --build or --export")
         push_seed(seed)
     rc = 0
     if a.apply:
