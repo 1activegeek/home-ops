@@ -1,169 +1,146 @@
-# NZBGet → SABnzbd Migration Plan
+# NZBGet → SABnzbd Migration
 
-Status: **planning / awaiting approval**. No cluster or arr changes made yet.
-Discovery: 2026-09-02, from NZBGet 26.0 on the Synology (`10.0.3.2:10007`) via its unauthenticated
-JSON-RPC API (`/jsonrpc/config`, `/listgroups`, `/history`) — no UI scraping required.
-Revision 2 (2026-09-02): incorporates decisions on servers, priorities, local scratch storage, and a
-split pre-stage/cutover phase.
+Revision 3 (2026-10-01): **SABnzbd runs on the Synology, not in the cluster.** Revisions 1–2 planned and
+built an in-cluster deployment; that was deployed, verified, and then deliberately removed. The reasoning
+and what it taught us are in §9.
+
+Status: cluster side merged and ready. Awaiting the container being started on the Synology, after which
+configuration and validation are automated. Cutover remains gated.
 
 ---
 
-## 1. Current state (verified, not assumed)
+## 1. Architecture
 
-### NZBGet (Synology, outside the cluster)
+```
+Prowlarr ──sync──▶ Sonarr / Radarr / Radarr4k
+                        │  download client: sabnzbd.media.svc.cluster.local:8080
+                        ▼
+      Service (selectorless) + EndpointSlice  ──▶  10.0.3.2:10008
+                        ▲                               │
+   HTTPRoute sabnzbd.${SECRET_DOMAIN}                   ▼
+   (envoy-internal, cert-manager TLS)        SABnzbd container on the Synology
+                                             /volume1/docker/sabnzbd → /config
+                                             /volume1/media          → /data/media
+```
 
-| Item | Value |
+Three properties make this work:
+
+1. **Local storage.** SABnzbd's working set never crosses the network. par2 repair and unpack are local
+   disk IO, and the move into the library is a rename on the same volume rather than a copy. The entire
+   "halt if remote storage disconnects" problem is **deleted rather than solved** — no watchdog, no canary
+   probes, no mount options, no scratch volume.
+2. **Path parity.** `/volume1/media` is mounted at **`/data/media`** inside the container, so SABnzbd
+   reports exactly the paths the `*arr`s already see over NFS. **No remote path mappings** — the thing
+   that has been quietly wrong in the NZBGet setup for years.
+3. **No IPs in app config.** A selectorless Service plus a hand-written EndpointSlice gives the cluster a
+   stable internal name for an off-box service. Moving the NAS changes one file.
+
+### Reaching it
+
+| From | Path |
 |---|---|
-| Version | 26.0 |
-| Root (`MainDir`) | `/downloads` → **`/volume1/media/downloads`** (same NFS export the cluster already mounts) |
-| Complete / Incomplete | `/downloads/complete`, `/downloads/incomplete` |
-| News servers | 12 (see §3) — 360 total connections configured |
-| Categories | `movies`, `movies-4k`, `tvshows`, `music`, `software`, `private` |
-| RSS feeds | none |
-| Post-processing | `nzbgeek-reporting.py` referenced in config but **the file does not exist** — dropped |
-| Queue at discovery | 0 items |
-| History | 150 items — 109 success, **41 `FAILURE/HEALTH` (27%)** |
+| Sonarr / Radarr / Radarr4k / Prowlarr | `sabnzbd.media.svc.cluster.local:8080` (Service → EndpointSlice) |
+| Phone / laptop on the home network | `https://sabnzbd.${SECRET_DOMAIN}` (envoy-internal, cert-manager TLS) |
+| Direct, cluster-down fallback | `http://atlantis.server.mix.net:10008` |
+| Off-network | Tailscale, same as other internal apps |
 
-### Cluster side
-
-- `kubernetes/apps/media/sabnzbd/` **exists but is commented out** of `kubernetes/apps/media/kustomization.yaml`
-  (alongside `plex` and `qbittorrent`). SABnzbd has never run; there is no PVC and no state to preserve.
-- Existing HelmRelease already: app-template 5.0.1, image `ghcr.io/home-operations/sabnzbd:5.1.2`,
-  UID 1027 / GID 100 (matches NFS ownership), Longhorn 1Gi `/config`, NFS `/volume1/media` → `/data/media`,
-  internal route, ExternalSecret pulling `api_key` / `nzb_key` from the 1Password `sabnzbd` item.
-- Sonarr / Radarr / Radarr4k all point at **NZBGet `10.0.3.2:10007`** with categories
-  `tvshows` / `movies` / `movies-4k`, each with a remote path mapping keyed to host `10.0.3.2`.
-- Prowlarr: 16 indexers (11 usenet, 5 torrent), full-sync to all three arrs, one download client (`nzbget`).
-- Unpackerr points at `/data/media/downloads/complete/{sonarr,radarr,radarr4k}` — **these directories do not
-  exist**; the real ones are `movies`, `tvshows`, `movies-4k`. Unpackerr has been a no-op.
-
-### The single most important discovery
-
-NZBGet's `/downloads` **is** `/volume1/media/downloads` — the same export SABnzbd already mounts at
-`/data/media`. SABnzbd's `complete_dir` lands on byte-identical paths. So:
-
-- Hardlinks / atomic moves into `/data/media/{movies,tvshows,movies4k}` keep working. No copy penalty.
-- No data migration. Nothing to copy. The complete tree is reused in place.
-- The arrs' remote path mappings are keyed by **host** `10.0.3.2`; the SABnzbd client's host will be
-  `sabnzbd.media.svc.cluster.local`, so the mappings simply won't match it. They are inert rather than
-  dangerous — cleaned up at cutover rather than being a cutover-blocking edit.
+`host_whitelist` carries all four names. It is set from the container environment, not the seed — SABnzbd
+rejects any Host header not on that list, which is a real failure mode we hit during the cluster build.
 
 ---
 
-## 2. Target architecture
+## 2. Repository layout
 
-```
-Prowlarr ──sync──▶ Sonarr / Radarr / Radarr4k ──nzb──▶ SABnzbd (media ns, in-cluster)
-                                                            │
-              ┌─────────────────────────────────────────────┤
-              │ /config          Longhorn 1Gi   (SAB-owned, UI-writable, backed up)
-              │ /downloads/incomplete  Longhorn 250Gi on longhorn-scratch  ← NEW, local SSD
-              │ /data/media      NFS csi-driver-nfs PV, hard mount
-              │                    └── downloads/complete/<category>  →  library
-              └── watchdog sidecar + canary probes ──▶ halt on NFS loss
-```
+| Path | Purpose |
+|---|---|
+| `synology/sabnzbd/docker-compose.yaml` | The container definition for Container Manager. Renovate tracks the image tag here. |
+| `kubernetes/apps/media/sabnzbd/app/service.yaml` | Selectorless Service + EndpointSlice → `${NFS_SERVER}:10008` |
+| `kubernetes/apps/media/sabnzbd/app/httproute.yaml` | `sabnzbd.${SECRET_DOMAIN}` on envoy-internal |
+| `scripts/sabnzbd-build-seed.py` | Builds the config seed from live NZBGet + probes every news server |
+| `scripts/sabnzbd-apply-config.py` | Pushes the seed to 1Password and into SABnzbd over its API; `--verify` reads back |
+| `scripts/sabnzbd-prestage-arrs.sh` | Stages SABnzbd as a **disabled** client in all four apps |
+| `scripts/sabnzbd-cutover.sh` | Flips the enable flags; `--rollback` reverses |
 
-Deliberate departures from today:
-- **Incomplete work moves off NFS onto local Longhorn SSD.** Par2 verify/repair and unpack — the write-
-  amplifying phases — stay entirely local. Only the finished release crosses the NAS link, which is the
-  same bytes that would have been written anyway. See §5c for sizing.
-- SABnzbd unpacks natively with Direct Unpack on → **unpackerr becomes unnecessary** (retired in §8).
-- Aggressive early-failure detection turned on from day one (§5d) — this is the 27% problem.
-- NZBGet retired on the Synology after soak.
+Ports: NZBGet keeps **10007**, SABnzbd takes **10008**, so both run in parallel until cutover.
 
 ---
 
-## 3. News servers — all 12 carried over, priorities preserved
+## 3. Why container and not a SynoCommunity package
 
-**Decision (confirmed): keep all 12, keep the priority ordering exactly as it is.** The ordering is
-intentional, not an accident: it is a *breadth-first* strategy. The ten smaller / bespoke / block accounts
-sit at tier 0 and are tried first, because between them they reach articles the big providers don't carry.
-The paid `Newshosting (Personal)` account sits at tier 3 as the reliable fallback, and `Tweak (free)` at
-tier 4 provides the 4300-day deep-retention backfill. This deliberately spares the primary account's
-capacity and maximises the chance of finding obscure content. NZBGet's `Level` maps 1:1 onto SABnzbd's
-server `priority` (lower = tried first), so this transfers exactly.
+NZBGet on the Synology is **already a Docker container** — its paths are `/app/nzbget`, `/config`,
+`/downloads`, `/logs`, which is container mount convention, not a package install under
+`/var/packages/`. So the container pattern is the status quo, not a new burden.
 
-| NZBGet # | Name | Host:Port | Conn | Priority | Optional | Retention |
-|---|---|---|---|---|---|---|
-| 3 | NewsDemon | news.newsdemon.com:**80** | 40 | 0 | yes | — |
-| 5 | Usenet.farm | news4.usenet.farm:563 | 40 | 0 | yes | — |
-| 7 | NewsGroupNinja | news.newsgroup.ninja:563 | 40 | 0 | yes | — |
-| 10 | NewsGroup Direct | nl.newsgroupdirect.com:563 | 40 | 0 | yes | — |
-| 4 | SuperNews | news.supernews.com:443 | 25 | 0 | yes | — |
-| 8 | TweakNews | news.tweaknews.eu:563 | 20 | 0 | yes | — |
-| 11 | Newshosting (2nd acct) | news.newshosting.com:443 | 20 | 0 | yes | — |
-| 2 | AstraWeb | ssl-us.astraweb.com:443 | 15 | 0 | yes | — |
-| 6 | UsenetServer-2 | news.usenetserver.com:443 | 10 | 0 | yes | — |
-| 9 | EasyNews | secure.news.easynews.com:8000 | 10 | 0 | yes | — |
-| 1 | **Newshosting (Personal)** | news.newshosting.com:443 | 60 | 3 | no | — |
-| 12 | Tweak (newshosting free) | newshosting.tweaknews.eu:563 | 40 | 4 | no | 4300d |
+Two things decide it, and neither is update ergonomics:
 
-**Correction from P1 testing:** `NewsDemon` is configured as port **80** with `Encryption=yes`, which
-looks contradictory — 80 is the plaintext NNTP port. It was flagged as a fix in revision 2. Live testing
-proved that wrong: NewsDemon genuinely serves **TLS on port 80** (plaintext on 80 times out, TLS on 80
-authenticates, and 563 also works). The config is correct as written and is migrated unchanged.
+- **UID/GID control.** The container runs as `1027:100`, matching ownership on `/volume1/media`. The
+  `*arr`s import over NFS as the same uid/gid, so anything SABnzbd writes they can move, hardlink and
+  delete. A SynoCommunity package runs as its own `sc-sabnzbd` user — workable, but an extra failure mode
+  in exactly the handoff that has to be reliable.
+- **Path parity.** Arbitrary mounts let the container present `/data/media`. A package sees real DSM paths,
+  which means re-adding three remote path mappings.
 
-### P1 connectivity test results (2026-09-02, TLS connect + `AUTHINFO` against each server)
-
-**5 of 12 authenticate. 7 fail.** This is almost certainly the mechanism behind the 27% `FAILURE/HEALTH`
-rate: seven of the ten tier-0 servers — the ones tried *first* — are dead, so every grab burns retries
-against them before reaching a working provider.
-
-| Server | Priority | Result |
-|---|---|---|
-| NewsDemon | 0 | ✅ OK (TLS on :80 confirmed) |
-| Usenet.farm | 0 | ✅ OK |
-| NewsGroupNinja | 0 | ✅ OK |
-| **Newshosting (Personal)** | 3 | ✅ OK |
-| **Tweak (newshosting free)** | 4 | ✅ OK |
-| NewsGroup Direct | 0 | ❌ `502 Connection failure. Please contact technical support.` |
-| SuperNews | 0 | ❌ `481 Invalid username or password` |
-| TweakNews | 0 | ❌ `502 Authentication Failed` |
-| Newshosting (2nd acct) | 0 | ❌ `502 Authentication Failed` |
-| AstraWeb | 0 | ❌ `502 Authentication Failed` |
-| UsenetServer-2 | 0 | ❌ `502 Authentication Failed` |
-| EasyNews | 0 | ❌ `502 Authentication Failed` |
-
-All 12 are migrated. The 7 failures ship with `enable = 0` and a note recording the exact error and test
-date, so nothing is lost and any account you renew is a one-flag change. **The breadth-first strategy is
-sound, but it is currently running on 3 working tier-0 servers, not 10** — worth knowing before judging
-whether breadth is delivering.
+Honest counterpoint: Package Center updates are one click, and **SynoCommunity's SABnzbd is 5.1.3 —
+not behind upstream**. The container's compensation is that Renovate watches the tag in
+`synology/sabnzbd/docker-compose.yaml` and opens the bump PR, which is closer to the existing flow.
 
 ---
 
-## 4. Setting-by-setting mapping
+## 4. Configuration: 1Password → API, no SSH, no .env
 
-| NZBGet | Value | SABnzbd equivalent | Target value |
+There is no init container on the NAS and no cluster filesystem to render into, so the entire
+configuration is applied **over SABnzbd's HTTP API**.
+
+- The complete `sabnzbd.ini` seed lives encrypted in 1Password (vault `homeops`, item `sabnzbd`, field
+  `config_seed`), alongside `api_key` and `nzb_key`.
+- `scripts/sabnzbd-build-seed.py` regenerates that seed from the **live NZBGet config**, so server
+  credentials are never hand-copied and never committed.
+- `scripts/sabnzbd-apply-config.py` reads it through `op-session` and pushes it in:
+  `[misc]` one key per `set_config` call, `[servers]` and `[categories]` through SABnzbd's dedicated
+  handlers. Nothing is printed — not the seed, not credentials, not the API key.
+- `--verify` reads the live config back for an independent check.
+
+Every key emitted was validated against SABnzbd 5.1.3's own `cfg.py`. That check caught four plausible
+but non-existent keys during the cluster build (`quick_check`, `par2_multicore`,
+`abort_on_missing_files`, `cleanup_empty_dir`) and is worth keeping.
+
+`api_key`, `nzb_key` and `host_whitelist` are **environment-managed, not seed-managed** — the applier
+skips them so it can never fight the container's own startup injection.
+
+---
+
+## 5. Setting-by-setting mapping (NZBGet → SABnzbd)
+
+| NZBGet | Value | SABnzbd | Target |
 |---|---|---|---|
-| `MainDir` | `/downloads` | — | — |
-| `InterDir` | `/downloads/incomplete` (NFS) | `download_dir` | **`/downloads/incomplete` (local Longhorn)** |
-| `DestDir` | `/downloads/complete` | `complete_dir` | `/data/media/downloads/complete` (NFS, unchanged) |
+| `MainDir` | `/downloads` (= `/volume1/media/downloads`) | — | — |
+| `InterDir` | `/downloads/incomplete` | `download_dir` | `/data/media/downloads/incomplete-sab` |
+| `DestDir` | `/downloads/complete` | `complete_dir` | `/data/media/downloads/complete` |
 | `NzbDir` | `/downloads/nzb` | `dirscan_dir` | `/data/media/downloads/nzb` |
-| `QueueDir`/`TempDir` | `/downloads/{queue,tmp}` | internal `/config/admin` | SAB-managed, on Longhorn |
-| `ScriptDir` | `/config/scripts` | `script_dir` | `/config/scripts` (empty — no scripts carried over) |
-| `Unpack = yes` | | `enable_unrar`, `enable_7zip` | on |
-| `DirectUnpack = no` | | `direct_unpack` | **on** (upgrade) |
-| `UnpackCleanupDisk = yes` | | `cleanup_list`, `del_failed` | on |
-| `ParCheck = auto` | | `quick_check` | on — par only when quick-check fails |
-| `ParRepair = yes` | | `enable_par_repair` | on |
-| `ParScan = extended` | | `par2_multicore` | on |
-| `HealthCheck = delete` | | `fail_hopeless_jobs`, `abort_on_missing_files` | on — see §5d |
-| `DupeCheck = yes` | | `no_dupes` / `no_series_dupes` | on |
-| `ArticleCache = 200` MB | | `cache_limit` | `512M` (pod limit 2Gi) |
-| `DiskSpace = 250` MB | | `download_free` | **`40G`** on the scratch volume (§5c) |
-| — | | `complete_free` | `25G` on the NFS volume |
-| `KeepHistory = 30` d | | `history_retention` | 30 days |
-| `ExtCleanupDisk` | `.par2,.sfv,_brokenlog.txt` | `cleanup_list` | `par2,sfv,nfo,txt,srr` |
-| `UnpackIgnoreExt` | `.cbr` | — | leave `.cbr` untouched |
-| `DownloadRate = 0` | unlimited | `bandwidth_max` | unlimited |
-| `Extensions` | `nzbgeek-reporting.py` | — | **dropped** (file doesn't exist) |
+| `ScriptDir` | `/config/scripts` | `script_dir` | `/config/scripts` |
+| `Unpack` | yes | `enable_unrar`, `enable_7zip` | on |
+| `DirectUnpack` | no | `direct_unpack` | **on** (upgrade) |
+| `UnpackCleanupDisk` | yes | `enable_par_cleanup`, `cleanup_list` | on |
+| `ParRepair` | yes | par repair | on |
+| `HealthCheck` | delete | `fail_hopeless_jobs`, `fast_fail` | on — see §6 |
+| `DupeCheck` | yes | `no_dupes`, `no_smart_dupes`, `dupes_propercheck` | on |
+| `ArticleCache` | 200 MB | `cache_limit` | `512M` |
+| `DiskSpace` | 250 MB | `download_free` / `complete_free` | **`25G`** each |
+| `KeepHistory` | 30 d | `history_retention_option` / `_number` | `days-delete` / `30` |
+| `ExtCleanupDisk` | `.par2,.sfv,_brokenlog.txt` | `cleanup_list` | `par2, sfv, nfo, txt, srr, srs` |
+| `DownloadRate` | 0 | `bandwidth_max` | unlimited |
+| `Extensions` | `nzbgeek-reporting.py` | — | **dropped** — the file does not exist on disk |
 
-### Category mapping
+`download_dir` is deliberately **`incomplete-sab`**, not the shared `incomplete`, so SABnzbd and NZBGet
+cannot trip over each other while both run. `complete_dir` is shared safely — job directories don't
+collide, and it means the `*arr`s see finished work in the same place either way.
 
-| Category | SAB dir | Consumer | NZBGet aliases → SAB "indexer categories" |
+### Categories
+
+| Category | Dir | Consumer | NZBGet aliases → `newzbin` |
 |---|---|---|---|
 | `movies` | `movies` | Radarr | `movies*, 2000, 2030, 2040, 2050` |
-| `movies-4k` | `movies-4k` | Radarr4k | (none today) |
+| `movies-4k` | `movies-4k` | Radarr4k | (none) |
 | `tvshows` | `tvshows` | Sonarr | `tv*, TV*` |
 | `music` | `music` | manual | `audio*` |
 | `software` | `software` | manual | `pc*` |
@@ -171,221 +148,135 @@ whether breadth is delivering.
 
 ---
 
-## 5. Design decisions
+## 6. News servers — all 12, priorities preserved
 
-### 5a. Storage safeguard — "halt if the NAS goes away" (both mechanisms, as requested)
+NZBGet's `Level` maps 1:1 onto SABnzbd's `priority` (lower = tried first). The ordering is **intentional
+and is preserved exactly**: the smaller/bespoke accounts sit at tier 0 and are tried first because between
+them they reach articles the big providers don't carry; the paid `Newshosting (Personal)` is the tier-3
+fallback and `Tweak (free)` the tier-4 deep-retention backfill (4300 d). This spares the primary account's
+capacity and maximises the chance of finding obscure content. Do not "optimise" it.
 
-Three layers, defence in depth:
+**7 of the 12 fail authentication** — unchanged across tests a month apart (2026-09-02 and 2026-10-01):
 
-1. **Dedicated NFS PV with explicit mount options.** The current `persistence.media.type: nfs` uses an
-   inline volume, which cannot set mount options. Replace with a `PersistentVolume`/`PVC` pair on the
-   existing `csi-driver-nfs` with `mountOptions: [hard, nfsvers=4.1, timeo=600, retrans=2, nconnect=8]`.
-   `hard` (not `soft`) is deliberate: `soft` returns IO errors mid-write and can corrupt a partially
-   written file. Under `hard`, an outage *blocks* IO — which is exactly what the probes detect.
+| Working (5) | Failing (7) |
+|---|---|
+| NewsDemon, Usenet.farm, NewsGroupNinja, Newshosting (Personal), Tweak (free) | NewsGroup Direct (`502 Connection failure`), SuperNews (`481 Invalid username or password`), TweakNews, Newshosting (2nd acct), AstraWeb, UsenetServer-2, EasyNews (all `502 Authentication Failed`) |
 
-2. **Canary probes (the enforcement mechanism).** `startup`, `liveness` and `readiness` exec probes:
-   ```
-   test -f /data/media/.sabnzbd-canary && test -w /data/media/downloads/complete
-   ```
-   `timeoutSeconds: 10`, `periodSeconds: 30`, `failureThreshold: 2`. A hung `hard` mount makes the exec
-   time out → probe failure → liveness restarts the pod and readiness pulls it from the Service, so the
-   arrs stop queueing to it. With the NAS down the pod settles into CrashLoopBackOff — halted, as
-   requested — and self-heals when storage returns.
+This is very likely the mechanism behind the **27% `FAILURE/HEALTH`** rate in NZBGet's history: seven of
+the ten servers tried *first* are dead, so every grab burns retries before reaching a working provider.
+All 12 are carried over; the failures ship `enable = 0` with the exact error and test date in their notes,
+so re-enabling a renewed account is a one-flag change.
 
-3. **Watchdog sidecar (fast halt + explicit signal).** `shareProcessNamespace: true`; a busybox sidecar
-   stats the canary every 15s and on failure logs a structured line and `SIGTERM`s the SABnzbd process
-   immediately rather than waiting up to a full liveness cycle. Alloy already ships that log to Loki, and
-   a `PrometheusRule` beside the app alerts to Matrix on (a) readiness 0 for 2m, (b) restarts > 3/15m.
+**The breadth-first strategy is sound but currently runs on 3 working tier-0 servers, not 10.**
 
-Note the scratch volume changes the blast radius for the better: with incomplete work on local SSD, an NFS
-outage can no longer corrupt an in-progress unpack — it can only block the final move.
+Note: NewsDemon's port 80 + TLS looks contradictory but is correct — it genuinely serves TLS on 80
+(plaintext on 80 times out, TLS on 80 authenticates, 563 also works). Migrated unchanged.
 
-### 5b. Config delivery — encrypted, declarative, *and* still editable in the UI
+### Early failure detection (§6 settings, on from day one)
 
-**Seed-and-merge**, not overwrite:
-
-- The complete `sabnzbd.ini` lives as a single multi-line field (`config_seed`) on the existing 1Password
-  **`sabnzbd`** item (confirmed OK to add), surfaced by the existing ExternalSecret. Nothing readable in
-  git; encrypted at rest in 1Password; no SOPS exception needed (matches repo standard §5).
-- An **init container** (reusing the SABnzbd image — python3 already present) runs every start:
-  - `/config/sabnzbd.ini` **missing** → write the seed verbatim. First boot / PVC loss = full recovery.
-  - `/config/sabnzbd.ini` **present** → merge only an explicitly declared *managed key set*
-    (`[servers]`, `[categories]`, `api_key`, `nzb_key`, `download_dir`, `complete_dir`, `host_whitelist`)
-    and leave every other key exactly as SABnzbd wrote it.
-- **So UI edits persist.** Anything outside the managed set is never touched. Anything inside it is
-  1Password-authoritative by design — you don't want a hand-edited news server drifting silently.
-- **Round-trip:** `./scripts/sabnzbd-export-config.sh` dumps the running ini, strips volatile runtime keys, and
-  writes it back to the 1Password field so the seed stays current.
-- **Backup regardless:** a daily CronJob copies `sabnzbd.ini` + `/config/admin` to
-  `/data/media/.backups/sabnzbd/`, 14-day retention, on top of the Longhorn recurring backup of the PVC.
-
-### 5c. Local scratch sizing — how big does the incomplete volume need to be?
-
-Measured from the last 150 completed jobs (924 GB total):
-
-| Category | n | mean | median | p90 | p99 | max |
-|---|---|---|---|---|---|---|
-| movies | 30 | 21.0 G | 21.6 G | 37.7 G | 39.1 G | **39.1 G** |
-| tvshows | 120 | 2.5 G | 2.9 G | 3.9 G | 6.4 G | 6.5 G |
-| all | 150 | 6.2 G | 3.0 G | 24.1 G | 38.3 G | 39.1 G |
-
-Your instinct was right — the tail is entirely 1080p BluRay remuxes at 32–39 GB. Sizing:
-
-- **One worst-case job, RAR'd:** 39 G archive + 39 G extracted concurrently = **~80 G**
-- **Post-processing overlap:** SAB post-processes job N while downloading job N+1 → **+40 G**
-- **Queue burst headroom:** a couple more large movies or a full season pack queued → **+80 G**
-- **`download_free` guard:** SAB pauses rather than filling the volume → **+40 G**
-
-**Planned: a 250Gi PVC.** That is ~3× the single-job worst case and covers a realistic burst of
-4–5 remuxes in flight, with SAB pausing (not failing) if it somehow gets deeper than that.
-
-**Corrected at deploy time (P3): 150Gi.** The 250Gi volume would not schedule. Longhorn does not
-schedule against raw free disk (~695 GB/node) but against
-`storageMaximum - storageReserved - storageScheduled`, and the default 30% reservation (247 GB/node)
-leaves only **223 / 186 / 100 GB** schedulable. 150Gi fits on two nodes, so the volume can still
-reschedule if one is drained; 200Gi would have fit only `asgard-mpc-01` and pinned the workload there.
-`download_free` drops 40G → 25G to match the smaller volume (leaving ~125 GB usable). The class sets
-`allowVolumeExpansion: true`, so this grows in place once local SSD is expanded — no migration needed.
-
-Practical effect at 150Gi: a single 39 GB RAR'd remux (≈80 GB with its extracted output) still has room
-alongside a second job downloading. Back-to-back remuxes may briefly pause the queue on the free-space
-guard, which is safe behaviour, not failure.
-
-**On a new `longhorn-scratch` StorageClass — `numberOfReplicas: "1"`, backups excluded.** This matters:
-
-- Both existing classes are `numberOfReplicas: 2`, which would make a 250Gi volume consume **500 GB** of
-  cluster storage. Current Longhorn free-to-schedule capacity is 472 / 434 / 348 GB across the three
-  nodes (824 GB each, 100% over-provisioning cap), so 500 GB would eat more than half the remaining
-  headroom on two nodes.
-- Replicating *scratch* data is pure waste — it doubles SSD write amplification on exactly the workload
-  that churns hardest, to protect data that is definitionally re-downloadable.
-- At replicas 1, the 250Gi lands on one node with room to spare. If that node dies, in-flight downloads
-  are lost and SAB/the arrs re-grab. That is the correct trade for temp data.
-- Backups excluded (`recurringJobSelector: exclude`) — backing up 250 GB of churning temp files to the
-  NFS backup target would be actively harmful.
-
-Net effect: 250 GB of cluster storage consumed, all par2 repair and unpack IO moved off the NAS link.
-
-**Measured, not assumed** (2026-09-02, 1 GiB `dd` with `O_DIRECT` from pods in `media`):
-
-| | write | read | rename |
-|---|---|---|---|
-| NFS (`/data/media`) | 105 MB/s | 112 MB/s | 5 ms |
-| Longhorn (default class, 2 replicas) | 109 MB/s | 230 MB/s | — |
-
-The NAS link is ~1GbE and already saturated; that is the binding constraint on the whole pipeline. Honest
-accounting of what the move buys:
-
-- **Per 39 GB RAR'd job**, bytes crossing the node NIC drop from **117 GB** (download write + unpack read +
-  extracted write, all to NFS) to **39 GB** (only the final copy). History is 65 `SUCCESS/UNPACK` vs 44
-  `SUCCESS/PAR`, so ~60% of jobs are RAR'd — blended, roughly a **55% cut in NAS traffic**, not 3×.
-- **The regression:** the move to `complete` stops being a free 5 ms same-filesystem rename and becomes a
-  real copy — **~6 min per 39 GB remux**, ~25 s per TV episode. For the ~40% of jobs that arrive unRAR'd,
-  local scratch is a net loss on wall-clock.
-- **The two arguments that actually carry it** are contention and latency, not throughput. Download bytes
-  and NFS-write bytes share one 1GbE NIC, so writing incomplete to NFS caps effective download speed near
-  half the link — and Direct Unpack makes that worse. Local scratch gives the download the whole link and
-  stops unpack churn from stepping on Plex streams. Separately, par2 **repair** is random-access and
-  latency-bound, where NFS is far worse than the friendly sequential `dd` gap above suggests.
-- The 109 MB/s Longhorn write is on the **2-replica** default class and is network-bound by synchronous
-  replication. `longhorn-scratch` at `numberOfReplicas: 1` writes to local disk only, so real scratch
-  throughput should be well above that. **This is an inference, not a measurement** — verify directly in P3.
-
-Decision (2026-09-02): proceed with local scratch; local storage expansion is planned independently.
-
-### 5d. Early failure detection — turning on the 27% fix
-
-41 of 150 history items are `FAILURE/HEALTH`. Promoted from "suggestion" into the migration itself:
-
-| SABnzbd setting | Target | What it kills |
+| Setting | Target | What it kills |
 |---|---|---|
-| `fail_hopeless_jobs` | on | jobs whose remaining articles can't reach the completion threshold — aborted immediately instead of downloading to a guaranteed par failure |
-| `abort_on_missing_files` | on | jobs missing files outright at queue time |
+| `fail_hopeless_jobs` | on | jobs that can't reach the completion threshold — aborted instead of downloading to a guaranteed par failure |
+| `fast_fail` | on | fails the job as soon as it's hopeless rather than at the end |
 | `req_completion_rate` | `100.2` | the health floor below which a job is declared dead |
-| `unwanted_extensions` | `exe,com,bat,scr,vbs,lnk,pif` | malware-bait releases |
-| `action_on_unwanted_extensions` | `2` (fail job) | ...and fails them rather than just warning |
-| `pause_on_pwrar` | `2` (abort) | password-protected RARs — a common cause of a "successful" download that can never be unpacked |
+| `propagation_delay` | `15` min | don't grab an NZB before articles have propagated — a real share of health failures |
+| `pause_on_pwrar` | `2` (abort) | password-protected RARs: a "successful" download that can never be unpacked |
+| `unwanted_extensions` + `action_on_unwanted_extensions=2` | fail job | malware-bait releases |
 | `enable_all_par` | off | don't pull par2 blocks you don't need |
-| `propagation_delay` | `15` min | don't grab an NZB before the articles have finished propagating — a meaningful share of health failures |
-
-The payoff is a job that would have failed anyway fails in seconds instead of after 39 GB, and the arrs
-get the failure signal fast enough to try the next release while the search is still fresh.
 
 ---
 
-## 6. Gaps
+## 7. Phases
 
-| # | Gap | Impact | Resolution |
-|---|---|---|---|
-| 1 | Unpackerr paths point at non-existent dirs | Silent no-op today | Retire unpackerr for usenet (SAB unpacks natively) — §8 |
-| 2 | Prowlarr download client is `nzbget` | Prowlarr manual grabs break at cutover | SAB added disabled in P4, enabled in P5 |
-| 3 | Stale remote path mappings on all 3 arrs | **Inert** — keyed to host `10.0.3.2`, won't match SAB | Delete during P5 cleanup |
-| 4 | Some of the 12 servers may have expired credentials | Wasted connections, auth noise | Connectivity test in P1; failures ship disabled with a report |
-| 5 | `NewsDemon` port 80 + `Encryption=yes` | Broken or downgraded TLS | Correct to 563 during seed generation |
-| 6 | SAB runs UID 1027/GID 100, repo default is 65534 | `task validate:security-ctx` warning | Intentional (NFS ownership is 1027:users) — document the exception |
-| 7 | `sabnzbd` ks is commented out of `apps/media/kustomization.yaml` | — | One-line uncomment in P2 |
-| 8 | Arr/Prowlarr config is DB state, not GitOps | P4/P5 changes can't be expressed in Flux | Applied via idempotent scripts committed to `scripts/`, so they're reviewable and repeatable |
-
----
-
-## 7. Phased plan
-
-Branch: `1activegeek/nzbget-sabnzbd-conversion`. Never commit to main (Flux deploys instantly).
-
-| Phase | Work | Gate |
+| Phase | Work | State |
 |---|---|---|
-| **P0** ✅ | Discovery — NZBGet config, arr/Prowlarr state, NFS layout, size distribution | done |
-| **P1** ✅ | Connectivity-tested all 12 servers (5 pass / 7 fail); generated the `sabnzbd.ini` seed — priorities preserved, 7 dead servers disabled with notes, failure-detection baked in — validated every key against SABnzbd 5.1.2 source; pushed to 1Password `sabnzbd.config_seed` (6262 bytes) | done |
-| **P2** ✅ | Manifests: `longhorn-scratch` SC, 250Gi scratch PVC, NFS PV/PVC with mount options, canary probes, watchdog sidecar, seed-merge init container, config-backup CronJob, PrometheusRule, uncomment ks. validated | **PR open — your approval** |
-| **P3** | Deploy. Verify: pod healthy, per-server connection report, one manual test NZB → download → unpack → lands in `complete/<cat>`. Pull the NFS mount and confirm the pod halts and recovers. | verification report |
-| **P4** | **Pre-stage, everything disabled.** Add SABnzbd as a download client to Sonarr, Radarr, Radarr4k and Prowlarr with `enable: false`, correct categories, and run each client's built-in **Test** to prove connectivity and auth. NZBGet stays enabled and untouched. Nothing changes behaviourally. | pre-flight report for you to validate |
-| **P5** | 🔒 **CUTOVER — gated on your explicit go.** Flip `enable: true` on the four SAB clients, `enable: false` on the four NZBGet clients. Delete the stale remote path mappings. Retire unpackerr. | your word |
-| **P6** | Soak 7 days, then retire NZBGet on the Synology and reclaim `/downloads/{queue,tmp,nzb,incomplete}` | — |
+| **P0** | Discovery — full NZBGet config, `*arr`/Prowlarr state, path layout, size distribution | ✅ |
+| **P1** | Seed built from live NZBGet, all 12 servers probed, validated against SABnzbd source, stored in 1Password | ✅ |
+| **P2** | Cluster side: Service + EndpointSlice + HTTPRoute; in-cluster deployment removed | ✅ merged |
+| **P3** | **You:** start the container on the Synology (§8) | ⏳ |
+| **P4** | Apply config over the API, verify every setting, end-to-end test NZB, path/permission/ownership checks | ⏳ automated |
+| **P5** | Stage SABnzbd as a **disabled** client in all four apps and connectivity-test | ✅ already done, still intact |
+| **P6** | 🔒 **CUTOVER — gated.** `./scripts/sabnzbd-cutover.sh` flips four enable flags, deletes stale path mappings | ⏳ your go |
+| **P7** | Soak, then stop the NZBGet container and retire its `/downloads/{queue,tmp,nzb}` dirs | ⏳ |
 
-**P1–P4 are entirely non-disruptive.** NZBGet keeps running and keeps serving the arrs throughout. At the
-end of P4 everything is wired, tested and sitting inert — the cutover in P5 is four enable-flag flips, and
-rollback is flipping them back. Each phase's script is idempotent and committed, so P5 is a single command
-whenever you're ready.
-
----
-
-## 8. Suggested upgrades (post-merge follow-ons)
-
-Ranked by value. Items 1–2 from revision 1 have been **promoted into the migration itself** (Direct Unpack
-in §4, failure detection in §5d), and local scratch storage is now in scope (§5c).
-
-1. **Retire unpackerr** *(agreed)*. Its only job was NZBGet's post-unpack gap, its paths are wrong, and SAB
-   unpacks natively with Direct Unpack on. One fewer deployment, one fewer NFS mount.
-2. **Metrics + dashboard.** `sabnzbd_exporter` → ServiceMonitor → Grafana dashboard ConfigMap, with alerts
-   for queue stalled, zero servers connected, scratch volume filling, and `download_free` low.
-3. **Matrix notifications** for failed jobs via the existing hookshot webhook (`docs/matrix-webhooks.md`) —
-   pairs naturally with the §5d failure detection so you see *what* is failing, not just that it failed.
-4. **Uptime Kuma monitor** on `sabnzbd.${SECRET_DOMAIN}` per the monitoring standard.
-5. **Server health scoring.** Once metrics exist, per-server article-miss rates will show which of the ten
-   tier-0 accounts are actually earning their place in the breadth-first strategy and which are just adding
-   latency before the fallback. Data-driven, rather than pruning on assumption.
-6. **Re-evaluate `nconnect`** after a week of real traffic — with unpack IO off the NAS the link profile
-   changes, and the optimum may differ from the initial 8.
-7. **Revisit `plex` and `qbittorrent`**, both also commented out of `apps/media/kustomization.yaml` —
-   out of scope here, but worth a decision.
+P5 was completed during the cluster build and **survived the architecture change unchanged**, because the
+`*arr`s were always pointed at `sabnzbd.media.svc.cluster.local:8080` rather than an IP.
 
 ---
 
-## 8a. P3 deployment defects found and fixed
+## 8. What you need to do (P3)
 
-Recorded because each was a real design error, not a transient:
+Everything else is automated. This is the only manual step.
 
-| # | Defect | Cause | Fix |
-|---|---|---|---|
-| 1 | 250Gi scratch PVC would not schedule | Sized against Longhorn's `storageAvailable` (raw free disk) instead of `storageMaximum - storageReserved - storageScheduled`; the default 30% reservation leaves 223/186/100 GB schedulable | 150Gi, fits two nodes; `download_free` 40G → 25G (#559) |
-| 2 | SABnzbd generated its own random `api_key`, ignoring the one in 1Password | The seed omitted `api_key`/`nzb_key`/`host_whitelist` on the assumption the image's entrypoint would inject them. Its `sed` only *substitutes into lines that already exist*, so with no line to match it silently did nothing and SABnzbd invented a key on first start | The init container now writes all three from the environment itself, after the merge — no reliance on image internals |
-| 3 | `host_whitelist` contained only the pod name | Same root cause; SABnzbd auto-added its own hostname when the key was absent, which would have broken access via the route hostname | As above |
-| 4 | Watchdog log printed "every s" | `${INTERVAL}` in the ConfigMap was consumed by Flux variable substitution — the documented gotcha in `AGENTS.md`; cosmetic only, the `sleep` used the unbraced form | Unbraced `$INTERVAL` |
-| 5 | `config-backup` logged "tar failed" then slept 24h | Ran before SABnzbd had created `/config/admin`, and any failure cost a full day | 120s startup delay, tolerates a missing `admin/`, retries in 10m on failure |
+1. Create the config folder on the NAS: **`/volume1/docker/sabnzbd`**
+2. In **Container Manager → Project**, create a project from
+   `synology/sabnzbd/docker-compose.yaml`.
+3. Replace the two placeholder values with the real ones from **1Password → vault `homeops` → item
+   `sabnzbd`**:
+   - `SABNZBD__API_KEY` ← field `api_key`
+   - `SABNZBD__NZB_KEY` ← field `nzb_key`
 
-Defects 2 and 3 would have surfaced as a broken cutover rather than a broken deploy: SABnzbd looked healthy,
-but every `*arr` would have failed to authenticate against it.
+   These **must** match 1Password: the `*arr`s are already staged with that API key, and the config
+   automation authenticates with it. If SABnzbd generates its own instead, nothing can talk to it.
+4. Start the project and confirm `http://atlantis.server.mix.net:10008` loads.
 
-## 9. Open items
+Do **not** hand-configure anything in the UI — step 4 of §4 applies the whole configuration, and
+hand-edits to managed keys will be overwritten.
 
-None blocking. P1 through P4 can run unattended once the P2 PR is approved; P5 waits on your explicit go.
+### Then, unattended
+
+```bash
+op-session exec python3 scripts/sabnzbd-apply-config.py --build --push --apply --verify
+```
+
+---
+
+## 9. Appendix: the in-cluster attempt, and what it taught us
+
+Revisions 1–2 built, deployed and verified SABnzbd **inside** the cluster: Longhorn scratch volume for the
+working set, static NFS PV with `hard`/`nconnect` mount options for the media share, canary exec probes, a
+watchdog sidecar in a shared PID namespace, a seed-merge init container, and a config-backup sidecar. It
+worked — a 167 MB test NZB downloaded in 1 s at 90.9 MB/s, and a storage-loss drill halted the pod in 30 s
+and recovered it automatically in ~50 s.
+
+It was removed because running on the NAS is simply better: local storage eliminates the requirement that
+all of that machinery existed to satisfy.
+
+Five defects found during that build, each a real design error worth remembering:
+
+| # | Defect | Root cause |
+|---|---|---|
+| 1 | 250Gi scratch PVC wouldn't schedule | Sized against Longhorn's `storageAvailable` (raw free disk ~695 GB/node) instead of `storageMaximum - storageReserved - storageScheduled`; the default 30% reservation (247 GB/node) left only 223/186/100 GB schedulable. Reduced to 150Gi. |
+| 2 | SABnzbd generated its own `api_key`, ignoring 1Password | The seed omitted `api_key`/`nzb_key`/`host_whitelist`, assuming the image entrypoint would inject them. Its `sed` only substitutes into lines that **already exist**, so it was a silent no-op. |
+| 3 | `host_whitelist` contained only the pod name | Same root cause; SABnzbd auto-added its own hostname. Would have broken the route. |
+| 4 | Watchdog logged "every s" | `${INTERVAL}` in a ConfigMap was consumed by Flux variable substitution — the gotcha documented in `AGENTS.md`. Escape as `$${VAR}`. |
+| 5 | `config-backup` logged "tar failed" then slept 24 h | Ran before SABnzbd had created `/config/admin`. |
+
+Defects 2 and 3 are the instructive ones: SABnzbd looked completely healthy, and the failure would only
+have surfaced at cutover when every `*arr` failed to authenticate. Hence §4's rule that `api_key`,
+`nzb_key` and `host_whitelist` are environment-managed and explicitly excluded from the seed.
+
+**Measurements worth keeping** (1 GiB `dd`, `O_DIRECT`, from pods in `media`): NFS to the Synology wrote at
+105 MB/s and read at 112 MB/s — i.e. the NAS link is ~1GbE and was already saturated. That is the number
+that makes local storage the right call: on the NAS, a 39 GB RAR'd job's unpack IO (another ~78 GB of
+read+write) never touches the wire at all, and the move into the library is a 5 ms rename instead of a
+~6 minute copy.
+
+---
+
+## 10. Follow-ups
+
+1. **Retire unpackerr.** Its paths (`downloads/complete/{sonarr,radarr,radarr4k}`) don't exist — the real
+   dirs are `movies`/`tvshows`/`movies-4k` — so it has been a no-op. SABnzbd unpacks natively with Direct
+   Unpack on. One fewer deployment.
+2. **Uptime Kuma monitor** on `sabnzbd.${SECRET_DOMAIN}`. SABnzbd is now outside cluster metrics
+   (no pod, no PVC, no ServiceMonitor), so uptime checking is the monitoring story. There is no blackbox
+   exporter in the cluster today.
+3. **Prowlarr's NZBGet client points at host `nzbget:6789`**, which doesn't resolve in-cluster — it has
+   almost certainly been non-functional. Worth confirming, since it means Prowlarr test/manual grabs have
+   been failing silently.
+4. **Server health scoring.** Once there's data, per-server article-miss rates will show which tier-0
+   accounts earn their place in the breadth-first strategy and which just add latency before the fallback.
+   Data-driven, rather than pruning on assumption.
+5. **A `prowlarr` category** if interactive Prowlarr grabs landing in the root of `complete/` becomes
+   annoying. Today it has no category set, which SABnzbd accepts with an advisory warning.
