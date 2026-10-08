@@ -1,5 +1,5 @@
 # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
-talosVersion: v1.13.10
+talosVersion: v1.13.11
 # Talos 1.13.x does not support Kubernetes 1.37 — talhelper rejects the pair
 # with "version of Kubernetes 1.37.0 is too new to be used with Talos 1.13.10",
 # which breaks `talhelper genconfig` and therefore `task talos:apply-node`.
