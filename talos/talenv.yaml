@@ -7,4 +7,4 @@ talosVersion: v1.13.10
 # constraint; see the matching allowedVersions rule in .renovaterc.json5.
 # Raise this only once talosVersion moves to a release that supports 1.37.
 # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
-kubernetesVersion: v1.36.1
+kubernetesVersion: v1.36.5
