@@ -45,13 +45,6 @@
   },
   packageRules: [
     {
-      description: "Pin onepassword-connect chart to 2.2.1 - chart 2.3.0 changed credentials mounting from base64 env var to raw JSON file, incompatible with current SOPS secret encoding. Fix by re-encoding the 1password-credentials.json SOPS secret as raw JSON before upgrading.",
-      matchManagers: ["helmv3", "helm-values"],
-      matchPackageNames: ["connect"],
-      matchCurrentVersion: "2.2.1",
-      enabled: false,
-    },
-    {
       description: "Constrain kubelet to what the pinned Talos release supports. Renovate bumps ghcr.io/siderolabs/kubelet and ghcr.io/siderolabs/installer independently, and in b2423aa it moved kubernetesVersion to v1.37.0 while talosVersion sat at v1.13.10 — a pair talhelper rejects, which broke `talhelper genconfig` and blocked `task talos:apply-node` entirely. Raise allowedVersions in lockstep with a talosVersion bump that supports the newer minor.",
       matchDatasources: ["docker"],
       matchPackageNames: ["ghcr.io/siderolabs/kubelet"],

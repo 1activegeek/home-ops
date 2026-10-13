@@ -7,9 +7,9 @@ This file provides guidance to Claude Code when working with this repository.
 This is a GitOps-based Kubernetes home lab cluster running on **Talos Linux** with **Flux CD** for declarative cluster management.
 
 **Infrastructure:**
-- **OS:** Talos Linux v1.12.1 (immutable, API-managed)
-- **Kubernetes:** v1.35.0
-- **GitOps:** Flux CD v2.7.5
+- **OS:** Talos Linux v1.13.10 (immutable, API-managed)
+- **Kubernetes:** v1.36.1
+- **GitOps:** Flux CD 2.x (managed by flux-operator / FluxInstance)
 - **Cluster:** 3-node HA control plane (10.0.3.21-23, VIP: 10.0.3.51)
 
 **Core Components:**
@@ -103,7 +103,7 @@ Before adding or changing any routed application, read `docs/architecture/authen
 - `envoy-external` apps must always have an explicit auth decision documented.
 - `envoy-internal` apps may remain open by default, but the chosen auth mode should still be recorded.
 - Public docs must not include sensitive operational details such as private IPs, storage mount paths, private email addresses, secret names, or redirect URIs.
-- After each completed phase or deployable change, update `docs/deployment-plan.md` and `.private/PRD.md`.
+- After each completed phase or deployable change, update `docs/deployment-plan.md`. If you keep a local, gitignored `.private/PRD.md`, update it too.
 
 #### Known patterns that cause failures
 
@@ -553,7 +553,7 @@ persistence:
 
 ## Migration Project
 
-For active deployment work (migrating apps from Synology NAS to this cluster), also read `.private/SESSION_WORKFLOW.md` for session workflow instructions. That file references `.private/PRD.md` (project plan and task board) and `.private/migration-state.md` (session continuity).
+For active deployment work (migrating apps from Synology NAS to this cluster), track progress in `docs/deployment-plan.md`. Sensitive migration detail (paths, commands, secret extraction) belongs in an optional local `.private/` directory, which is gitignored and may not exist in a fresh checkout.
 
 ## Version Management
 

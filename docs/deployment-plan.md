@@ -1,6 +1,6 @@
 # Cluster Application Deployment Plan
 
-> **Note:** Sensitive details (network topology, internal service URLs, secret naming, migration commands, storage paths, redirect URIs, and private contact details) are stored in `.private/PRD.md` (gitignored). This public version covers architecture, phases, auth policy, and status tracking.
+> **Note:** Sensitive details (network topology, internal service URLs, secret naming, migration commands, storage paths, redirect URIs, and private contact details) are kept out of this repo in a local, gitignored `.private/` directory. This public version covers architecture, phases, auth policy, and status tracking.
 
 ## Context
 
@@ -200,7 +200,7 @@ Apps migrating from Docker follow this general process:
 
 **Apps being migrated:** Prowlarr, Sonarr, Radarr, Radarr-4K, Autoscan, Overseerr (to Seerr), Tautulli, Teslamate
 
-See `.private/PRD.md` for detailed migration commands, path mappings, and secret extraction steps.
+Detailed migration commands, path mappings, and secret extraction steps are kept out of the repo (local `.private/`).
 
 ---
 
@@ -270,8 +270,8 @@ Well within a 3-node cluster capacity, though the AI stack (Ollama) will be the 
 
 This section is the **source of truth** for tracking progress across sessions. Update it after each deployment action.
 
-**Last updated:** 2026-03-07
-**Current focus:** Auth governance, tracker reconciliation, and deployment policy cleanup
+**Last updated:** 2026-10-11
+**Current focus:** Auth governance, postgres consolidation, and doc upkeep
 
 ### Status Legend
 
@@ -303,16 +303,18 @@ This section is the **source of truth** for tracking progress across sessions. U
 
 ### Phases 2-9
 
+Statuses below reflect manifests present on `main` (2026-10-11 reconciliation). Live health and migration completion were not re-checked.
+
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 2: Forgejo + Zipline | `deployed` | Both apps are running; auth follow-up remains |
-| Phase 3: Media Infrastructure | `deployed` | Plex, SABnzbd, and qBittorrent are running |
-| Phase 4: *Arr Stack | `not started` | Migration apps |
-| Phase 5: Media Support | `not started` | |
-| Phase 6: Shlink | `not started` | |
-| Phase 7: Teslamate | `not started` | Migration app |
-| Phase 8: AI Stack | `not started` | |
-| Phase 9: Books | `not started` | |
+| Phase 2: Forgejo + Zipline | `deployed` | Both in `tools`; auth follow-up remains |
+| Phase 3: Media Infrastructure | `deployed` | Plex, SABnzbd, qBittorrent |
+| Phase 4: *Arr Stack | `deployed` | Prowlarr, Sonarr, Radarr, Radarr-4K; migration status unconfirmed |
+| Phase 5: Media Support | `deployed` | Seerr, Tautulli, Bazarr, Recyclarr, Unpackerr (Autoscan, Notifiarr have no manifests) |
+| Phase 6: Shlink | `deployed` | In `tools` |
+| Phase 7: Teslamate | `deployed` | In `home`; migration status unconfirmed |
+| Phase 8: AI Stack | `deployed` | Ollama, Qdrant, OpenWebUI, n8n, plus LibreChat, SearXNG, Hermes agent |
+| Phase 9: Books | `deployed` | Grimmory, Audiobookshelf |
 
 ### Blockers & Open Questions
 
@@ -337,7 +339,7 @@ This section is the **source of truth** for tracking progress across sessions. U
 | 2026-02-12 | Phase 0 + Phase 1 | Created 4 namespaces. Created Phase 1 apps: KMS, Gatus, Uptime Kuma, Grafana, MeTube. NFS deferred to Phase 3. |
 | 2026-02-12 | Tailscale | Added Tailscale Operator + Gateway to plan and created manifests |
 | 2026-02-12 | Branch split | Split monolithic branch into per-app branches for independent PRs |
-| 2026-02-15 | Security cleanup | Moved sensitive details to `.private/deployment-plan.md`, created redacted public version |
+| 2026-02-15 | Security cleanup | Moved sensitive details to a local gitignored directory, created redacted public version |
 | 2026-03-07 | Reconciliation and auth governance | Reconciled the tracker against the live cluster, documented the auth standard, and removed Uptime Kuma from the planned stack in favor of Gatus. |
 | 2026-03-30 | MeTube stability tuning | Confirmed `OOMKilled` restarts during queued download processing and raised MeTube memory limit to `3Gi` while keeping concurrent downloads at `3` to preserve throughput. |
 | 2026-04-01 | Homepage Kubernetes widget fix | Added Homepage's missing in-cluster Kubernetes config and a dedicated service account binding so the Kubernetes status widget can authenticate against the cluster API. |
@@ -345,4 +347,5 @@ This section is the **source of truth** for tracking progress across sessions. U
 | 2026-09-03 | Hermes per-user memory | Carried upstream hermes-agent PR #27183 (per-user `USER.md` isolation) as a runtime patch — initContainer + ConfigMap diff, image anchored across all three containers. Added `task validate:hermes-patch` to pre-flight the patch against a pinned tag before merging an upgrade. Runbook: `docs/hermes-memory-patch.md`. |
 | 2026-09-03 | Alert notification links + Longhorn scrape fix | Added per-alert `Alertmanager` / `Silence` / `Graph` / `Runbook` links to the Matrix Alertmanager notifications, replacing the link Mattermost's `slack_configs` used to provide (`docs/matrix-webhooks.md`). Root-caused the two standing `KubeJobFailed` alerts and `TargetDown longhorn-backend` to Longhorn chart 1.12.1 gating its internal-traffic NetworkPolicies on `restrictInternalTraffic` (default true) instead of `networkPolicies.enabled` (false), which cut Prometheus and the backup-alert CronJob off from `longhorn-manager:9500`. Fixed with an additive allow policy. |
 | 2026-09-20 | Hermes carried patch removed | Dropped the runtime patch added 2026-09-03. Upstream closed BOTH per-user `USER.md` PRs unmerged (#27183 closed by its author in favour of #23784, which was itself closed; issue #27182 still open), so there was no upstream endgame — the diff had to be hand-ported on every refactor and hard-failed the pod when it could not apply, costing two outages in eight days (~4h on v2026.9.11, ~9h on v2026.9.14). `MATRIX_ALLOWED_USERS` is a single entry, so the isolation was guarding nothing in practice. Removed the `patch-memory` initContainer, the ConfigMap diff, the `hermes-patch` / `hermes-patch-src` volumes, `task validate:hermes-patch` and its script, and `docs/hermes-memory-patch.md`. **If `MATRIX_ALLOWED_USERS` ever grows past one, every allowlisted user shares one `/opt/data/memories/USER.md` again — re-evaluate before widening it.** |
-| | | *Next: Continue with Phase 4 and remaining auth cleanup.* |
+| 2026-10-11 | Doc refresh | Reconciled Phase 2-9 status against manifests on `main`, refreshed version references in `AGENTS.md`, and removed references to files that are not in the repo. |
+| | | *Next: Finish postgres consolidation and remaining auth cleanup.* |
