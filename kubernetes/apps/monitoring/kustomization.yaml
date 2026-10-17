@@ -14,3 +14,4 @@ resources:
   - ./loki/ks.yaml
   - ./alloy/ks.yaml
   - ./uptime-kuma/ks.yaml
+  - ./healthchecks/ks.yaml

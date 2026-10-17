@@ -1,0 +1,41 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./ocirepository.yaml
+  - ./externalsecret.yaml
+  - ./helmrelease.yaml
+  - ./referencegrant.yaml
+  - ./ciliumnetworkpolicy.yaml
+
+# UI route (healthchecks-app) behind Authentik forward-auth. The machine route
+# (pings/API/badges) is deliberately left unauthenticated.
+components:
+  - ../../../../components/internal-forward-auth
+
+patches:
+  - target:
+      kind: SecurityPolicy
+      name: internal-forward-auth
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: healthchecks-app-forward-auth
+      - op: replace
+        path: /spec/targetRefs/0/name
+        value: healthchecks-app
+
+# Bootstrap + self-check scripts. Kept as real files so they can be linted and
+# read without YAML escaping. Flux post-build substitution is disabled on this
+# ConfigMap so shell `${VAR}` references survive untouched; the scripts get the
+# domain from the HC_BASE_URL env var set in the HelmRelease instead.
+configMapGenerator:
+  - name: healthchecks-scripts
+    files:
+      - ./resources/bootstrap.py
+      - ./resources/self-check.sh
+
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

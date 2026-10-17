@@ -1,0 +1,59 @@
+---
+# Plain-HTTP exception to the gateway-wide https-redirect (envoy.yaml), for
+# Healthchecks only, internal gateway only.
+#
+# Lets minimal clients with no TLS (busybox wget, embedded devices, old cron
+# boxes) send pings and API calls to http://hc.<domain>/ping/... and /api/...
+# Everything else on that host still 301s to HTTPS, so the login UI never
+# serves over plain HTTP. API keys sent over plain HTTP are visible on the
+# LAN/tailnet: prefer HTTPS wherever the client can do it.
+#
+# Lives in `network` because the port-80 listeners only accept routes from
+# their own namespace (allowedRoutes: Same). The cross-namespace backendRef is
+# permitted by monitoring/healthchecks/app/referencegrant.yaml. A hostname-
+# specific route takes precedence over the catch-all https-redirect route.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: healthchecks-plain-http
+  annotations:
+    external-dns.alpha.kubernetes.io/controller: none
+spec:
+  hostnames:
+    - hc.${SECRET_DOMAIN}
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: http
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /ping/
+        - path:
+            type: PathPrefix
+            value: /api/
+      # Healthchecks trusts X-authentik-email (REMOTE_USER_HEADER); this route
+      # bypasses Authentik, so never let a client supply it.
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - X-authentik-uid
+              - X-authentik-username
+              - X-authentik-name
+              - X-authentik-email
+              - X-authentik-groups
+      backendRefs:
+        - name: healthchecks
+          namespace: monitoring
+          port: 8000
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

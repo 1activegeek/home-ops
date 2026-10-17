@@ -79,6 +79,7 @@ Rules:
 - File naming: `httproute.yaml` = internal, `httproute-external.yaml` = external.
 - **External exposure is a security decision** — `envoy-external` carries a gateway-level default forward-auth SecurityPolicy (`envoy-external-default-auth`). To expose something *without* Authentik, opt out explicitly with the `kubernetes/components/public-access` component. **Never write an inline one-off SecurityPolicy.** Per-route auth is declared as a proxy provider in `kubernetes/apps/security/authentik/app/blueprints/30-proxy-integrations.yaml`, not as a second SecurityPolicy.
 - Every routed app declares an auth mode per `docs/architecture/authentication.md` before merge.
+- **Internal forward-auth** is opt-in per route via the `kubernetes/components/internal-forward-auth` component (JSON-patch its target to the rendered route name). This component is the sanctioned shape — still no inline one-off SecurityPolicies.
 - Remember: the Tailscale subnet router makes *all* internal services tailnet-reachable — "internal" is not "unreachable".
 
 ## 7. Storage
@@ -103,10 +104,11 @@ Rules:
 The stack: **kube-prometheus-stack** (Prometheus + Alertmanager + node-exporter + kube-state-metrics), **Loki** + **Alloy** (logs), **Uptime Kuma** (uptime), existing **Grafana** — all in `monitoring`. When deploying a new app, wire it in with these standard hooks (everything is picked up automatically, no central config to edit):
 
 - **Metrics** — enable the chart's `serviceMonitor`/`metrics` values, or ship a `ServiceMonitor`/`PodMonitor` next to the app. Prometheus watches ALL monitors cluster-wide (nil selectors) — no labels or registration needed.
-- **Alerts** — ship a `PrometheusRule` CR next to the app; also auto-discovered. Alertmanager delivers to Matrix through a matrix-hookshot generic webhook (see `docs/matrix-webhooks.md`); severity tiers inhibit downward (critical > warning > info). `Watchdog`/`InfoInhibitor` are nulled. (History: this was Discord, then Mattermost `#infrastructure` — both retired.)
+- **Alerts** — ship a `PrometheusRule` CR next to the app; also auto-discovered. Alertmanager delivers to Matrix through a matrix-hookshot generic webhook (see `docs/matrix-webhooks.md`); severity tiers inhibit downward (critical > warning > info). `InfoInhibitor` is nulled; `Watchdog` is routed every minute to the self-hosted Healthchecks `alertmanager-watchdog` check as a dead-man's switch (`docs/healthchecks.md`). (History: this was Discord, then Mattermost `#infrastructure` — both retired.)
 - **Logs** — automatic. Alloy (DaemonSet) tails every pod on its node and pushes to Loki with labels `namespace, pod, container, node, app`. Nothing to configure per app.
 - **Dashboards** — ConfigMap labeled `grafana_dashboard: "1"` (any namespace) with the JSON under `data:`; the Grafana sidecar auto-loads it. Datasources likewise via `grafana_datasource: "1"`.
 - **Uptime** — add a monitor in Uptime Kuma (`uptime.` internal route) for anything user-facing. Manual/API for now; declarative auto-registration is a planned follow-up.
+- **Heartbeats** — anything that runs on a schedule (CronJobs, backup scripts) pings Healthchecks on completion: `/ping/<ping-key>/<slug>` (add `?create=1` on first use, then set its period). See `docs/healthchecks.md`.
 
 In-cluster endpoints (for automations/AI analysis):
 
@@ -117,6 +119,7 @@ In-cluster endpoints (for automations/AI analysis):
 | Loki | `http://loki.monitoring.svc.cluster.local:3100` |
 | Grafana | `http://grafana.monitoring.svc.cluster.local:80` |
 | Uptime Kuma | `http://uptime-kuma.monitoring.svc.cluster.local:3001` |
+| Healthchecks | `http://healthchecks.monitoring.svc.cluster.local:8000` |
 
 Prometheus retains 14d/25GB, Loki 14d — both on `longhorn-nobackup` (rebuildable telemetry; the explicit no-backup rationale per §7). Uptime Kuma's PVC is on `longhorn` (its DB holds monitor config).
 
