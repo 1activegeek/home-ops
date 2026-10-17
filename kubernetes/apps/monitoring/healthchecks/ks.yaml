@@ -1,0 +1,25 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: healthchecks
+spec:
+  dependsOn:
+    # The bootstrap init container runs `manage.py migrate` against CNPG and
+    # exits non-zero if the database is unreachable. The postgres Kustomization
+    # waits on the CNPG Cluster reporting healthy, so this gates on a live DB.
+    - name: postgres
+      namespace: database
+  interval: 1h
+  path: ./kubernetes/apps/monitoring/healthchecks/app
+  postBuild:
+    substituteFrom:
+      - name: cluster-secrets
+        kind: Secret
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: monitoring
+  wait: false

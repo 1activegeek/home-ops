@@ -153,6 +153,16 @@ spec:
   # empty extAuth = opt out of gateway default auth
 ```
 
+**Plain-HTTP exceptions (internal only).** Both gateways' port-80 listeners
+301 everything to HTTPS via the catch-all `https-redirect` route. A host that
+must answer plain HTTP for some paths (e.g. Healthchecks `/ping/` + `/api/` for
+non-TLS clients) gets a hostname-specific HTTPRoute on `envoy-internal`
+`sectionName: http` — it wins over the catch-all — placed in the `network`
+namespace (the listener only admits same-namespace routes) with a
+`ReferenceGrant` in the app's namespace. Keep a final `/` rule that redirects
+to HTTPS so UIs never serve in cleartext. See
+`envoy-gateway/app/httproute-healthchecks-http.yaml`.
+
 **Class 4 — external-only.** One route on `envoy-external` only. Add a public
 opt-out (as class 3) if it must be anonymous.
 

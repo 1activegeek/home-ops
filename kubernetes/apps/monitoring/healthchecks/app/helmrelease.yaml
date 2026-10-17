@@ -1,0 +1,221 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: healthchecks
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: healthchecks
+  interval: 1h
+  values:
+    controllers:
+      healthchecks:
+        # Single replica: the image runs `sendalerts` and `sendreports` as uWSGI
+        # daemons inside the web container, so a second replica would double-send.
+        # No PVC (state is in CNPG), so the default rolling update is safe.
+        annotations:
+          reloader.stakater.com/auto: "true"
+        initContainers:
+          # Migrate, then seed the admin user, API keys and ping key from
+          # 1Password (resources/bootstrap.py). Idempotent on every start.
+          bootstrap:
+            image: &image
+              repository: docker.io/healthchecks/healthchecks
+              tag: v4.4
+            command:
+              - /bin/sh
+              - -c
+              - ./manage.py migrate --no-input && ./manage.py shell < /scripts/bootstrap.py
+            env: &env
+              SITE_ROOT: https://hc.${SECRET_DOMAIN}
+              SITE_NAME: Homelab Checks
+              # SITE_ROOT's host is the only default; add the in-cluster names
+              # so Alertmanager and other pods can ping the Service directly.
+              ALLOWED_HOSTS: hc.${SECRET_DOMAIN},healthchecks.monitoring.svc.cluster.local,healthchecks.monitoring.svc,healthchecks
+              DEBUG: "False"
+              REGISTRATION_OPEN: "False"
+              # Envoy terminates TLS; without this Django sees http and CSRF
+              # rejects every form POST from the HTTPS UI.
+              SECURE_PROXY_SSL_HEADER: HTTP_X_FORWARDED_PROTO,https
+              # WebAuthn (security-key 2FA) relying-party id.
+              RP_ID: hc.${SECRET_DOMAIN}
+              DB: postgres
+              DB_HOST: postgres-rw.database.svc.cluster.local
+              DB_PORT: "5432"
+              DB_NAME: healthchecks
+              DB_USER: healthchecks
+              DB_SSLMODE: require
+              # Webhook integrations (hookshot, Home Assistant, ntfy...) live on
+              # private/ClusterIP addresses; upstream blocks those by default.
+              INTEGRATIONS_ALLOW_PRIVATE_IPS: "True"
+              UWSGI_PROCESSES: "2"
+            envFrom: &envFrom
+              - secretRef:
+                  name: healthchecks-secret
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 384Mi
+        containers:
+          app:
+            image: *image
+            env: *env
+            envFrom: *envFrom
+            securityContext: *securityContext
+            probes:
+              # /api/v3/status/ runs SELECT 1 and returns "OK". Django rejects
+              # Host headers not in ALLOWED_HOSTS, and the kubelet sends the pod
+              # IP, so the probe sets Host explicitly.
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/v3/status/
+                    port: &port 8000
+                    httpHeaders:
+                      - name: Host
+                        value: hc.${SECRET_DOMAIN}
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 4
+              readiness:
+                <<: *probe
+                spec:
+                  httpGet:
+                    path: /api/v3/status/
+                    port: *port
+                    httpHeaders:
+                      - name: Host
+                        value: hc.${SECRET_DOMAIN}
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/v3/status/
+                    port: *port
+                    httpHeaders:
+                      - name: Host
+                        value: hc.${SECRET_DOMAIN}
+                  periodSeconds: 5
+                  failureThreshold: 30
+            resources:
+              requests:
+                cpu: 25m
+                memory: 192Mi
+              limits:
+                memory: 512Mi
+
+      # End-to-end self-check + healthchecks.io cloud dead-man's switch.
+      # See resources/self-check.sh.
+      self-check:
+        type: cronjob
+        cronjob:
+          schedule: "*/5 * * * *"
+          concurrencyPolicy: Forbid
+          successfulJobsHistory: 1
+          failedJobsHistory: 2
+          backoffLimit: 0
+          ttlSecondsAfterFinished: 3600
+        containers:
+          app:
+            image:
+              repository: docker.io/curlimages/curl
+              tag: 8.22.0
+            command: ["/bin/sh", "/scripts/self-check.sh"]
+            env:
+              HC_BASE_URL: https://hc.${SECRET_DOMAIN}
+              HC_API_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_API_KEY }
+              HC_PING_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_PING_KEY }
+              HC_CLOUD_PING_URL:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_CLOUD_PING_URL }
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 5m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+
+      # Healthchecks prunes pings/flips/notifications itself; the rate-limit
+      # token bucket table is the only one that needs a scheduled cleanup here
+      # (no S3 object storage, registration closed so pruneusers is moot).
+      prune:
+        type: cronjob
+        cronjob:
+          schedule: "30 4 * * 0"
+          concurrencyPolicy: Forbid
+          successfulJobsHistory: 1
+          failedJobsHistory: 1
+        containers:
+          app:
+            image: *image
+            command: ["./manage.py", "prunetokenbucket"]
+            env: *env
+            envFrom: *envFrom
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 384Mi
+
+    defaultPodOptions:
+      # The image's `hc` user. Its files are world-readable, so this is the
+      # least-surprising choice over the cluster-default 65534.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
+
+    service:
+      app:
+        controller: healthchecks
+        ports:
+          http:
+            port: *port
+
+    persistence:
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+      scripts:
+        type: configMap
+        name: healthchecks-scripts
+        defaultMode: 0555
+        globalMounts:
+          - path: /scripts
+            readOnly: true
+
+    # UI + HTTPS pings/API. Plain-HTTP /ping/ and /api/ are served by a separate
+    # route in the network namespace (envoy-gateway/app/httproute-healthchecks-http.yaml).
+    route:
+      app:
+        hostnames: ["hc.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: healthchecks
+                port: *port

@@ -1,0 +1,18 @@
+---
+# Lets the plain-HTTP HTTPRoute in the `network` namespace
+# (envoy-gateway/app/httproute-healthchecks-http.yaml) send /ping/ and /api/
+# traffic to this Service. That route has to live in `network` because the
+# gateways' port-80 listener only accepts routes from its own namespace.
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: healthchecks-plain-http
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: network
+  to:
+    - group: ""
+      kind: Service
+      name: healthchecks

@@ -66,3 +66,9 @@ spec:
         passwordSecret:
           name: cnpg-role-forgejo-secret
         comment: "Forgejo (tools namespace)"
+      - name: healthchecks
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-role-healthchecks-secret
+        comment: "Healthchecks (monitoring namespace)"
