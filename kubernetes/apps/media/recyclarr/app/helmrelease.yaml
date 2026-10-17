@@ -12,6 +12,9 @@ spec:
     controllers:
       recyclarr:
         type: cronjob
+        annotations:
+          # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+          healthchecks.io/slug: recyclarr
         cronjob:
           schedule: "@daily"
           successfulJobsHistory: 1

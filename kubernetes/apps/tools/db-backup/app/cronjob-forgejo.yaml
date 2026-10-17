@@ -3,6 +3,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: db-backup-forgejo
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: db-backup-forgejo
 spec:
   schedule: "40 2 * * *"
   concurrencyPolicy: Forbid

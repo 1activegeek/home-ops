@@ -19,6 +19,7 @@
 import hmac
 import json
 import os
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -52,6 +53,8 @@ user.is_superuser = True
 user.set_password(password)
 user.save()
 
+# The default project: services and infrastructure (heartbeat runner,
+# self-check, Alertmanager Watchdog). Oldest project owned by the admin.
 project = Project.objects.filter(owner=user).order_by("id").first()
 if project is None:
     project = Project(owner=user, badge_key=user.username)
@@ -64,6 +67,32 @@ project.show_slugs = True
 project.save()
 
 print(f"bootstrap: project {project.code} keys synced from 1Password")
+
+projects = [project]
+
+# Second project, "Jobs": backups and other scheduled work. Its own ping key
+# keeps job slugs in their own namespace and lets scripts outside the cluster
+# report without holding the services project's key. Found by name, so
+# renaming it in the UI would make the next start create a fresh one.
+jobs_api_key = os.environ.get("HC_JOBS_API_KEY")
+jobs_ping_key = os.environ.get("HC_JOBS_PING_KEY")
+if jobs_api_key and jobs_ping_key:
+    jobs = Project.objects.filter(owner=user, name="Jobs").first()
+    if jobs is None:
+        jobs = Project(owner=user, name="Jobs")
+        # Same as the "add project" view.
+        jobs.code = jobs.badge_key = str(uuid4())
+        print("bootstrap: created project Jobs")
+    jobs.api_key = hash_key(jobs_api_key)
+    jobs.ping_key = jobs_ping_key
+    jobs.show_slugs = True
+    jobs.save()
+    projects.append(jobs)
+
+    # _make_user gave the default project an email integration; match it.
+    if not Channel.objects.filter(project=jobs, kind="email").exists():
+        Channel.objects.create(project=jobs, kind="email", value=email, email_verified=True)
+        print("bootstrap: created email integration for Jobs")
 
 # Matrix Infrastructure room, through matrix-media-relay as the
 # @_webhooks_healthchecks ghost (own name + icon, like Uptime Kuma/Longhorn).
@@ -89,13 +118,14 @@ if relay_url and relay_token:
         },
         sort_keys=True,
     )
-    channel = Channel.objects.filter(project=project, kind="webhook", name=channel_name).first()
-    if channel is None:
-        channel = Channel.objects.create(project=project, kind="webhook", name=channel_name, value=value)
-        # Only on creation: unassigning a check from it later in the UI sticks.
-        channel.checks.add(*Check.objects.filter(project=project))
-        print("bootstrap: created Matrix webhook integration")
-    elif channel.value != value:
-        channel.value = value
-        channel.save()
-        print("bootstrap: updated Matrix webhook integration")
+    for p in projects:
+        channel = Channel.objects.filter(project=p, kind="webhook", name=channel_name).first()
+        if channel is None:
+            channel = Channel.objects.create(project=p, kind="webhook", name=channel_name, value=value)
+            # Only on creation: unassigning a check from it later in the UI sticks.
+            channel.checks.add(*Check.objects.filter(project=p))
+            print(f"bootstrap: created Matrix webhook integration for {p.name}")
+        elif channel.value != value:
+            channel.value = value
+            channel.save()
+            print(f"bootstrap: updated Matrix webhook integration for {p.name}")

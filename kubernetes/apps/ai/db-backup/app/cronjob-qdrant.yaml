@@ -3,6 +3,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: db-backup-qdrant
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: db-backup-qdrant
 spec:
   schedule: "30 2 * * *"
   concurrencyPolicy: Forbid

@@ -3,6 +3,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: db-backup-synapse
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: db-backup-synapse
 spec:
   schedule: "55 1 * * *"
   concurrencyPolicy: Forbid
