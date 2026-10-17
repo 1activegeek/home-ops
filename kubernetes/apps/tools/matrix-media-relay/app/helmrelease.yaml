@@ -73,6 +73,12 @@ spec:
                     "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
                     "displayname": "Cloudflare",
                     "avatar": "avatar-cloudflare.png"
+                  },
+                  "healthchecks": {
+                    "sender": "@_webhooks_healthchecks:matrix.${SECRET_DOMAIN}",
+                    "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
+                    "displayname": "Healthchecks",
+                    "avatar": "avatar-healthchecks.png"
                   }
                 }
             envFrom:
@@ -149,6 +155,9 @@ spec:
                 readOnly: true
               - path: /app/avatars/avatar-cloudflare.png
                 subPath: avatar-cloudflare.png
+                readOnly: true
+              - path: /app/avatars/avatar-healthchecks.png
+                subPath: avatar-healthchecks.png
                 readOnly: true
 
     # Internal only. Tautulli reaches it in-cluster; the route is for testing.

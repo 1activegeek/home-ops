@@ -803,13 +803,14 @@ Synapse):
 | Infrastructure | Uptime Kuma → `/notify` | `@_webhooks_uptimekuma` | `Uptime Kuma` |
 | Infrastructure | Longhorn backup CronJob → `/notify` | `@_webhooks_longhorn` | `Longhorn` |
 | Infrastructure | Cloudflare DNS monitor CronJob → `/notify` | `@_webhooks_cloudflare` | `Cloudflare` |
+| Infrastructure | Healthchecks webhook integration → `/notify` | `@_webhooks_healthchecks` | `Healthchecks` |
 
 ## The Infrastructure room
 
 Room ID `!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}` — **public, unencrypted**,
 which is what lets the relay ghosts self-join on first use with no invite.
 
-Five infrastructure sources land here, split across the two delivery paths for
+Six infrastructure sources land here, split across the two delivery paths for
 one reason: **whether the sender can shape its own JSON body.**
 
 | Source | Path | Why |
@@ -819,6 +820,7 @@ one reason: **whether the sender can shape its own JSON body.**
 | Uptime Kuma | relay | its webhook notification supports a custom JSON body |
 | Longhorn backup alert | relay | our CronJob, we own the payload |
 | Cloudflare DNS monitor | relay | our CronJob, we own the payload |
+| Healthchecks | relay (`render_healthchecks`) | webhook body is templatable but cannot HTML-escape, so the relay renders the card from structured placeholders |
 
 The split is not cosmetic. A relay-delivered source gets a **clean display
 name** and a **git-declared avatar**; a hookshot-delivered one inherits
@@ -978,6 +980,45 @@ Four things about the template context, which is built in
 - **`| json` is what makes this safe.** Monitor names and error strings are
   interpolated into a JSON document; the filter quotes and escapes them.
   `| escape` handles the separate HTML-escaping problem inside `html_body`.
+
+## Wiring Healthchecks
+
+Healthchecks (`monitoring/healthchecks`, see `docs/healthchecks.md`) takes the
+**relay** path, with one difference from Uptime Kuma: the card is rendered by
+the **relay**, not by the sender.
+
+Healthchecks' webhook templates substitute raw strings. Only `$NAME_JSON` is
+escaped, and only as a whole JSON value, so a hand-built `{"text", "html"}` body
+breaks on any check name containing `"` or `<` and the alert is dropped. The
+integration therefore posts Healthchecks' structured placeholders instead:
+
+```json
+{"healthchecks": {"status": "$STATUS", "check": $JSON, "body": $BODY_JSON, "site": "<SITE_ROOT>"}}
+```
+
+`render_healthchecks()` in `relay.py` builds the standard card from that payload:
+
+- `🔴 DOWN` or `✅ UP`, with the check name linked to its details page.
+- The last ping time.
+- On down, the last ping body (trimmed to 300 characters). This is where a `/fail` ping's reason appears.
+- Description and tags in grey.
+
+Every value is escaped. The renderer only runs when `healthchecks` is present, so other profiles are unaffected.
+
+**The integration is declared in git, not in the Healthchecks UI.**
+`bootstrap.py` (the Healthchecks init container) upserts a webhook channel
+named `Matrix - Infrastructure` on every start, from `HC_MATRIX_RELAY_URL`
+(HelmRelease) and the relay token (1P `matrix-media-relay`,
+`token_healthchecks`, read straight from the relay's item). When the channel is
+first created it is assigned to every existing check. New checks pick it up
+automatically: `?create=1` pings, API creates with `"channels": "*"`, and the
+UI's add-check flow. UI edits to the channel are overwritten on the next pod
+start.
+
+The ghost icon `avatar-healthchecks.png` comes from upstream's 424×512 mark,
+inset to 68% on a 512×512 dark-navy (`#1f2937`) square. The white half of the mark
+would vanish on Element's light theme without the fill. Its source is
+`avatar-healthchecks.svg`.
 
 ## Wiring Alertmanager
 
