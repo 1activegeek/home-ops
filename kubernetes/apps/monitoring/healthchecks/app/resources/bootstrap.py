@@ -10,8 +10,11 @@
 # plain keys from 1Password are hashed here exactly the same way. Rotating
 # SECRET_KEY therefore requires a pod restart to re-hash, which reloader does.
 #
-# Note: the admin password is re-applied on every start. A password changed in
-# the UI is reverted on the next restart; change it in 1Password instead.
+# Note: the admin password is re-applied on every start. Day to day, login is
+# Authentik forward-auth (REMOTE_USER_HEADER) and password login is disabled;
+# the password is a break-glass credential for when that env var is removed.
+# HC_ADMIN_EMAIL must match the admin's Authentik email, or the header login
+# would auto-create a second, non-superuser account.
 
 import hmac
 import os

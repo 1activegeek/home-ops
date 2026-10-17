@@ -79,6 +79,7 @@ Rules:
 - File naming: `httproute.yaml` = internal, `httproute-external.yaml` = external.
 - **External exposure is a security decision** — `envoy-external` carries a gateway-level default forward-auth SecurityPolicy (`envoy-external-default-auth`). To expose something *without* Authentik, opt out explicitly with the `kubernetes/components/public-access` component. **Never write an inline one-off SecurityPolicy.** Per-route auth is declared as a proxy provider in `kubernetes/apps/security/authentik/app/blueprints/30-proxy-integrations.yaml`, not as a second SecurityPolicy.
 - Every routed app declares an auth mode per `docs/architecture/authentication.md` before merge.
+- **Internal forward-auth** is opt-in per route via the `kubernetes/components/internal-forward-auth` component (JSON-patch its target to the rendered route name). This component is the sanctioned shape — still no inline one-off SecurityPolicies.
 - Remember: the Tailscale subnet router makes *all* internal services tailnet-reachable — "internal" is not "unreachable".
 
 ## 7. Storage

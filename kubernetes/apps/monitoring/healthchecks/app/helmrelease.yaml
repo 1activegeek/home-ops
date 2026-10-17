@@ -38,8 +38,12 @@ spec:
               # Envoy terminates TLS; without this Django sees http and CSRF
               # rejects every form POST from the HTTPS UI.
               SECURE_PROXY_SSL_HEADER: HTTP_X_FORWARDED_PROTO,https
-              # WebAuthn (security-key 2FA) relying-party id.
-              RP_ID: hc.${SECRET_DOMAIN}
+              # Login is delegated to Authentik forward-auth (passkey there):
+              # the outpost's X-authentik-email logs the matching user in, and
+              # password login is disabled entirely. Safe only because every
+              # unauthenticated route strips that header and the pod accepts
+              # traffic only from Envoy/Alertmanager (ciliumnetworkpolicy.yaml).
+              REMOTE_USER_HEADER: HTTP_X_AUTHENTIK_EMAIL
               DB: postgres
               DB_HOST: postgres-rw.database.svc.cluster.local
               DB_PORT: "5432"
@@ -206,8 +210,16 @@ spec:
           - path: /scripts
             readOnly: true
 
-    # UI + HTTPS pings/API. Plain-HTTP /ping/ and /api/ are served by a separate
-    # route in the network namespace (envoy-gateway/app/httproute-healthchecks-http.yaml).
+    # Two routes for one host; the longest path prefix wins, and ext_authz
+    # attaches per route:
+    #   app     -> healthchecks-app: the UI, behind Authentik forward-auth
+    #              (internal-forward-auth component, see kustomization.yaml)
+    #   machine -> healthchecks-machine: pings, API, badges. No Authentik (pings
+    #              are capability URLs, the API needs a key) and any client-sent
+    #              X-authentik-* headers are stripped so REMOTE_USER_HEADER
+    #              can't be forged through this route.
+    # Plain-HTTP /ping/ and /api/ live in the network namespace
+    # (envoy-gateway/app/httproute-healthchecks-http.yaml).
     route:
       app:
         hostnames: ["hc.${SECRET_DOMAIN}"]
@@ -217,5 +229,29 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
+              - name: healthchecks
+                port: *port
+      machine:
+        hostnames: ["hc.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path: { type: PathPrefix, value: /ping/ }
+              - path: { type: PathPrefix, value: /api/ }
+              - path: { type: PathPrefix, value: /badge/ }
+              - path: { type: PathPrefix, value: /b/ }
+            filters:
+              - type: RequestHeaderModifier
+                requestHeaderModifier:
+                  remove:
+                    - X-authentik-uid
+                    - X-authentik-username
+                    - X-authentik-name
+                    - X-authentik-email
+                    - X-authentik-groups
+            backendRefs:
               - name: healthchecks
                 port: *port

@@ -9,18 +9,29 @@ devices) pings a URL when it finishes. Healthchecks alerts when a ping is late o
 | Manifests | `kubernetes/apps/monitoring/healthchecks/` |
 | Image | official `docker.io/healthchecks/healthchecks` (UID 999, read-only root FS) |
 | Database | shared CNPG cluster, role + database `healthchecks` (`docs/postgres-consolidation.md`) |
-| Exposure / auth | `internal` / `none` at the gateway. Registration is closed, and login uses the app's own password |
+| Exposure / auth | `internal` / `forward_auth`. The UI is behind Authentik (passkey) and gated to `tier1`; pings, API and badges are open |
 | Secrets | the app's 1Password item (app keys, admin login, seeded API/ping keys); DB password on the shared CNPG item; outbound mail on the shared SMTP relay item |
 
 ## How it is put together
 
+- **Login is Authentik.** The UI route (`healthchecks-app`) carries the
+  `internal-forward-auth` SecurityPolicy, so Authentik signs you in (passkey) and passes
+  `X-authentik-email`. Healthchecks (`REMOTE_USER_HEADER`) then logs in the user with that email and
+  creates the account on first sight. That is why the Authentik application is bound to `tier1`.
+  Healthchecks' password login is disabled completely.
+- **The trusted header is protected in two ways:**
+  - The unauthenticated routes (`healthchecks-machine` for `/ping/`, `/api/`, `/badge/` and `/b/`,
+    plus the plain-HTTP route) strip every `X-authentik-*` header.
+  - A CiliumNetworkPolicy only admits Envoy, Alertmanager and kubelet probes to the pod. Without
+    it, any pod could call the Service directly with a forged header and get an admin session.
 - **One replica.** The image runs `sendalerts` and `sendreports` as daemons inside the web
   container, so a second replica would send every alert twice.
 - **Bootstrap init container** (`app/resources/bootstrap.py`): runs `migrate`, then makes sure
   the admin user exists and re-applies the admin password, the project's read-write and
   read-only API keys, and its ping key from 1Password. A rebuilt database therefore comes back with
   the same keys that scripts and Alertmanager already hold. A password changed in the UI is
-  reverted on the next pod start; change it in 1Password instead.
+  reverted on the next pod start; change it in 1Password instead. With Authentik login in front, the
+  password is only a break-glass credential: it works only if `REMOTE_USER_HEADER` is removed.
 - **Probes** hit `/api/v3/status/`, which runs `SELECT 1` against the database and returns `OK`. They set the
   `Host` header explicitly, because Django rejects hosts that are not in `ALLOWED_HOSTS`.
 - **Weekly prune CronJob** runs `prunetokenbucket`. Pings, flips and notifications are pruned by
@@ -63,6 +74,12 @@ API on every run. Their timeout and grace are therefore defined in git; edits ma
 The cloud ping URL is the `cloud_ping_url` field on the app's 1Password item. While it reads
 `REPLACE_ME`, the CronJob skips the cloud ping and logs that it did. Suggested cloud check
 settings: period 5 minutes, grace 10 minutes.
+
+## Break-glass (Authentik down)
+
+Pings, the API and the self-check keep working, because none of them go through Authentik; only the UI
+is unreachable. For UI access without Authentik, remove `REMOTE_USER_HEADER` from the HelmRelease
+in a PR. That re-enables password login with `admin_password`.
 
 ## Alert delivery
 

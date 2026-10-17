@@ -33,6 +33,17 @@ spec:
         - path:
             type: PathPrefix
             value: /api/
+      # Healthchecks trusts X-authentik-email (REMOTE_USER_HEADER); this route
+      # bypasses Authentik, so never let a client supply it.
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - X-authentik-uid
+              - X-authentik-username
+              - X-authentik-name
+              - X-authentik-email
+              - X-authentik-groups
       backendRefs:
         - name: healthchecks
           namespace: monitoring

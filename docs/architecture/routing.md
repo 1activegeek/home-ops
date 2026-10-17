@@ -153,6 +153,14 @@ spec:
   # empty extAuth = opt out of gateway default auth
 ```
 
+**Internal forward-auth (opt-in).** `envoy-internal` has no gateway-level
+auth. To put an internal route behind Authentik, include
+`kubernetes/components/internal-forward-auth` and patch its target to the
+rendered HTTPRoute name (a JSON patch, so it works for Helm-rendered routes),
+add a proxy provider in `30-proxy-integrations.yaml`, and list the namespace in
+`security/authentik/app/referencegrant.yaml`. Paths that must stay open go on
+a second HTTPRoute for the same host. See `apps/monitoring/healthchecks`.
+
 **Plain-HTTP exceptions (internal only).** Both gateways' port-80 listeners
 301 everything to HTTPS via the catch-all `https-redirect` route. A host that
 must answer plain HTTP for some paths (e.g. Healthchecks `/ping/` + `/api/` for
