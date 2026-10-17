@@ -14,6 +14,9 @@ spec:
         strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          healthchecks.io/slug: synapse
+          healthchecks.io/url: http://synapse-main.tools.svc.cluster.local:8008/health
         initContainers:
           # Synapse does not auto-generate its ed25519 signing key when running
           # from a mounted config; generate once onto the data PVC.

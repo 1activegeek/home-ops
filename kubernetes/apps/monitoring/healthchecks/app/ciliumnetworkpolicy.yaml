@@ -1,7 +1,7 @@
 ---
 # Only Envoy (both routes and the plain-HTTP route arrive via envoy-internal),
-# Alertmanager (Watchdog dead-man's switch on the Service URL) and the kubelet
-# (probes) may reach the Healthchecks pod.
+# Alertmanager (Watchdog dead-man's switch on the Service URL), the heartbeat
+# runner and the kubelet (probes) may reach the Healthchecks pod.
 #
 # Why: REMOTE_USER_HEADER makes Healthchecks log in whoever X-authentik-email
 # names. Envoy guarantees that header came from Authentik (ext_authz on the UI
@@ -25,6 +25,11 @@ spec:
         - matchLabels:
             io.kubernetes.pod.namespace: monitoring
             app.kubernetes.io/name: alertmanager
+        # The heartbeat runner (our own code; it already holds the API key).
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: healthchecks
+            app.kubernetes.io/controller: heartbeat
       toPorts:
         - ports:
             - port: "8000"

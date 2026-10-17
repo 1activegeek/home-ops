@@ -13,6 +13,9 @@ spec:
       sonarr:
         annotations:
           reloader.stakater.com/auto: "true"
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          healthchecks.io/slug: sonarr
+          healthchecks.io/url: http://sonarr.media.svc.cluster.local:8989/ping
         strategy: Recreate
         containers:
           app:

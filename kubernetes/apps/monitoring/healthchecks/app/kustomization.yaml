@@ -34,6 +34,7 @@ configMapGenerator:
     files:
       - ./resources/bootstrap.py
       - ./resources/self-check.sh
+      - ./resources/heartbeat.sh
 
 generatorOptions:
   disableNameSuffixHash: true

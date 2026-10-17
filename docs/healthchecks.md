@@ -57,6 +57,46 @@ run_backup; rc=$?
 curl -fsS -m 10 --retry 5 -o /dev/null --data-raw "exit $rc" "https://hc.<domain>/ping/<ping-key>/nightly-backup/$rc"
 ```
 
+## Service heartbeats (long-running apps)
+
+Scheduled jobs ping Healthchecks themselves (above). Long-running services are covered by the
+**heartbeat runner**, a `heartbeat` controller in this HelmRelease (`app/resources/heartbeat.sh`).
+It is still a dead-man's switch: Healthchecks never polls anything. The runner turns each app's own
+Kubernetes health checks into pings, and silence alerts.
+
+To opt an app in, annotate its Deployment, StatefulSet or DaemonSet. For app-template apps that's
+`controllers.<name>.annotations`; other charts have their own key, such as Authentik's
+`server.deploymentAnnotations` or Forgejo's `deployment.annotations`:
+
+```yaml
+healthchecks.io/slug: sonarr                                            # required; lowercase [a-z0-9_-]
+healthchecks.io/url: http://sonarr.media.svc.cluster.local:8989/ping    # optional, must answer 2xx
+```
+
+Every 60 seconds, for each annotated workload:
+
+- **Healthy** means at least one pod is Ready (every scheduled pod, for a DaemonSet) and, if a URL is
+  set, a GET straight at the Service answers 2xx. The URL skips Envoy, DNS and TLS on purpose:
+  that path is Uptime Kuma's job. So "Kuma down, heartbeat up" points at routing, and both down
+  points at the app.
+- **Healthy** sends a ping to `/<slug>`.
+- **Unhealthy** sends `/<slug>/log` for the first four rounds. That records the failure without
+  alerting, so rollouts and `Recreate` restarts don't page. The fifth round sends `/<slug>/fail` with
+  the reason, e.g. `0/1 pods Ready (sonarr-…: CrashLoopBackOff)`, and the alert carries it.
+
+Checks are created and updated through the API the first time the runner sees a slug. Each gets
+period 2 minutes and grace 5 minutes, all integrations, and the tags `k8s <namespace>`. The runner's own
+`heartbeat-runner` check has 1 minute grace, so if the runner dies its alert arrives before the
+service checks it feeds go silent.
+
+**Retiring an app:** removing the annotation does not delete the check. The check goes down, which
+is correct, because a workload vanishing is exactly what this guards against. Delete the check in
+the UI.
+
+The runner reads workloads cluster-wide through a read-only ClusterRole (get/list on
+deployments, statefulsets and daemonsets, and list on pods for failure reasons). It pings the Service
+directly, and the pod's network policy allows that.
+
 ## Watching the watcher
 
 Three layers, each covering a failure the others can't see:
@@ -67,6 +107,7 @@ Three layers, each covering a failure the others can't see:
 | healthchecks.io cloud check | the whole cluster or network is dead (the CronJob stops pinging) | healthchecks.io, outside the cluster |
 | `alertmanager-watchdog` check | Prometheus or Alertmanager down (the always-firing `Watchdog` alert stops arriving every minute) | Local Healthchecks |
 | Uptime Kuma monitor on `/api/v3/status/` | Healthchecks UI or API down | Uptime Kuma |
+| `heartbeat-runner` check | the heartbeat runner is dead or can't read the cluster | Local Healthchecks |
 
 The CronJob also upserts the `healthchecks-self` and `alertmanager-watchdog` checks through the
 API on every run. Their timeout and grace are therefore defined in git; edits made in the UI are overwritten.
