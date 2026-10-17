@@ -16,6 +16,8 @@ spec:
         # No PVC (state is in CNPG), so the default rolling update is safe.
         annotations:
           reloader.stakater.com/auto: "true"
+        serviceAccount: &defaultSA
+          name: default
         initContainers:
           # Migrate, then seed the admin user, API keys and ping key from
           # 1Password (resources/bootstrap.py). Idempotent on every start.
@@ -127,6 +129,7 @@ spec:
       # See resources/self-check.sh.
       self-check:
         type: cronjob
+        serviceAccount: *defaultSA
         cronjob:
           schedule: "*/5 * * * *"
           concurrencyPolicy: Forbid
@@ -159,11 +162,61 @@ spec:
               limits:
                 memory: 64Mi
 
+      # Heartbeat runner: Kubernetes readiness (+ an optional HTTP check) ->
+      # Healthchecks pings, for every Deployment/StatefulSet/DaemonSet annotated
+      # healthchecks.io/slug. See resources/heartbeat.sh and docs/healthchecks.md.
+      heartbeat:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        serviceAccount:
+          identifier: heartbeat
+        pod:
+          automountServiceAccountToken: true
+        containers:
+          app:
+            image:
+              repository: docker.io/alpine/k8s
+              tag: 1.37.1
+            command: ["/bin/sh", "/scripts/heartbeat.sh"]
+            env:
+              HOME: /tmp
+              # The Service, not the hostname: the heartbeat should measure the
+              # apps, not Envoy (ciliumnetworkpolicy.yaml allows this pod in).
+              HC_API_URL: http://healthchecks.monitoring.svc.cluster.local:8000
+              HC_API_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_API_KEY }
+              HC_PING_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_PING_KEY }
+            probes:
+              # The loop touches this file every round; a hung round restarts it.
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - test -n "$(find /tmp/heartbeat/last-round -mmin -5)"
+                  initialDelaySeconds: 60
+                  periodSeconds: 60
+                  failureThreshold: 2
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
       # Healthchecks prunes pings/flips/notifications itself; the rate-limit
       # token bucket table is the only one that needs a scheduled cleanup here
       # (no S3 object storage, registration closed so pruneusers is moot).
       prune:
         type: cronjob
+        serviceAccount: *defaultSA
         cronjob:
           schedule: "30 4 * * 0"
           concurrencyPolicy: Forbid
@@ -191,6 +244,33 @@ spec:
         runAsUser: 999
         runAsGroup: 999
         seccompProfile: { type: RuntimeDefault }
+
+    # Read-only view of workloads for the heartbeat runner. With a single
+    # ServiceAccount defined, app-template would hand it to every controller;
+    # the others pin `default` and none of them mount a token.
+    serviceAccount:
+      heartbeat:
+        forceRename: healthchecks-heartbeat
+    rbac:
+      roles:
+        heartbeat:
+          type: ClusterRole
+          forceRename: healthchecks-heartbeat
+          rules:
+            - apiGroups: ["apps"]
+              resources: ["deployments", "statefulsets", "daemonsets"]
+              verbs: ["get", "list"]
+            - apiGroups: [""]
+              resources: ["pods"]
+              verbs: ["list"]
+      bindings:
+        heartbeat:
+          type: ClusterRoleBinding
+          forceRename: healthchecks-heartbeat
+          roleRef:
+            identifier: heartbeat
+          subjects:
+            - identifier: heartbeat
 
     service:
       app:

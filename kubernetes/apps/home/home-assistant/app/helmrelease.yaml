@@ -14,6 +14,9 @@ spec:
         type: statefulset
         annotations:
           reloader.stakater.com/auto: "true"
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          healthchecks.io/slug: home-assistant
+          healthchecks.io/url: http://home-assistant-app.home.svc.cluster.local:8123/manifest.json
         # TEMPORARY WORKAROUND (2026-07-26) — remove once awscrt ships a fix.
         #
         # The HA image ships awscrt 0.32.1 (pre-installed for the core lg_thinq

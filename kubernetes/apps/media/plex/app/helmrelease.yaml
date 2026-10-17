@@ -13,6 +13,9 @@ spec:
       plex:
         annotations:
           reloader.stakater.com/auto: "true"
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          healthchecks.io/slug: plex
+          healthchecks.io/url: http://plex.media.svc.cluster.local:32400/identity
         containers:
           app:
             image:

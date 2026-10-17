@@ -76,6 +76,10 @@ spec:
       replicas: 1
       annotations:
         reloader.stakater.com/auto: "true"
+      # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+      deploymentAnnotations:
+        healthchecks.io/slug: authentik-server
+        healthchecks.io/url: http://authentik-server.security.svc.cluster.local/-/health/ready/
       route:
         main:
           enabled: true
@@ -92,6 +96,9 @@ spec:
       replicas: 1
       annotations:
         reloader.stakater.com/auto: "true"
+      # Readiness only: the worker serves no HTTP API.
+      deploymentAnnotations:
+        healthchecks.io/slug: authentik-worker
 
     # PostgreSQL Database Configuration
     postgresql:
