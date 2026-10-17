@@ -54,6 +54,8 @@ spec:
               # private/ClusterIP addresses; upstream blocks those by default.
               INTEGRATIONS_ALLOW_PRIVATE_IPS: "True"
               UWSGI_PROCESSES: "2"
+              # Matrix Infrastructure room via matrix-media-relay (bootstrap.py).
+              HC_MATRIX_RELAY_URL: http://matrix-media-relay.tools.svc.cluster.local:8080/notify
             envFrom: &envFrom
               - secretRef:
                   name: healthchecks-secret

@@ -85,8 +85,11 @@ in a PR. That re-enables password login with `admin_password`.
 
 - **Email:** the admin's address is a verified email integration, created at bootstrap. Mail goes out through
   the shared SMTP relay.
-- **Matrix / webhooks:** `INTEGRATIONS_ALLOW_PRIVATE_IPS=True`, so webhook integrations can target
-  in-cluster services such as matrix-hookshot (`docs/matrix-webhooks.md`) or Home Assistant.
+- **Matrix:** the `Matrix - Infrastructure` webhook integration posts to the Infrastructure room as
+  the `Healthchecks` ghost (with its own icon) through matrix-media-relay. `bootstrap.py` declares it on
+  every start; see "Wiring Healthchecks" in `docs/matrix-webhooks.md`.
+- **Other webhooks:** `INTEGRATIONS_ALLOW_PRIVATE_IPS=True`, so integrations can target in-cluster
+  services such as Home Assistant.
 
 ## Rotation
 
