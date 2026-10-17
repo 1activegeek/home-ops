@@ -37,6 +37,10 @@ touch "${state}/last-round"
 
 log() { echo "heartbeat: $*"; }
 
+# kubectl with a hard deadline. Not --request-timeout: with that flag set,
+# kubectl 1.37 skips its in-cluster config and dials localhost:8080 instead.
+k() { timeout 30 kubectl "$@"; }
+
 # $1 = slug, $2 = tags, $3 = desc, $4 = timeout, $5 = grace
 upsert() {
   body=$(jq -nc --arg s "$1" --arg t "$2" --arg d "$3" --argjson to "$4" --argjson gr "$5" \
@@ -54,7 +58,7 @@ hc() {
 # Why a workload's pods aren't Ready, e.g. " (sonarr-abc: CrashLoopBackOff)".
 pod_states() {
   [ -n "$2" ] || return 0
-  s=$(kubectl get pods -n "$1" -l "$2" -o json --request-timeout=20s 2>/dev/null | jq -r '
+  s=$(k get pods -n "$1" -l "$2" -o json 2>/dev/null | jq -r '
     [.items[] | .metadata.name as $p
      | if (.status.containerStatuses // []) == [] then "\($p): \(.status.phase)"
        else (.status.containerStatuses[] | select(.ready | not)
@@ -129,9 +133,15 @@ check_one() {
 round() {
   # One API call per round. If it fails, ping nothing (not even the runner's
   # own check): silence is the honest answer when we can't see the cluster.
+  # kubectl runs on its own line: in `kubectl | jq` the status is jq's, which
+  # happily turns empty input into zero rows and a "healthy" self-ping.
   # Rows are "|"-separated, not tabs: tab is IFS whitespace, so an empty url
   # field would collapse and shift every column after it.
-  rows=$(kubectl get deployments,statefulsets,daemonsets -A -o json --request-timeout=20s | jq -r '
+  workloads=$(k get deployments,statefulsets,daemonsets -A -o json) || {
+    log "listing workloads failed; skipping round"
+    return
+  }
+  rows=$(printf '%s' "${workloads}" | jq -r '
     .items[] | select(.metadata.annotations["healthchecks.io/slug"] != null)
     | [ .metadata.annotations["healthchecks.io/slug"], .kind,
         .metadata.namespace, .metadata.name,
@@ -140,7 +150,7 @@ round() {
         (if .kind == "DaemonSet" then .status.desiredNumberScheduled // 0 else .spec.replicas // 1 end),
         ([.spec.selector.matchLabels // {} | to_entries[] | "\(.key)=\(.value)"] | join(",")) ]
     | map(tostring | gsub("[|\n]"; "_")) | join("|")') || {
-    log "listing workloads failed; skipping round"
+    log "parsing workloads failed; skipping round"
     return
   }
 
