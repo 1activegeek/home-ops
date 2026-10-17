@@ -1,0 +1,36 @@
+---
+# SABnzbd runs on the Synology, not in the cluster: its storage is local there, so
+# none of the NFS-loss safeguards an in-cluster deployment needed apply.
+#
+# This selectorless Service plus its hand-written EndpointSlice give the cluster a
+# stable in-cluster name for that off-box service. The *arr*s talk to
+# sabnzbd.media.svc.cluster.local:8080 and neither know nor care where it runs, so
+# the host never has to be an IP and moving the NAS only changes this one file.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sabnzbd
+spec:
+  type: ClusterIP
+  # No selector on purpose - endpoints come from the EndpointSlice below.
+  ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: sabnzbd
+  labels:
+    kubernetes.io/service-name: sabnzbd
+addressType: IPv4
+ports:
+  # Must match the Service port by NAME; this is the real port on the Synology.
+  - name: http
+    port: 10008
+    protocol: TCP
+endpoints:
+  - addresses: ["${NFS_SERVER}"]
+    conditions:
+      ready: true
