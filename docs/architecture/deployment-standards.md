@@ -108,7 +108,7 @@ The stack: **kube-prometheus-stack** (Prometheus + Alertmanager + node-exporter 
 - **Logs** — automatic. Alloy (DaemonSet) tails every pod on its node and pushes to Loki with labels `namespace, pod, container, node, app`. Nothing to configure per app.
 - **Dashboards** — ConfigMap labeled `grafana_dashboard: "1"` (any namespace) with the JSON under `data:`; the Grafana sidecar auto-loads it. Datasources likewise via `grafana_datasource: "1"`.
 - **Uptime** — add a monitor in Uptime Kuma (`uptime.` internal route) for anything user-facing. Manual/API for now; declarative auto-registration is a planned follow-up.
-- **Heartbeats** — anything that runs on a schedule (CronJobs, backup scripts) pings Healthchecks on completion: `/ping/<ping-key>/<slug>` (add `?create=1` on first use, then set its period). Key long-running services get the `healthchecks.io/slug` (+ optional `healthchecks.io/url`) annotation on their workload; the heartbeat runner turns readiness into pings. See `docs/healthchecks.md`.
+- **Heartbeats** — key long-running services get the `healthchecks.io/slug` (+ optional `healthchecks.io/url`) annotation on their workload; the heartbeat runner turns readiness into pings. CronJobs (backups, maintenance) get `healthchecks.io/slug` (+ optional `healthchecks.io/grace`) and become cron-schedule checks in the "Jobs" project, fed by the same runner from Job results. Scripts outside the cluster ping the Jobs project directly: `/ping/<jobs-ping-key>/<slug>?create=1`. See `docs/healthchecks.md`.
 
 In-cluster endpoints (for automations/AI analysis):
 

@@ -3,6 +3,11 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: cloudflare-dns-monitor
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: cloudflare-dns-monitor
+    # Runs every 30 min; alert 20 min after a missed run, not the 1h default.
+    healthchecks.io/grace: "1200"
 spec:
   # Every 30 min — poll the configured Cloudflare zone, alert on records not seen before.
   schedule: "*/30 * * * *"

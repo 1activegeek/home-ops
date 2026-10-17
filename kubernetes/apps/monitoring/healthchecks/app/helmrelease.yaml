@@ -164,7 +164,8 @@ spec:
 
       # Heartbeat runner: Kubernetes readiness (+ an optional HTTP check) ->
       # Healthchecks pings, for every Deployment/StatefulSet/DaemonSet annotated
-      # healthchecks.io/slug. See resources/heartbeat.sh and docs/healthchecks.md.
+      # healthchecks.io/slug; and CronJob runs -> cron checks in the "Jobs"
+      # project. See resources/heartbeat.sh and docs/healthchecks.md.
       heartbeat:
         annotations:
           reloader.stakater.com/auto: "true"
@@ -189,6 +190,19 @@ spec:
               HC_PING_KEY:
                 valueFrom:
                   secretKeyRef: { name: healthchecks-secret, key: HC_PING_KEY }
+              # CronJobs annotated healthchecks.io/slug go to the "Jobs" project.
+              HC_JOBS_API_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_JOBS_API_KEY }
+              HC_JOBS_PING_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_JOBS_PING_KEY }
+              # CronJobs Longhorn generates from its RecurringJobs; they can't be
+              # annotated from git, so they're named here ("<ns>/<cronjob>=<slug>").
+              HEARTBEAT_EXTRA_CRONJOBS: >-
+                longhorn-system/backup-daily=longhorn-backup-daily
+                longhorn-system/backup-weekly=longhorn-backup-weekly
+                longhorn-system/snapshot-hourly=longhorn-snapshot
             probes:
               # The loop touches this file every round; a hung round restarts it.
               liveness:
@@ -259,6 +273,9 @@ spec:
           rules:
             - apiGroups: ["apps"]
               resources: ["deployments", "statefulsets", "daemonsets"]
+              verbs: ["get", "list"]
+            - apiGroups: ["batch"]
+              resources: ["cronjobs", "jobs"]
               verbs: ["get", "list"]
             - apiGroups: [""]
               resources: ["pods"]

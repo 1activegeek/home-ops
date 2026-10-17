@@ -27,8 +27,8 @@ devices) pings a URL when it finishes. Healthchecks alerts when a ping is late o
 - **One replica.** The image runs `sendalerts` and `sendreports` as daemons inside the web
   container, so a second replica would send every alert twice.
 - **Bootstrap init container** (`app/resources/bootstrap.py`): runs `migrate`, then makes sure
-  the admin user exists and re-applies the admin password, the project's read-write and
-  read-only API keys, and its ping key from 1Password. A rebuilt database therefore comes back with
+  the admin user exists and re-applies the admin password, the default project's read-write and
+  read-only API keys, and its ping key from 1Password. It also declares the "Jobs" project with its own keys. A rebuilt database therefore comes back with
   the same keys that scripts and Alertmanager already hold. A password changed in the UI is
   reverted on the next pod start; change it in 1Password instead. With Authentik login in front, the
   password is only a break-glass credential: it works only if `REMOTE_USER_HEADER` is removed.
@@ -59,8 +59,8 @@ curl -fsS -m 10 --retry 5 -o /dev/null --data-raw "exit $rc" "https://hc.<domain
 
 ## Service heartbeats (long-running apps)
 
-Scheduled jobs ping Healthchecks themselves (above). Long-running services are covered by the
-**heartbeat runner**, a `heartbeat` controller in this HelmRelease (`app/resources/heartbeat.sh`).
+Long-running services are covered by the **heartbeat runner**, a `heartbeat` controller in this
+HelmRelease (`app/resources/heartbeat.sh`). Scheduled jobs are covered separately, below.
 It is still a dead-man's switch: Healthchecks never polls anything. The runner turns each app's own
 Kubernetes health checks into pings, and silence alerts.
 
@@ -93,9 +93,44 @@ service checks it feeds go silent.
 is correct, because a workload vanishing is exactly what this guards against. Delete the check in
 the UI.
 
-The runner reads workloads cluster-wide through a read-only ClusterRole (get/list on
-deployments, statefulsets and daemonsets, and list on pods for failure reasons). It pings the Service
-directly, and the pod's network policy allows that.
+The runner reads workloads cluster-wide through a read-only ClusterRole: get/list on
+deployments, statefulsets, daemonsets, cronjobs and jobs, plus list on pods for failure reasons. It pings
+the Service directly, and the pod's network policy allows that.
+
+## Scheduled jobs (the "Jobs" project)
+
+Backups and other scheduled work live in a second project, **Jobs**, so they don't crowd out the
+service checks. `bootstrap.py` declares it with its own API key and ping key (both in the app's
+1Password item, `jobs_*` fields) and gives it the same email and Matrix integrations.
+
+**In-cluster CronJobs** are watched by the same heartbeat runner, so job scripts need no changes and
+the ping key isn't copied into every namespace. Annotate the CronJob:
+
+```yaml
+healthchecks.io/slug: db-backup-forgejo   # required
+healthchecks.io/grace: "1200"             # optional, seconds; default 3600
+```
+
+CronJobs another controller generates can't be annotated from git. Longhorn's recurring backup and
+snapshot jobs are the example here, and they are listed in the runner's `HEARTBEAT_EXTRA_CRONJOBS` env
+(`<ns>/<cronjob>=<slug>`) instead.
+
+Each one becomes a **cron-schedule check** with the CronJob's own schedule (UTC unless the CronJob
+sets `timeZone`). The runner follows the Jobs it spawns:
+
+| Job event | Ping |
+|---|---|
+| starts | `/<slug>/start?rid=<job uid>` (Healthchecks then shows run durations) |
+| completes | `/<slug>?rid=…`, e.g. `Job db-backup-forgejo-… completed in 14s` |
+| fails (backoff limit reached) | `/<slug>/fail?rid=…` with the reason, the containers' exit codes, and a `kubectl logs` hint |
+| never runs | nothing. The check goes down once the scheduled time plus grace passes |
+
+On a restart the runner compares finished Jobs with each check's last ping. It reports only a newer
+run, so restarts don't replay old successes over a missed one.
+
+**Scripts outside the cluster** (NAS, desktop, cron on another box) ping the Jobs project directly with
+its ping key, as in the example above but with `jobs_ping_key`. Add `?create=1` on the first run,
+then set the schedule in the UI.
 
 ## Watching the watcher
 
