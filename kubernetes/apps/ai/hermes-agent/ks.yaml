@@ -4,6 +4,9 @@ kind: Kustomization
 metadata:
   name: hermes-agent
 spec:
+  dependsOn:
+    - name: external-secrets
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/ai/hermes-agent/app
   postBuild:

@@ -10,6 +10,8 @@ spec:
     # waits on the CNPG Cluster reporting healthy, so this gates on a live DB.
     - name: postgres
       namespace: database
+    - name: external-secrets
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/monitoring/healthchecks/app
   postBuild:

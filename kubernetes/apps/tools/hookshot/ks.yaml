@@ -9,6 +9,8 @@ spec:
   # Depending on synapse here keeps the ordering one-directional.
   dependsOn:
     - name: synapse
+    - name: external-secrets
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/tools/hookshot/app
   postBuild:
