@@ -3,8 +3,8 @@
 #
 # Restores only what the shutdown script changed, using the annotations it left:
 #   1. wait for nodes Ready and Longhorn's manager to be up
-#   2. wake CNPG Postgres clusters it hibernated
-#   3. scale Deployments/StatefulSets back to their recorded replica counts
+#   2. scale Deployments/StatefulSets back to their recorded replica counts
+#   3. wake CNPG Postgres clusters it hibernated (retries until the operator is up)
 #   4. resume CronJobs, then Flux Kustomizations + HelmReleases, it suspended
 #   5. ask Flux to reconcile
 #
@@ -52,16 +52,8 @@ annotated() {
         | jq -r --arg k "$2" --arg v "$3" '.items[] | select(.metadata.annotations[$k] == $v) | "\(.metadata.namespace) \(.metadata.name)"'
 }
 
-# 2. Postgres -------------------------------------------------------------------
-log step "2/5 waking Postgres (CNPG)"
-annotated clusters.postgresql.cnpg.io "${A}/hibernated" true | while read -r ns name; do
-    kubectl -n "${ns}" annotate clusters.postgresql.cnpg.io "${name}" \
-        cnpg.io/hibernation=off "${A}/hibernated-" --overwrite >/dev/null \
-        && log cnpg "woke ${ns}/${name}"
-done
-
-# 3. Replicas -------------------------------------------------------------------
-log step "3/5 restoring replica counts"
+# 2. Replicas -------------------------------------------------------------------
+log step "2/5 restoring replica counts"
 for kind in deployments statefulsets; do
     kubectl get "${kind}" -A -o json \
         | jq -r --arg k "${A}/replicas" '.items[] | select(.metadata.annotations[$k] != null) | "\(.metadata.namespace) \(.metadata.name) \(.metadata.annotations[$k])"' \
@@ -70,6 +62,23 @@ for kind in deployments statefulsets; do
                 && kubectl -n "${ns}" annotate "${kind}" "${name}" "${A}/replicas-" >/dev/null \
                 && log scale "${kind} ${ns}/${name} -> ${replicas}"
         done
+done
+
+# 3. Postgres -------------------------------------------------------------------
+# After the replica restore: the CNPG operator was scaled to 0 too, and its admission
+# webhook rejects the annotation until the operator is serving again.
+log step "3/5 waking Postgres (CNPG)"
+annotated clusters.postgresql.cnpg.io "${A}/hibernated" true | while read -r ns name; do
+    for attempt in $(seq 1 30); do
+        if kubectl -n "${ns}" annotate clusters.postgresql.cnpg.io "${name}" \
+            cnpg.io/hibernation=off "${A}/hibernated-" --overwrite >/dev/null 2>&1; then
+            log cnpg "woke ${ns}/${name}"
+            break
+        fi
+        (( attempt == 30 )) && { log WARN "could not wake ${ns}/${name}; run: kubectl -n ${ns} annotate clusters.postgresql.cnpg.io ${name} cnpg.io/hibernation=off ${A}/hibernated- --overwrite"; break; }
+        log cnpg "operator not ready, retrying ${ns}/${name}"
+        sleep 10
+    done
 done
 
 # 4. Resume ---------------------------------------------------------------------
