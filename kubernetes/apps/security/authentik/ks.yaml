@@ -26,3 +26,5 @@ spec:
   dependsOn:
     - name: external-secrets
       namespace: security
+    - name: longhorn
+      namespace: longhorn-system

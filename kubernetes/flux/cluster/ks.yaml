@@ -9,6 +9,9 @@ spec:
     provider: sops
   deletionPolicy: WaitForTermination
   interval: 1h
+  # Same reason as the child default below: home/kustomization.yaml pulls an
+  # ExternalSecret into this Kustomization, so a cold boot can fail it once.
+  retryInterval: 2m
   path: ./kubernetes/apps
   prune: true
   sourceRef:
@@ -27,6 +30,10 @@ spec:
           decryption:
             provider: sops
           deletionPolicy: WaitForTermination
+          # A failed reconcile otherwise waits a full .spec.interval (1h) before
+          # retrying. After a cold boot, webhooks (cert-manager, CNPG, ESO) come up
+          # after the first apply attempt; retry quickly so the cluster self-heals.
+          retryInterval: 2m
           patches:
             - patch: |-
                 apiVersion: helm.toolkit.fluxcd.io/v2
