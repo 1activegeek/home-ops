@@ -4,6 +4,9 @@ kind: Kustomization
 metadata:
   name: atuin
 spec:
+  dependsOn:
+    - name: external-secrets
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/tools/atuin/app
   postBuild:

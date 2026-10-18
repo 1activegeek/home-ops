@@ -7,6 +7,8 @@ spec:
   dependsOn:
     # The register init container talks to the Forgejo API and fails without it.
     - name: forgejo
+    - name: external-secrets
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/tools/forgejo-runner/app
   postBuild:

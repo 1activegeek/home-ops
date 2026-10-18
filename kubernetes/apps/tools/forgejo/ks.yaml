@@ -10,6 +10,8 @@ spec:
     # Cluster reporting a healthy phase, so this genuinely gates on a live DB.
     - name: postgres
       namespace: database
+    - name: external-secrets
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/tools/forgejo/app
   postBuild:

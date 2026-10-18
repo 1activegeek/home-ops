@@ -19,3 +19,5 @@ spec:
   wait: false
   dependsOn:
     - name: ollama
+    - name: external-secrets
+      namespace: security
