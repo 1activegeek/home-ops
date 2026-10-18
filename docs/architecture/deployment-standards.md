@@ -55,7 +55,7 @@ Rules:
 - `substituteFrom` is `cluster-secrets` only. Add `cluster-1p-secrets` **only when a manifest in that app actually consumes one of its variables** — never copy it in by habit.
 - `dependsOn` only for real ordering requirements (CRDs, an IdP, a DB the app can't start without). Note the shell-var gotcha: Flux `postBuild` rewrites `${VAR}` — escape `$${VAR}` in scripts.
 - `targetNamespace` is always set.
-- No `retryInterval`/`timeout` unless there is a documented reason.
+- No per-app `retryInterval`/`timeout` unless there is a documented reason. `retryInterval: 2m` is already set for every Kustomization by the root `cluster-apps` patch, so a failed reconcile (e.g. a webhook not serving yet after a cold boot) retries in minutes instead of waiting a full `interval`.
 
 ## 4. HelmRelease
 
