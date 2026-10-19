@@ -20,7 +20,6 @@ resources:
   - ./glance/ks.yaml
   - ./rackpeek/ks.yaml
   - ./atuin/ks.yaml
-  - ./code-server/ks.yaml
   - ./webtop/ks.yaml
   - ./nextcloud/ks.yaml
   - ./synapse/ks.yaml

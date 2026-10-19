@@ -48,6 +48,13 @@ entries:
     identifiers:
       name: code-server-proxy
 
+  # tools/code-server was removed; dropping its tile from 40-launcher-apps.yaml leaves the
+  # application in place.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: code-server-tools
+
   # Superseded by zipline-proxy; this OIDC provider has no application attached.
   - model: authentik_providers_oauth2.oauth2provider
     state: absent
