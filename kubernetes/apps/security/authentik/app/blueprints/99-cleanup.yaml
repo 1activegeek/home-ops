@@ -31,6 +31,23 @@ entries:
     identifiers:
       name: esphome-proxy
 
+  # hass-code: code-server is no longer routed; it is reachable only through the Home Assistant UI
+  # (loopback bind + hass_ingress panel), so the forward-auth provider protects nothing.
+  - model: authentik_policies.policybinding
+    state: absent
+    identifiers:
+      target: !Find [authentik_core.application, [slug, code-server]]
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: code-server
+  - model: authentik_providers_proxy.proxyprovider
+    state: absent
+    identifiers:
+      name: code-server-proxy
+
   # Superseded by zipline-proxy; this OIDC provider has no application attached.
   - model: authentik_providers_oauth2.oauth2provider
     state: absent
