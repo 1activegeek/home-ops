@@ -140,6 +140,27 @@ spec:
         hostPath: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A1018WZB-if00-port0
         globalMounts:
           - path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A1018WZB-if00-port0
+      # Short-lived token for the "Shut down cluster" button (HA plan ha-17).
+      # Mounted into the HA container only, not code-server. Its RBAC allows
+      # nothing but starting the pinned Job in kubernetes/apps/cluster-shutdown.
+      cluster-shutdown-token:
+        type: custom
+        volumeSpec:
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+        advancedMounts:
+          home-assistant:
+            app:
+              - path: /var/run/secrets/home-ops/cluster-shutdown
+                readOnly: true
 
     route:
       app:
