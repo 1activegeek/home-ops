@@ -3,13 +3,19 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ./externalsecret.yaml
+  - ./externalsecret-restore.yaml
   - ./rbac.yaml
   - ./cronjob.yaml
   - ./admission-policy.yaml
+  - ./cronjob-restore.yaml
 configMapGenerator:
-  # The same break-glass script used from a workstation; one copy, two callers.
+  # The same break-glass scripts used from a workstation; one copy, two callers.
   - name: cluster-shutdown-script
     files:
       - cluster-shutdown.sh=../../../../../scripts/cluster-shutdown.sh
+  - name: cluster-restore-script
+    files:
+      - cluster-auto-restore.sh=../../../../../scripts/cluster-auto-restore.sh
+      - cluster-startup.sh=../../../../../scripts/cluster-startup.sh
 generatorOptions:
   disableNameSuffixHash: true

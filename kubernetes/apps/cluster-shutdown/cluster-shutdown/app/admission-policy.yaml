@@ -11,6 +11,11 @@ spec:
   paramKind:
     apiVersion: batch/v1
     kind: CronJob
+  # The cluster-restore CronJob's Jobs are created by the CronJob controller
+  # and are exempt; every other creator (Home Assistant, kubectl) is pinned.
+  matchConditions:
+    - name: not-cronjob-controller
+      expression: request.userInfo.username != 'system:serviceaccount:kube-system:cronjob-controller'
   matchConstraints:
     namespaceSelector:
       matchLabels:

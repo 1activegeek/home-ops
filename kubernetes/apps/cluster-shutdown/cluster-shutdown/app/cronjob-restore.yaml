@@ -1,0 +1,78 @@
+---
+# Auto-restore after a break-glass power-off (HA plan ha-17).
+#
+# Suspended in Git. scripts/cluster-shutdown.sh un-suspends it right before the
+# nodes power off (Flux is already suspended then, so it stays that way) and
+# records the nodes' boot IDs on it. This namespace is skipped by the shutdown,
+# so the CronJob is still active when the nodes are switched back on.
+#
+# Every 5 minutes, scripts/cluster-auto-restore.sh checks for a stable cluster
+# (all nodes rebooted + Ready 10 min, core platform ready, no faulted Longhorn
+# volume), then runs scripts/cluster-startup.sh --yes, disarms itself and calls
+# Home Assistant's webhook so both phones get a "cluster restored" notice.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cluster-restore
+spec:
+  suspend: true
+  schedule: "*/5 * * * *"
+  # After hours powered off, only the latest missed run matters.
+  startingDeadlineSeconds: 240
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cluster-restore
+        spec:
+          serviceAccountName: cluster-restore
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restore
+              image: docker.io/alpine/k8s:1.34.1
+              command: ["bash", "/scripts/cluster-auto-restore.sh"]
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: STABLE_MINUTES
+                  value: "10"
+                - name: HA_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: cluster-restore-secret
+                      key: HA_WEBHOOK_URL
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: scripts
+              configMap:
+                name: cluster-restore-script
+            - name: tmp
+              emptyDir: {}

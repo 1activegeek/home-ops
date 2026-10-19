@@ -25,6 +25,12 @@
 #   scripts/cluster-shutdown.sh            # asks for confirmation
 #   scripts/cluster-shutdown.sh --yes      # no prompt
 #   scripts/cluster-shutdown.sh --no-poweroff   # quiesce only, leave nodes on
+#   scripts/cluster-shutdown.sh --no-poweroff --arm-restore   # quiesce, then arm auto-restore
+#                                               # (the in-cluster Job; its second container powers off)
+#
+# Auto-restore: a power-off (or --arm-restore) arms the cluster-shutdown/cluster-restore
+# CronJob with the nodes' current boot IDs. Once the nodes are switched back on and the
+# cluster is stable, it runs cluster-startup.sh by itself (scripts/cluster-auto-restore.sh).
 #
 # Env overrides: KUBECONFIG, TALOSCONFIG, NODES (space separated IPs; default: every node's InternalIP),
 #   DETACH_TIMEOUT (seconds, default 300), KEEP_NAMESPACES.
@@ -41,15 +47,17 @@ ${IN_CLUSTER} || export KUBECONFIG="${KUBECONFIG:-${ROOT_DIR}/kubeconfig}"
 export TALOSCONFIG="${TALOSCONFIG:-${ROOT_DIR}/talos/clusterconfig/talosconfig}"
 DETACH_TIMEOUT="${DETACH_TIMEOUT:-300}"
 # Namespaces whose workloads must keep running until the nodes power off.
-KEEP_NAMESPACES="${KEEP_NAMESPACES:-kube-system kube-public kube-node-lease flux-system longhorn-system}"
+KEEP_NAMESPACES="${KEEP_NAMESPACES:-kube-system kube-public kube-node-lease flux-system longhorn-system cluster-shutdown}"
 A="home-ops.break-glass"
 
 ASSUME_YES=false
 POWEROFF=true
+ARM_RESTORE=false
 for arg in "$@"; do
     case "${arg}" in
         -y|--yes) ASSUME_YES=true ;;
         --no-poweroff) POWEROFF=false ;;
+        --arm-restore) ARM_RESTORE=true ;;
         -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
         *) echo "unknown argument: ${arg}" >&2; exit 2 ;;
     esac
@@ -188,6 +196,22 @@ if kubectl get crd volumes.longhorn.io >/dev/null 2>&1; then
         sleep 10
     done
 fi
+
+# Auto-restore -------------------------------------------------------------------
+# Flux is suspended (step 1), so it won't flip the CronJob back to suspended.
+arm_restore() {
+    local boot_ids
+    boot_ids="$(kubectl get nodes -o json | jq -r '[.items[].status.nodeInfo.bootID] | join(" ")')"
+    if kubectl -n cluster-shutdown get cronjob cluster-restore >/dev/null 2>&1 \
+        && kubectl -n cluster-shutdown annotate cronjob cluster-restore \
+            "${A}/boot-ids=${boot_ids}" "${A}/powered-off-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite >/dev/null \
+        && kubectl -n cluster-shutdown patch cronjob cluster-restore --type merge -p '{"spec":{"suspend":false}}' >/dev/null; then
+        log restore "auto-restore armed: runs once the nodes are back on and stable"
+    else
+        log WARN "could not arm auto-restore; run scripts/cluster-startup.sh after power returns"
+    fi
+}
+if ${POWEROFF} || ${ARM_RESTORE}; then arm_restore; fi
 
 # 7. Power off -------------------------------------------------------------------
 if ! ${POWEROFF}; then
