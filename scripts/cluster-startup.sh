@@ -11,11 +11,17 @@
 # Start the Synology first if apps need NFS; they will sit in ContainerCreating
 # until it is back but recover on their own once it is.
 #
+# Normally runs by itself: cluster-shutdown.sh arms the cluster-restore CronJob, which
+# calls this once the nodes are back on and stable (scripts/cluster-auto-restore.sh).
+#
 # Usage: scripts/cluster-startup.sh [--yes]
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export KUBECONFIG="${KUBECONFIG:-${ROOT_DIR}/kubeconfig}"
+# In-cluster (cluster-restore CronJob): no KUBECONFIG, use the pod's service account.
+if [[ -z "${KUBERNETES_SERVICE_HOST:-}" || -n "${KUBECONFIG:-}" ]]; then
+    export KUBECONFIG="${KUBECONFIG:-${ROOT_DIR}/kubeconfig}"
+fi
 A="home-ops.break-glass"
 
 ASSUME_YES=false

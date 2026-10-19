@@ -4,9 +4,10 @@
 # (HA plan ha-17). By hand: kubectl -n cluster-shutdown create job --from=cronjob/cluster-shutdown cluster-shutdown-manual
 #
 # Two steps in one pod:
-#   1. quiesce (initContainer): scripts/cluster-shutdown.sh --yes --no-poweroff
+#   1. quiesce (initContainer): scripts/cluster-shutdown.sh --yes --no-poweroff --arm-restore
 #   2. poweroff: talosctl shutdown on every node, with an os:operator talosconfig
-# Undo after power returns with scripts/cluster-startup.sh from a workstation.
+# After power returns, switch the nodes on: the cluster-restore CronJob (armed in
+# step 1) waits for a stable cluster and restores it by itself.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -37,7 +38,7 @@ spec:
           initContainers:
             - name: quiesce
               image: docker.io/alpine/k8s:1.34.1
-              command: ["bash", "/scripts/cluster-shutdown.sh", "--yes", "--no-poweroff"]
+              command: ["bash", "/scripts/cluster-shutdown.sh", "--yes", "--no-poweroff", "--arm-restore"]
               env:
                 - name: HOME
                   value: /tmp
