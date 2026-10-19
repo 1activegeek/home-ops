@@ -28,10 +28,16 @@
 #
 # Env overrides: KUBECONFIG, TALOSCONFIG, NODES (space separated IPs; default: every node's InternalIP),
 #   DETACH_TIMEOUT (seconds, default 300), KEEP_NAMESPACES.
+#
+# Also runs in-cluster as the first step of the cluster-shutdown Job
+# (kubernetes/apps/cluster-shutdown), with --yes --no-poweroff: kubectl uses the
+# pod's service account, and a second container powers the nodes off.
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export KUBECONFIG="${KUBECONFIG:-${ROOT_DIR}/kubeconfig}"
+IN_CLUSTER=false
+[[ -n "${KUBERNETES_SERVICE_HOST:-}" && -z "${KUBECONFIG:-}" ]] && IN_CLUSTER=true
+${IN_CLUSTER} || export KUBECONFIG="${KUBECONFIG:-${ROOT_DIR}/kubeconfig}"
 export TALOSCONFIG="${TALOSCONFIG:-${ROOT_DIR}/talos/clusterconfig/talosconfig}"
 DETACH_TIMEOUT="${DETACH_TIMEOUT:-300}"
 # Namespaces whose workloads must keep running until the nodes power off.
@@ -53,11 +59,14 @@ log() { printf '%s [%s] %s\n' "$(date +%H:%M:%S)" "$1" "$2"; }
 die() { log ERROR "$1"; exit 1; }
 kept() { [[ " ${KEEP_NAMESPACES} " == *" $1 "* ]]; }
 
-for bin in kubectl talosctl jq; do
+for bin in kubectl jq; do
     command -v "${bin}" >/dev/null || die "missing required tool: ${bin}"
 done
-[[ -f "${KUBECONFIG}" ]] || die "KUBECONFIG not found: ${KUBECONFIG}"
-[[ -f "${TALOSCONFIG}" ]] || die "TALOSCONFIG not found: ${TALOSCONFIG}"
+${IN_CLUSTER} || [[ -f "${KUBECONFIG}" ]] || die "KUBECONFIG not found: ${KUBECONFIG}"
+if ${POWEROFF}; then
+    command -v talosctl >/dev/null || die "missing required tool: talosctl"
+    [[ -f "${TALOSCONFIG}" ]] || die "TALOSCONFIG not found: ${TALOSCONFIG}"
+fi
 kubectl get nodes >/dev/null 2>&1 || die "cannot reach the Kubernetes API"
 
 # Talk to the nodes by their InternalIP; the talosconfig's own endpoints can be stale.
