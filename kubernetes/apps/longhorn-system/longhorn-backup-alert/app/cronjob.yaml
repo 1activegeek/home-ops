@@ -3,6 +3,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: longhorn-backup-alert
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: longhorn-backup-alert
 spec:
   # Daily at 05:30 UTC — after the 03:00 daily + Sun 04:00 weekly Longhorn
   # recurring backups complete. Daily cadence keeps a persistent failure to one

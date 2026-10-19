@@ -3,6 +3,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: db-backup-forgejo
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: db-backup-forgejo
 spec:
   schedule: "40 2 * * *"
   concurrencyPolicy: Forbid
@@ -26,7 +29,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: dump
-              image: docker.io/alpine/k8s:1.37.0
+              image: docker.io/alpine/k8s:1.37.1
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false

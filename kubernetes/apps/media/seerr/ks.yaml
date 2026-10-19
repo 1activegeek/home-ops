@@ -4,6 +4,9 @@ kind: Kustomization
 metadata:
   name: seerr
 spec:
+  dependsOn:
+    - name: external-secrets
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/media/seerr/app
   postBuild:

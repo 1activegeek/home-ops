@@ -19,6 +19,9 @@ spec:
     - group: gateway.envoyproxy.io
       kind: SecurityPolicy
       namespace: home  # Per-route overrides in app namespaces
+    - group: gateway.envoyproxy.io
+      kind: SecurityPolicy
+      namespace: monitoring  # internal-forward-auth component (healthchecks)
   to:
     - group: ""
       kind: Service

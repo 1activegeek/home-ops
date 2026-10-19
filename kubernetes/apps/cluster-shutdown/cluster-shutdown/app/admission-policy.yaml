@@ -1,0 +1,42 @@
+---
+# Every Job created in this namespace must carry the cluster-shutdown CronJob's
+# pod spec unchanged. Home Assistant (and anyone holding its token) can start
+# the shutdown, but cannot swap the image, command, service account or volumes.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: cluster-shutdown-job-pinned
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: batch/v1
+    kind: CronJob
+  # The cluster-restore CronJob's Jobs are created by the CronJob controller
+  # and are exempt; every other creator (Home Assistant, kubectl) is pinned.
+  matchConditions:
+    - name: not-cronjob-controller
+      expression: request.userInfo.username != 'system:serviceaccount:kube-system:cronjob-controller'
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: cluster-shutdown
+    resourceRules:
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["jobs"]
+  validations:
+    - expression: object.spec.template.spec == params.spec.jobTemplate.spec.template.spec
+      message: Jobs in cluster-shutdown must be created from the cluster-shutdown CronJob, unchanged.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: cluster-shutdown-job-pinned
+spec:
+  policyName: cluster-shutdown-job-pinned
+  validationActions: ["Deny"]
+  paramRef:
+    name: cluster-shutdown
+    namespace: cluster-shutdown
+    parameterNotFoundAction: Deny

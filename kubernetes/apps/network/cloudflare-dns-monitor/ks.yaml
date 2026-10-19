@@ -4,6 +4,11 @@ kind: Kustomization
 metadata:
   name: cloudflare-dns-monitor
 spec:
+  dependsOn:
+    - name: external-secrets
+      namespace: security
+    - name: longhorn
+      namespace: longhorn-system
   interval: 1h
   path: ./kubernetes/apps/network/cloudflare-dns-monitor/app
   # ${SECRET_DOMAIN} is the only substituted var (the CF zone to poll). The job

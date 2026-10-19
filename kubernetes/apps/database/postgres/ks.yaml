@@ -8,6 +8,8 @@ spec:
     - name: cloudnative-pg
     - name: external-secrets
       namespace: security
+    - name: longhorn
+      namespace: longhorn-system
   interval: 1h
   path: ./kubernetes/apps/database/postgres/app
   prune: true

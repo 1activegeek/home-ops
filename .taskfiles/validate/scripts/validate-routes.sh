@@ -59,6 +59,7 @@ while IFS= read -r -d '' file; do
   # Collect service keys and build service names using actual bjw-s naming rules:
   # - 1 service  → name is just <release-name> (no key suffix)
   # - 2+ services → name is <release-name>-<service-key> for each
+  # - forceRename  → that literal name, in either case
   service_keys=()
   while IFS= read -r svc_key; do
     [[ -z "$svc_key" || "$svc_key" == "null" ]] && continue
@@ -68,15 +69,19 @@ while IFS= read -r -d '' file; do
   [[ ${#service_keys[@]} -eq 0 ]] && continue
 
   svc_names=""
-  if [[ ${#service_keys[@]} -eq 1 ]]; then
-    # Single service: name is just the release name
-    svc_names="${hr_name}"$'\n'
-  else
-    # Multiple services: name is <release-name>-<key>
-    for svc_key in "${service_keys[@]}"; do
+  for svc_key in "${service_keys[@]}"; do
+    # forceRename overrides the generated name regardless of service count
+    forced=$(yq eval ".spec.values.service.\"${svc_key}\".forceRename // \"\"" "$file" 2>/dev/null | head -1)
+    if [[ -n "$forced" && "$forced" != "null" ]]; then
+      svc_names+="${forced}"$'\n'
+    elif [[ ${#service_keys[@]} -eq 1 ]]; then
+      # Single service: name is just the release name
+      svc_names+="${hr_name}"$'\n'
+    else
+      # Multiple services: name is <release-name>-<key>
       svc_names+="${hr_name}-${svc_key}"$'\n'
-    done
-  fi
+    fi
+  done
 
   if [[ -n "$svc_names" ]]; then
     BJWS_SERVICES["$app_dir"]="$svc_names"

@@ -3,6 +3,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: db-backup-shlink
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: db-backup-shlink
 spec:
   schedule: "30 1 * * *"
   concurrencyPolicy: Forbid

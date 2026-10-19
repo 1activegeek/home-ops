@@ -1,0 +1,68 @@
+---
+# Internal Forward-Auth SecurityPolicy Component
+#
+# Puts ONE HTTPRoute on envoy-internal behind Authentik forward-auth (the
+# embedded outpost), the same ext_authz config the envoy-external gateway
+# applies by default (network/envoy-gateway/app/securitypolicy-external-default.yaml).
+# envoy-internal has no gateway-level auth, so this is opt-in per route.
+#
+# Requirements per app:
+#   1. A proxy provider + application for the route's host in
+#      security/authentik/app/blueprints/30-proxy-integrations.yaml, added to
+#      the embedded outpost's providers list.
+#   2. The app's namespace listed in security/authentik/app/referencegrant.yaml.
+#   3. This component in the app's kustomization.yaml, with a patch setting the
+#      target route name (works for Helm-rendered routes, unlike replacements):
+#
+#   components:
+#     - ../../../../components/internal-forward-auth
+#   patches:
+#     - target:
+#         kind: SecurityPolicy
+#         name: internal-forward-auth
+#       patch: |-
+#         - op: replace
+#           path: /spec/targetRefs/0/name
+#           value: <rendered-httproute-name>
+#
+# Paths that must stay unauthenticated (webhooks, pings, APIs with their own
+# keys) belong on a SEPARATE HTTPRoute for the same host — ext_authz attaches
+# per route. If the backend trusts X-authentik-* headers, strip them on that
+# route with a RequestHeaderModifier, and restrict direct pod access.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: internal-forward-auth
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: ROUTE_NAME
+  extAuth:
+    failOpen: false
+    recomputeRoute: true
+    headersToExtAuth:
+      - Cookie
+      - X-Forwarded-Proto
+      - X-Forwarded-Host
+      - X-Forwarded-Uri
+      - X-Forwarded-For
+    http:
+      backendRefs:
+        - kind: Service
+          name: authentik-server
+          namespace: security
+          port: 80
+      path: /outpost.goauthentik.io/auth/envoy
+      # Location/Content-Type/Set-Cookie must be listed or the 302 to the
+      # Authentik login page is stripped (Envoy Gateway has no headersToClient).
+      # The X-authentik-* values overwrite any client-sent copies.
+      headersToBackend:
+        - Location
+        - Content-Type
+        - Set-Cookie
+        - X-authentik-uid
+        - X-authentik-username
+        - X-authentik-name
+        - X-authentik-email
+        - X-authentik-groups

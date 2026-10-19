@@ -7,7 +7,7 @@ spec:
   chart:
     spec:
       chart: connect
-      version: "2.4.1"
+      version: "2.4.2"
       sourceRef:
         kind: HelmRepository
         name: onepassword-connect
@@ -19,7 +19,7 @@ spec:
         name: connect-api
         image:
           repository: ghcr.io/1password/connect-api
-          tag: "1.8.2"
+          tag: "1.8.3"
           pullPolicy: IfNotPresent
         resources:
           requests:
@@ -34,7 +34,7 @@ spec:
         name: connect-sync
         image:
           repository: ghcr.io/1password/connect-sync
-          tag: "1.8.2"
+          tag: "1.8.3"
           pullPolicy: IfNotPresent
         resources:
           requests:

@@ -14,6 +14,9 @@ spec:
         type: statefulset
         annotations:
           reloader.stakater.com/auto: "true"
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          healthchecks.io/slug: home-assistant
+          healthchecks.io/url: http://home-assistant-app.home.svc.cluster.local:8123/manifest.json
         # TEMPORARY WORKAROUND (2026-07-26) — remove once awscrt ships a fix.
         #
         # The HA image ships awscrt 0.32.1 (pre-installed for the core lg_thinq
@@ -82,6 +85,16 @@ spec:
                 memory: 1280Mi
               limits:
                 memory: 3Gi
+          # Config editor, reachable ONLY through the Home Assistant UI.
+          #
+          # The pod is hostNetwork, so whatever code-server binds is bound on the
+          # node. It listens on loopback only and has no Service or HTTPRoute:
+          # nothing on the LAN or in the cluster can reach it. Home Assistant
+          # (same network namespace) proxies it into an admin-only sidebar panel
+          # via the hass_ingress custom integration (work_mode: ingress), so the
+          # only way in is an authenticated HA session. --auth none is safe only
+          # because of the loopback bind; never add a route or Service for it.
+          # Break-glass: kubectl -n home port-forward pod/home-assistant-0 8081
           code-server:
             image:
               repository: ghcr.io/coder/code-server
@@ -89,13 +102,17 @@ spec:
             args:
               - --auth
               - none
+              - --bind-addr
+              - 127.0.0.1:8081
+              - --disable-telemetry
               - --user-data-dir
               - /config/.vscode
               - --extensions-dir
               - /config/.vscode
-              - --port
-              - "8081"
               - /config
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
             resources:
               requests:
                 cpu: 10m
@@ -115,14 +132,12 @@ spec:
     service:
       app:
         controller: home-assistant
+        # Pin the name: with a single Service bjw-s would rename it to
+        # "home-assistant", breaking the external route and heartbeat URL.
+        forceRename: home-assistant-app
         ports:
           http:
             port: 8123
-      code-server:
-        controller: home-assistant
-        ports:
-          http:
-            port: 8081
 
     persistence:
       config:
@@ -137,6 +152,27 @@ spec:
         hostPath: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A1018WZB-if00-port0
         globalMounts:
           - path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A1018WZB-if00-port0
+      # Short-lived token for the "Shut down cluster" button (HA plan ha-17).
+      # Mounted into the HA container only, not code-server. Its RBAC allows
+      # nothing but starting the pinned Job in kubernetes/apps/cluster-shutdown.
+      cluster-shutdown-token:
+        type: custom
+        volumeSpec:
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+        advancedMounts:
+          home-assistant:
+            app:
+              - path: /var/run/secrets/home-ops/cluster-shutdown
+                readOnly: true
 
     route:
       app:
@@ -149,13 +185,3 @@ spec:
           - backendRefs:
               - identifier: app
                 port: 8123
-      code-server:
-        hostnames: ["hass-code.${SECRET_DOMAIN}"]
-        parentRefs:
-          - name: envoy-internal
-            namespace: network
-            sectionName: https
-        rules:
-          - backendRefs:
-              - identifier: code-server
-                port: 8081

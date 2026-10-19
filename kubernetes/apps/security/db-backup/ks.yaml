@@ -4,6 +4,9 @@ kind: Kustomization
 metadata:
   name: db-backup
 spec:
+  dependsOn:
+    - name: longhorn
+      namespace: longhorn-system
   interval: 1h
   path: ./kubernetes/apps/security/db-backup/app
   prune: true

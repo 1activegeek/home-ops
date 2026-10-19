@@ -1,0 +1,356 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: healthchecks
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: healthchecks
+  interval: 1h
+  values:
+    controllers:
+      healthchecks:
+        # Single replica: the image runs `sendalerts` and `sendreports` as uWSGI
+        # daemons inside the web container, so a second replica would double-send.
+        # No PVC (state is in CNPG), so the default rolling update is safe.
+        annotations:
+          reloader.stakater.com/auto: "true"
+        serviceAccount: &defaultSA
+          name: default
+        initContainers:
+          # Migrate, then seed the admin user, API keys and ping key from
+          # 1Password (resources/bootstrap.py). Idempotent on every start.
+          bootstrap:
+            image: &image
+              repository: docker.io/healthchecks/healthchecks
+              tag: v4.4
+            command:
+              - /bin/sh
+              - -c
+              - ./manage.py migrate --no-input && ./manage.py shell < /scripts/bootstrap.py
+            env: &env
+              SITE_ROOT: https://hc.${SECRET_DOMAIN}
+              SITE_NAME: Homelab Checks
+              # SITE_ROOT's host is the only default; add the in-cluster names
+              # so Alertmanager and other pods can ping the Service directly.
+              ALLOWED_HOSTS: hc.${SECRET_DOMAIN},healthchecks.monitoring.svc.cluster.local,healthchecks.monitoring.svc,healthchecks
+              DEBUG: "False"
+              REGISTRATION_OPEN: "False"
+              # Envoy terminates TLS; without this Django sees http and CSRF
+              # rejects every form POST from the HTTPS UI.
+              SECURE_PROXY_SSL_HEADER: HTTP_X_FORWARDED_PROTO,https
+              # Login is delegated to Authentik forward-auth (passkey there):
+              # the outpost's X-authentik-email logs the matching user in, and
+              # password login is disabled entirely. Safe only because every
+              # unauthenticated route strips that header and the pod accepts
+              # traffic only from Envoy/Alertmanager (ciliumnetworkpolicy.yaml).
+              REMOTE_USER_HEADER: HTTP_X_AUTHENTIK_EMAIL
+              DB: postgres
+              DB_HOST: postgres-rw.database.svc.cluster.local
+              DB_PORT: "5432"
+              DB_NAME: healthchecks
+              DB_USER: healthchecks
+              DB_SSLMODE: require
+              # Webhook integrations (hookshot, Home Assistant, ntfy...) live on
+              # private/ClusterIP addresses; upstream blocks those by default.
+              INTEGRATIONS_ALLOW_PRIVATE_IPS: "True"
+              UWSGI_PROCESSES: "2"
+              # Matrix Infrastructure room via matrix-media-relay (bootstrap.py).
+              HC_MATRIX_RELAY_URL: http://matrix-media-relay.tools.svc.cluster.local:8080/notify
+            envFrom: &envFrom
+              - secretRef:
+                  name: healthchecks-secret
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 384Mi
+        containers:
+          app:
+            image: *image
+            env: *env
+            envFrom: *envFrom
+            securityContext: *securityContext
+            probes:
+              # /api/v3/status/ runs SELECT 1 and returns "OK". Django rejects
+              # Host headers not in ALLOWED_HOSTS, and the kubelet sends the pod
+              # IP, so the probe sets Host explicitly.
+              liveness: &probe
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/v3/status/
+                    port: &port 8000
+                    httpHeaders:
+                      - name: Host
+                        value: hc.${SECRET_DOMAIN}
+                  periodSeconds: 30
+                  timeoutSeconds: 5
+                  failureThreshold: 4
+              readiness:
+                <<: *probe
+                spec:
+                  httpGet:
+                    path: /api/v3/status/
+                    port: *port
+                    httpHeaders:
+                      - name: Host
+                        value: hc.${SECRET_DOMAIN}
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/v3/status/
+                    port: *port
+                    httpHeaders:
+                      - name: Host
+                        value: hc.${SECRET_DOMAIN}
+                  periodSeconds: 5
+                  failureThreshold: 30
+            resources:
+              requests:
+                cpu: 25m
+                memory: 192Mi
+              limits:
+                memory: 512Mi
+
+      # End-to-end self-check + healthchecks.io cloud dead-man's switch.
+      # See resources/self-check.sh.
+      self-check:
+        type: cronjob
+        serviceAccount: *defaultSA
+        cronjob:
+          schedule: "*/5 * * * *"
+          concurrencyPolicy: Forbid
+          successfulJobsHistory: 1
+          failedJobsHistory: 2
+          backoffLimit: 0
+          ttlSecondsAfterFinished: 3600
+        containers:
+          app:
+            image:
+              repository: docker.io/curlimages/curl
+              tag: 8.22.0
+            command: ["/bin/sh", "/scripts/self-check.sh"]
+            env:
+              HC_BASE_URL: https://hc.${SECRET_DOMAIN}
+              HC_API_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_API_KEY }
+              HC_PING_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_PING_KEY }
+              HC_CLOUD_PING_URL:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_CLOUD_PING_URL }
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 5m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+
+      # Heartbeat runner: Kubernetes readiness (+ an optional HTTP check) ->
+      # Healthchecks pings, for every Deployment/StatefulSet/DaemonSet annotated
+      # healthchecks.io/slug; and CronJob runs -> cron checks in the "Jobs"
+      # project. See resources/heartbeat.sh and docs/healthchecks.md.
+      heartbeat:
+        annotations:
+          reloader.stakater.com/auto: "true"
+        serviceAccount:
+          identifier: heartbeat
+        pod:
+          automountServiceAccountToken: true
+        containers:
+          app:
+            image:
+              repository: docker.io/alpine/k8s
+              tag: 1.37.1
+            command: ["/bin/sh", "/scripts/heartbeat.sh"]
+            env:
+              HOME: /tmp
+              # The Service, not the hostname: the heartbeat should measure the
+              # apps, not Envoy (ciliumnetworkpolicy.yaml allows this pod in).
+              HC_API_URL: http://healthchecks.monitoring.svc.cluster.local:8000
+              HC_API_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_API_KEY }
+              HC_PING_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_PING_KEY }
+              # CronJobs annotated healthchecks.io/slug go to the "Jobs" project.
+              HC_JOBS_API_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_JOBS_API_KEY }
+              HC_JOBS_PING_KEY:
+                valueFrom:
+                  secretKeyRef: { name: healthchecks-secret, key: HC_JOBS_PING_KEY }
+              # CronJobs Longhorn generates from its RecurringJobs; they can't be
+              # annotated from git, so they're named here ("<ns>/<cronjob>=<slug>").
+              HEARTBEAT_EXTRA_CRONJOBS: >-
+                longhorn-system/backup-daily=longhorn-backup-daily
+                longhorn-system/backup-weekly=longhorn-backup-weekly
+                longhorn-system/snapshot-hourly=longhorn-snapshot
+            probes:
+              # The loop touches this file every round; a hung round restarts it.
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -c
+                      - test -n "$(find /tmp/heartbeat/last-round -mmin -5)"
+                  initialDelaySeconds: 60
+                  periodSeconds: 60
+                  failureThreshold: 2
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+
+      # Healthchecks prunes pings/flips/notifications itself; the rate-limit
+      # token bucket table is the only one that needs a scheduled cleanup here
+      # (no S3 object storage, registration closed so pruneusers is moot).
+      prune:
+        type: cronjob
+        serviceAccount: *defaultSA
+        cronjob:
+          schedule: "30 4 * * 0"
+          concurrencyPolicy: Forbid
+          successfulJobsHistory: 1
+          failedJobsHistory: 1
+        containers:
+          app:
+            image: *image
+            command: ["./manage.py", "prunetokenbucket"]
+            env: *env
+            envFrom: *envFrom
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 10m
+                memory: 128Mi
+              limits:
+                memory: 384Mi
+
+    defaultPodOptions:
+      # The image's `hc` user. Its files are world-readable, so this is the
+      # least-surprising choice over the cluster-default 65534.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile: { type: RuntimeDefault }
+
+    # Read-only view of workloads for the heartbeat runner. With a single
+    # ServiceAccount defined, app-template would hand it to every controller;
+    # the others pin `default` and none of them mount a token.
+    serviceAccount:
+      heartbeat:
+        forceRename: healthchecks-heartbeat
+    rbac:
+      roles:
+        heartbeat:
+          type: ClusterRole
+          forceRename: healthchecks-heartbeat
+          rules:
+            - apiGroups: ["apps"]
+              resources: ["deployments", "statefulsets", "daemonsets"]
+              verbs: ["get", "list"]
+            - apiGroups: ["batch"]
+              resources: ["cronjobs", "jobs"]
+              verbs: ["get", "list"]
+            - apiGroups: [""]
+              resources: ["pods"]
+              verbs: ["list"]
+      bindings:
+        heartbeat:
+          type: ClusterRoleBinding
+          forceRename: healthchecks-heartbeat
+          roleRef:
+            identifier: heartbeat
+          subjects:
+            - identifier: heartbeat
+
+    service:
+      app:
+        controller: healthchecks
+        ports:
+          http:
+            port: *port
+
+    persistence:
+      tmp:
+        type: emptyDir
+        globalMounts:
+          - path: /tmp
+      scripts:
+        type: configMap
+        name: healthchecks-scripts
+        defaultMode: 0555
+        globalMounts:
+          - path: /scripts
+            readOnly: true
+
+    # Two routes for one host; the longest path prefix wins, and ext_authz
+    # attaches per route:
+    #   app     -> healthchecks-app: the UI, behind Authentik forward-auth
+    #              (internal-forward-auth component, see kustomization.yaml)
+    #   machine -> healthchecks-machine: pings, API, badges. No Authentik (pings
+    #              are capability URLs, the API needs a key) and any client-sent
+    #              X-authentik-* headers are stripped so REMOTE_USER_HEADER
+    #              can't be forged through this route.
+    # Plain-HTTP /ping/ and /api/ live in the network namespace
+    # (envoy-gateway/app/httproute-healthchecks-http.yaml).
+    route:
+      app:
+        hostnames: ["hc.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - backendRefs:
+              - name: healthchecks
+                port: *port
+      machine:
+        hostnames: ["hc.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path: { type: PathPrefix, value: /ping/ }
+              - path: { type: PathPrefix, value: /api/ }
+              - path: { type: PathPrefix, value: /badge/ }
+              - path: { type: PathPrefix, value: /b/ }
+            filters:
+              - type: RequestHeaderModifier
+                requestHeaderModifier:
+                  remove:
+                    - X-authentik-uid
+                    - X-authentik-username
+                    - X-authentik-name
+                    - X-authentik-email
+                    - X-authentik-groups
+            backendRefs:
+              - name: healthchecks
+                port: *port
