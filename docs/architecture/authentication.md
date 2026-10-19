@@ -105,7 +105,7 @@ front of it - for an internal-only route that is a deliberate choice, not an omi
 | Z-Wave JS UI | external | `forward_auth` | Blueprinted proxy provider. The only external route actually gated |
 | Home Assistant | external | `public_exception` | Opted out via the `public-access` component; uses its own auth |
 | Zipline | internal | `forward_auth` | Blueprinted proxy provider |
-| HA Code Server | internal | `forward_auth` | Blueprinted proxy provider; its route is currently disabled |
+| HA Code Server | cluster_internal | `none` (HA session) | No Service or route; bound to loopback in the HA pod. Reached only via an admin-only Home Assistant ingress panel (hass_ingress), so HA login is the gate. Never route it: it is a root shell in a privileged pod |
 | Seerr | external | `external_identity_exception` | User flow is intentionally based on Plex auth |
 | Shlink | external | `public_exception` | Redirect service is intended to serve public links |
 | Plex | internal | `external_identity_exception` | Uses Plex.tv identity model |
