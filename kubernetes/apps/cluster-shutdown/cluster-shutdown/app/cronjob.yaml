@@ -67,7 +67,8 @@ spec:
               image: ghcr.io/siderolabs/talosctl:v1.11.3
               args:
                 - --talosconfig=/talos/talosconfig
-                - --endpoints=10.0.3.21
+                # Any healthy node can relay the request to the others.
+                - --endpoints=10.0.3.21,10.0.3.22,10.0.3.23
                 - --nodes=10.0.3.21,10.0.3.22,10.0.3.23
                 - shutdown
                 # Workloads are already stopped; draining three control-plane
