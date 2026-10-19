@@ -34,6 +34,21 @@ spec:
         delete_request_store: filesystem
       ingester:
         chunk_encoding: snappy
+      # Log-based alerting. Rules are ConfigMaps labelled `loki_rule` (see
+      # rules-*.yaml); the chart's loki-sc-rules sidecar copies them into /rules,
+      # and each one's k8s-sidecar-target-directory annotation puts it under
+      # /rules/fake -- the local store reads /<directory>/<tenant>/, and the
+      # tenant is "fake" while auth_enabled is false. Alerts go to the same
+      # Alertmanager as the Prometheus rules, so they land in the
+      # Infrastructure room through the existing hookshot route.
+      rulerConfig:
+        storage:
+          type: local
+          local:
+            directory: /rules
+        rule_path: /var/loki/rules-temp
+        alertmanager_url: http://kps-alertmanager.monitoring.svc.cluster.local:9093
+        enable_api: true
     singleBinary:
       replicas: 1
       persistence:

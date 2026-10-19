@@ -203,7 +203,8 @@ with `qlmanage -t -s 512`: `avatar-plex.svg` was recolored to Plex's palette and
 inset to 58% so Element's circular crop does not clip the chevron. Where the
 source project already ships a square icon, vendor that instead of redrawing it
 -- `avatar-requests.png` is Seerr's own `public/android-chrome-512x512.png`,
-copied verbatim, so it has no `.svg` beside it.
+copied verbatim, so it has no `.svg` beside it. `avatar-homeassistant.png` is
+likewise vendored verbatim from homarr-labs/dashboard-icons (`png/home-assistant.png`).
 
 Hookshot rewrites display names on restart but never touches avatars, so what
 the relay sets here survives (verified by restarting hookshot and re-firing).
@@ -804,13 +805,14 @@ Synapse):
 | Infrastructure | Longhorn backup CronJob → `/notify` | `@_webhooks_longhorn` | `Longhorn` |
 | Infrastructure | Cloudflare DNS monitor CronJob → `/notify` | `@_webhooks_cloudflare` | `Cloudflare` |
 | Infrastructure | Healthchecks webhook integration → `/notify` | `@_webhooks_healthchecks` | `Healthchecks` |
+| Infrastructure | Home Assistant `rest_command.infra_alert` → `/notify` | `@_webhooks_homeassistant` | `Home Assistant` |
 
 ## The Infrastructure room
 
 Room ID `!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}` — **public, unencrypted**,
 which is what lets the relay ghosts self-join on first use with no invite.
 
-Six infrastructure sources land here, split across the two delivery paths for
+Seven infrastructure sources land here, split across the two delivery paths for
 one reason: **whether the sender can shape its own JSON body.**
 
 | Source | Path | Why |
@@ -821,6 +823,7 @@ one reason: **whether the sender can shape its own JSON body.**
 | Longhorn backup alert | relay | our CronJob, we own the payload |
 | Cloudflare DNS monitor | relay | our CronJob, we own the payload |
 | Healthchecks | relay (`render_healthchecks`) | webhook body is templatable but cannot HTML-escape, so the relay renders the card from structured placeholders |
+| Home Assistant | relay (`render_homeassistant`) | automation names and exception text are unescaped, so HA posts structured fields and the relay renders the card. See [Wiring Home Assistant](#wiring-home-assistant) |
 
 The split is not cosmetic. A relay-delivered source gets a **clean display
 name** and a **git-declared avatar**; a hookshot-delivered one inherits
@@ -1019,6 +1022,27 @@ The ghost icon `avatar-healthchecks.png` comes from upstream's 424×512 mark,
 inset to 68% on a 512×512 dark-navy (`#1f2937`) square. The white half of the mark
 would vanish on Element's light theme without the fill. Its source is
 `avatar-healthchecks.svg`.
+
+## Wiring Home Assistant
+
+Two paths, on purpose:
+
+- **HA → relay (per event).** `packages/infra_alerts.yaml` on the HA config
+  volume (not in git: HA's `/config` is a PVC) turns on
+  `system_log: fire_event: true` and posts a `Home Assistant` card for every
+  automation or script error, linked to its trace, and for any Z-Wave node dead
+  for 10+ minutes (plus a resolved card when they all recover). It sends
+  `{"homeassistant": {"status", "title", "detail", "url", "meta"}}` through
+  `rest_command.infra_alert`; the bearer token is `token_homeassistant` in the
+  `matrix-media-relay` 1P item, mirrored into HA's `secrets.yaml` as
+  `matrix_relay_homeassistant_auth` (`Bearer <token>`).
+- **Loki → Alertmanager (escalation).** `monitoring/loki/app/rules-home-assistant.yaml`
+  fires when one automation fails 3+ times in an hour, an integration fails
+  setup, or one integration logs 10+ errors in 30 minutes. These need nothing
+  from HA, so they still fire if HA is wedged or the package is not loaded yet.
+
+Rotating the token means updating both the 1P field and HA's `secrets.yaml`,
+then `rest_command.reload` in HA.
 
 ## Wiring Alertmanager
 
