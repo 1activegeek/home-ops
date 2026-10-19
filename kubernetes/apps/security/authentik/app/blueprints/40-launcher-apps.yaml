@@ -111,22 +111,6 @@ entries:
       slug: bazarr
   - model: authentik_core.application
     identifiers:
-      slug: code-server-tools
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/code-server.png
-      meta_launch_url: https://code.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Code Server
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: code-server-tools
-  - model: authentik_core.application
-    identifiers:
       slug: glance
     attrs:
       backchannel_providers: []
