@@ -48,8 +48,12 @@ check_ghcr() {
     return
   fi
   local status
+  # Without an Accept header listing the index/manifest-list types, ghcr.io
+  # answers 404 MANIFEST_UNKNOWN for any tag published as a multi-arch OCI
+  # index, even though the tag exists.
   status=$(curl -sf -o /dev/null -w "%{http_code}" \
     -H "Authorization: Bearer ${token}" \
+    -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json" \
     "https://ghcr.io/v2/${repo}/manifests/${tag}" 2>/dev/null)
   echo "$status"
 }
@@ -96,6 +100,14 @@ check_image() {
 
   ((CHECKED++)) || true
 
+  # A reference with no registry host (`nginx`, `teslamate/teslamate`) lives on
+  # Docker Hub. The first path segment is a host only if it contains a `.` or
+  # `:`, or is `localhost` — the same rule docker uses.
+  local first="${repository%%/*}"
+  if [[ "$repository" != */* || ( "$first" != *.* && "$first" != *:* && "$first" != localhost ) ]]; then
+    repository="docker.io/${repository}"
+  fi
+
   # Route to the right registry checker
   if [[ "$repository" == ghcr.io/* ]]; then
     local image_path="${repository#ghcr.io/}"
@@ -112,7 +124,7 @@ check_image() {
       ((ERRORS++)) || true
     fi
 
-  elif [[ "$repository" == docker.io/* || "$repository" != */* || "$repository" == *docker* ]]; then
+  elif [[ "$repository" == docker.io/* ]]; then
     local image_path="${repository#docker.io/}"
     local status
     status=$(check_dockerhub "$image_path" "$tag")
