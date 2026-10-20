@@ -32,6 +32,12 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: asgard-mpc-01
 
+    # No route. The UI (8091) and the Z-Wave JS server (3000) are reachable
+    # only by Home Assistant: see ciliumnetworkpolicy.yaml. HA connects to
+    # 3000 for the integration and proxies 8091 into an admin-only sidebar
+    # panel via hass_ingress, so an HA login is the only way into the UI.
+    # Both ports are unauthenticated and the container is privileged; never
+    # add a route for either.
     service:
       app:
         controller: zwave-js-ui
@@ -54,15 +60,3 @@ spec:
         hostPath: /dev/serial/by-id/usb-Silicon_Labs_Zooz_ZST10_700_Z-Wave_Stick_0001-if00-port0
         globalMounts:
           - path: /dev/zwave
-
-    route:
-      app:
-        hostnames: ["hass-zwave.${SECRET_DOMAIN}"]
-        parentRefs:
-          - name: envoy-internal
-            namespace: network
-            sectionName: https
-        rules:
-          - backendRefs:
-              - identifier: app
-                port: 8091

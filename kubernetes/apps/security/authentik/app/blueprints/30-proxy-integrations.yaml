@@ -69,53 +69,6 @@ entries:
       policy_engine_mode: any
       provider: !KeyOf 'provider-home-assistant'
       slug: home-assistant
-  - id: provider-zwave-js-ui
-    model: authentik_providers_proxy.proxyprovider
-    identifiers:
-      name: zwave-js-ui-proxy
-    attrs:
-      access_token_validity: hours=1
-      authentication_flow: null
-      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      basic_auth_enabled: false
-      basic_auth_password_attribute: ''
-      basic_auth_user_attribute: ''
-      certificate: null
-      cookie_domain: ${SECRET_DOMAIN}
-      external_host: https://hass-zwave.${SECRET_DOMAIN}
-      intercept_header_auth: true
-      internal_host: ''
-      internal_host_ssl_validation: true
-      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-      jwt_federation_providers: []
-      jwt_federation_sources: []
-      mode: forward_single
-      name: zwave-js-ui-proxy
-      property_mappings:
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-entitlements]]
-        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
-      refresh_token_validity: days=30
-      skip_path_regex: ''
-  - id: app-zwave-js-ui
-    model: authentik_core.application
-    identifiers:
-      slug: zwave-js-ui
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://hass-zwave.${SECRET_DOMAIN}/apple-touch-icon-180x180.png
-      meta_launch_url: https://hass-zwave.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Z-Wave JS UI
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: !KeyOf 'provider-zwave-js-ui'
-      slug: zwave-js-ui
   - id: provider-zipline
     model: authentik_providers_proxy.proxyprovider
     identifiers:
@@ -245,24 +198,11 @@ entries:
       type: proxy
       providers:
         - !KeyOf 'provider-home-assistant'
-        - !KeyOf 'provider-zwave-js-ui'
         - !KeyOf 'provider-zipline'
         - !KeyOf 'provider-healthchecks'
   - model: authentik_policies.policybinding
     identifiers:
       target: !KeyOf 'app-home-assistant'
-      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
-      order: 0
-    attrs:
-      enabled: true
-      failure_result: false
-      group: null
-      negate: false
-      timeout: 30
-      user: null
-  - model: authentik_policies.policybinding
-    identifiers:
-      target: !KeyOf 'app-zwave-js-ui'
       policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
       order: 0
     attrs:
