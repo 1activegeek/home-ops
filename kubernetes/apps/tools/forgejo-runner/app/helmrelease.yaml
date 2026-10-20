@@ -25,16 +25,18 @@ spec:
           dind:
             image:
               repository: docker.io/library/docker
-              # PINNED TO 27.x DELIBERATELY — do not let Renovate walk this to 28+.
-              # Docker 28 adopted os.Root-based archive extraction, which refuses
-              # to traverse a symlink during CopyToContainer. act stages actions at
-              # /var/run/act inside the job container, and /var/run is a symlink to
-              # /run in Debian-based images (including the default
-              # code.forgejo.org/oci/node:22-bookworm), so every `uses:` step died
-              # with:
+              # MUST BE >= 29.7.1. NEVER 29.5.1 OR 29.7.0.
+              # Those two releases broke every `uses:` step with:
               #   statat var/run/act/actions/...: path escapes from parent
-              # Re-evaluate when act_runner stages actions somewhere other than
-              # /var/run, or upstream act works around the symlink.
+              # Their os.Root-based CopyToContainer extraction rejected the
+              # absolute /var/run -> /run symlink present in Debian-based job
+              # images (including code.forgejo.org/oci/node:22-bookworm), and
+              # forgejo-runner stages actions under /var/run/act. Fixed upstream
+              # in 29.5.2 (moby/moby#52655) and 29.7.1 (moby/moby#53261,
+              # moby/go-archive v0.3.2). forgejo-runner has no workaround of its
+              # own, so it depends on dockerd getting this right. If `uses:`
+              # steps start failing with that error after a bump, suspect a
+              # regression here first.
               tag: 29.9.1-dind
             restartPolicy: Always
             # dockerd listens on a UNIX SOCKET ONLY — no TCP listener exists.
