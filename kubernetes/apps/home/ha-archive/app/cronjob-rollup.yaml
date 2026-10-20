@@ -1,0 +1,88 @@
+---
+# Monthly: roll last month's daily JSONL into history.parquet + logbook.parquet
+# beside the day dirs, for fast DuckDB queries. Parquet is kept indefinitely.
+# See rollup.py and docs/home-assistant-archive.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ha-archive-rollup
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: ha-archive-rollup
+spec:
+  # The 2nd, after the 1st's export has written the month's last day.
+  schedule: "15 3 2 * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            # Synology user/group, as the other NFS writers (sabnzbd).
+            runAsUser: 1027
+            runAsGroup: 100
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: rollup
+              image: python:3.14.8-slim
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              workingDir: /tmp
+              env:
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: HOME
+                  value: /tmp
+                - name: PYTHONPATH
+                  value: /tmp/py
+                - name: DUCKDB_VERSION
+                  # renovate: datasource=pypi depName=duckdb
+                  value: 1.5.6
+                - name: DUCKDB_MEMORY_LIMIT
+                  value: 1GB
+                - name: ARCHIVE_DIR
+                  value: /nas/home-assistant-archive
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  pip install --quiet --no-cache-dir --disable-pip-version-check \
+                    --target /tmp/py "duckdb==$${DUCKDB_VERSION}"
+                  exec python3 /scripts/rollup.py
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: nas
+                  mountPath: /nas
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 2Gi
+          volumes:
+            - name: scripts
+              configMap:
+                name: ha-archive-scripts
+            - name: nas
+              nfs:
+                server: ${NFS_SERVER}
+                path: /volume1/backup
+            - name: tmp
+              emptyDir:
+                sizeLimit: 4Gi
