@@ -21,6 +21,4 @@ resources:
   - ./unpackerr/ks.yaml
   - ./grimmory/ks.yaml
   - ./audiobookshelf/ks.yaml
-  # - ./plex/ks.yaml ## Disabling temporarily
   - ./sabnzbd/ks.yaml
-  # - ./qbittorrent/ks.yaml ## Disabling temporarily

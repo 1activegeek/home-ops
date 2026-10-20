@@ -124,10 +124,6 @@ data:
               type: prowlarr
               url: http://prowlarr.media.svc.cluster.local:9696
               key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
-        - qBittorrent:
-            icon: qbittorrent.svg
-            href: https://qbit.${SECRET_DOMAIN}
-            description: Torrent Client
         - SABnzbd:
             icon: sabnzbd.svg
             href: https://sabnzbd.${SECRET_DOMAIN}
