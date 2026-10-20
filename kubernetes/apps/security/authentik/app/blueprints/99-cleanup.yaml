@@ -55,6 +55,23 @@ entries:
     identifiers:
       slug: code-server-tools
 
+  # hass-zwave: Z-Wave JS UI is no longer routed; it is reachable only through the Home Assistant UI
+  # (hass_ingress panel, CiliumNetworkPolicy), so the forward-auth provider protects nothing.
+  - model: authentik_policies.policybinding
+    state: absent
+    identifiers:
+      target: !Find [authentik_core.application, [slug, zwave-js-ui]]
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: zwave-js-ui
+  - model: authentik_providers_proxy.proxyprovider
+    state: absent
+    identifiers:
+      name: zwave-js-ui-proxy
+
   # Superseded by zipline-proxy; this OIDC provider has no application attached.
   - model: authentik_providers_oauth2.oauth2provider
     state: absent

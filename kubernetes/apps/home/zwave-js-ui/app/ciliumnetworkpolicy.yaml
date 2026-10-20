@@ -1,0 +1,34 @@
+---
+# Only Home Assistant may reach Z-Wave JS UI.
+#
+# Both ports are unauthenticated and either one controls the whole Z-Wave
+# network (locks, garage, device removal, controller reset). The UI also runs
+# arbitrary JavaScript ("Driver function") inside a privileged container, so
+# reaching it is effectively root on the node. Selecting the pod in a policy
+# makes its ingress default-deny for everything not listed here: no other pod,
+# no gateway, nothing on the LAN.
+#
+# HA runs with hostNetwork, so its traffic arrives from the `host` entity. That
+# works only because both pods are pinned to the same node (the USB sticks are
+# plugged into it). If either moves, HA's traffic arrives as `remote-node` and
+# this policy blocks it.
+#   3000  Z-Wave JS server: the HA integration's WebSocket
+#   8091  UI: proxied by HA into an admin-only sidebar panel (hass_ingress)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: zwave-js-ui-restrict-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: zwave-js-ui
+      app.kubernetes.io/controller: zwave-js-ui
+  ingress:
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+            - port: "8091"
+              protocol: TCP

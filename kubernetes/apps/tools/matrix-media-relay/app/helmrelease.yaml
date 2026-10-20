@@ -79,6 +79,12 @@ spec:
                     "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
                     "displayname": "Healthchecks",
                     "avatar": "avatar-healthchecks.png"
+                  },
+                  "homeassistant": {
+                    "sender": "@_webhooks_homeassistant:matrix.${SECRET_DOMAIN}",
+                    "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
+                    "displayname": "Home Assistant",
+                    "avatar": "avatar-homeassistant.png"
                   }
                 }
             envFrom:
@@ -158,6 +164,9 @@ spec:
                 readOnly: true
               - path: /app/avatars/avatar-healthchecks.png
                 subPath: avatar-healthchecks.png
+                readOnly: true
+              - path: /app/avatars/avatar-homeassistant.png
+                subPath: avatar-homeassistant.png
                 readOnly: true
 
     # Internal only. Tautulli reaches it in-cluster; the route is for testing.

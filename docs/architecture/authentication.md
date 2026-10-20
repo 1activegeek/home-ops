@@ -102,7 +102,7 @@ front of it - for an internal-only route that is a deliberate choice, not an omi
 | Matrix (MAS) | internal | `native_oidc` | Blueprinted. Redirect URI embeds a pinned upstream-provider ID |
 | Synapse | internal | `native_oidc` | Auth fully delegated to MAS. Federation disabled; no local passwords |
 | Element | internal | `native_oidc` | Static client; flows through Synapse -> MAS -> Authentik |
-| Z-Wave JS UI | external | `forward_auth` | Blueprinted proxy provider. The only external route actually gated |
+| Z-Wave JS UI | cluster_internal | `none` (HA session) | No route. A CiliumNetworkPolicy admits only Home Assistant (`host` entity) on the UI and Z-Wave JS server ports. The UI is reached only through an admin-only Home Assistant ingress panel (hass_ingress), so HA login is the gate. Never route it: it can run code in a privileged container and controls locks |
 | Home Assistant | external | `public_exception` | Opted out via the `public-access` component; uses its own auth |
 | Zipline | internal | `forward_auth` | Blueprinted proxy provider |
 | HA Code Server | cluster_internal | `none` (HA session) | No Service or route; bound to loopback in the HA pod. Reached only via an admin-only Home Assistant ingress panel (hass_ingress), so HA login is the gate. Never route it: it is a root shell in a privileged pod |
