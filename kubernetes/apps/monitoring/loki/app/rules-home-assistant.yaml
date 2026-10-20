@@ -1,0 +1,72 @@
+---
+# Loki alert rules for Home Assistant, evaluated by the Loki ruler (see the
+# rulerConfig block in helmrelease.yaml). These cover what HA cannot report
+# about itself: patterns across many log lines, and failures that happen before
+# HA's own alerting automations are loaded. Each individual automation error is
+# posted by HA itself as a "Home Assistant" card (packages/infra_alerts.yaml on
+# the HA config volume); these rules only escalate when something keeps failing.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-rules-home-assistant
+  labels:
+    loki_rule: "1"
+  annotations:
+    k8s-sidecar-target-directory: /rules/fake
+data:
+  home-assistant.yaml: |
+    groups:
+      - name: home-assistant.logs
+        rules:
+          # The same automation failing 3+ times in an hour is a broken device
+          # or config, not a one-off (e.g. a dead Z-Wave node every automation
+          # waits ~30s on before giving up).
+          - alert: HomeAssistantAutomationFailingRepeatedly
+            expr: |
+              sum by (automation) (
+                count_over_time({namespace="home", pod=~"home-assistant-.*", container="app"}
+                  |= "Error while executing automation"
+                  | regexp "Error while executing automation (?P<automation>automation\\.[a-z0-9_]+)"
+                  [1h])
+              ) >= 3
+            labels:
+              severity: warning
+              namespace: home
+            annotations:
+              summary: "{{ $labels.automation }} failed {{ $value }} times in the last hour"
+              description: >-
+                Check the automation's traces in Home Assistant. A device that
+                stopped responding (dead Z-Wave node, offline integration) is
+                the usual cause.
+          # Fires once per failed setup (the 30m window keeps it firing long
+          # enough to group, then it resolves on its own).
+          - alert: HomeAssistantIntegrationSetupFailed
+            expr: |
+              sum by (integration, entry) (
+                count_over_time({namespace="home", pod=~"home-assistant-.*", container="app"}
+                  |= "Error setting up entry"
+                  | regexp "Error setting up entry (?P<entry>.+) for (?P<integration>[a-z0-9_]+)"
+                  [30m])
+              ) > 0
+            labels:
+              severity: warning
+              namespace: home
+            annotations:
+              summary: "{{ $labels.integration }} failed to set up ({{ $labels.entry }})"
+          # A single integration logging 10+ errors in 30 minutes is stuck
+          # reconnecting or broken (e.g. apple_tv "Failed to connect" loops).
+          # Automation/script errors are excluded: the rule above covers them.
+          - alert: HomeAssistantIntegrationErroring
+            expr: |
+              sum by (logger) (
+                count_over_time({namespace="home", pod=~"home-assistant-.*", container="app"}
+                  |= " ERROR ("
+                  | regexp "^\\S+ \\S+ ERROR \\([^)]+\\) \\[(?P<logger>[^\\]]+)\\]"
+                  | logger !~ "homeassistant\\.components\\.(automation|script)\\..*"
+                  [30m])
+              ) >= 10
+            labels:
+              severity: warning
+              namespace: home
+            annotations:
+              summary: "{{ $labels.logger }} logged {{ $value }} errors in 30 minutes"

@@ -424,6 +424,42 @@ def render_healthchecks(hc):
     return text, html
 
 
+def render_homeassistant(ha):
+    """Card for Home Assistant's own alerts (packages/infra_alerts.yaml on HA).
+
+    HA posts {"homeassistant": {"status", "title", "detail", "url", "meta"}}
+    rather than a hand-built body: titles and details are automation names and
+    raw exception text, which can contain `<` or `&`, and Jinja in a
+    rest_command cannot be trusted to escape them. The card is built here,
+    escaped, in the room's shared blockquote format (docs/matrix-webhooks.md).
+    status is "error", "warning" or "resolved".
+    """
+    esc = htmllib.escape
+    status = str(ha.get("status") or "error").lower()
+    color, word = {
+        "resolved": ("#43b581", "✅ RESOLVED"),
+        "warning": ("#faa61a", "⚠️ WARNING"),
+    }.get(status, ("#f04747", "🔥 ERROR"))
+    title = str(ha.get("title") or "Home Assistant")
+    url = str(ha.get("url") or "")
+    # Exception text can be long (tracebacks); trim so one error cannot flood
+    # the room.
+    detail = str(ha.get("detail") or "").strip()
+    if len(detail) > 500:
+        detail = detail[:500] + "…"
+    meta = str(ha.get("meta") or "")
+
+    text = "%s - %s" % (word, title) + ("\n" + detail if detail else "") + \
+        ("\n" + url if url else "")
+    link = '<a href="%s">%s</a>' % (esc(url), esc(title)) if url else esc(title)
+    html = ('<blockquote><span data-mx-color="%s"><b>%s &middot; %s</b></span>' %
+            (color, word, link) +
+            ("<br><code>%s</code>" % esc(detail) if detail else "") +
+            ('<br><span data-mx-color="#888888">%s</span>' % esc(meta) if meta else "") +
+            "</blockquote>")
+    return text, html
+
+
 def send(profile, payload):
     sender, allowed = profile["sender"], profile["rooms"]
     room = payload.get("room") or allowed[0]
@@ -433,6 +469,9 @@ def send(profile, payload):
     if isinstance(payload.get("healthchecks"), dict):
         payload = dict(payload)
         payload["text"], payload["html"] = render_healthchecks(payload["healthchecks"])
+    elif isinstance(payload.get("homeassistant"), dict):
+        payload = dict(payload)
+        payload["text"], payload["html"] = render_homeassistant(payload["homeassistant"])
 
     text = payload.get("text") or ""
     html = payload.get("html")
