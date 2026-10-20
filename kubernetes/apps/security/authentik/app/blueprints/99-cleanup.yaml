@@ -72,6 +72,14 @@ entries:
     identifiers:
       name: zwave-js-ui-proxy
 
+  # Baby Buddy is no longer routed; it is reachable only through the Home Assistant UI
+  # (hass_ingress panel, CiliumNetworkPolicy). Dropping its tile from 40-launcher-apps.yaml
+  # leaves the application in place, so remove it explicitly.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: babybuddy
+
   # Superseded by zipline-proxy; this OIDC provider has no application attached.
   - model: authentik_providers_oauth2.oauth2provider
     state: absent

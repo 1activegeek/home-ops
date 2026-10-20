@@ -1,4 +1,22 @@
 ---
+# Baby Buddy is reachable only through Home Assistant: a hass_ingress sidebar
+# panel (work_mode: ingress, slug `babybuddy`) proxies it at
+# https://hass.${SECRET_DOMAIN}/api/ingress/babybuddy/ and sends
+# `Remote-User: admin`. With REVERSE_PROXY_AUTH, Baby Buddy trusts that header,
+# so an HA login is the only login. There is no HTTPRoute, and the
+# CiliumNetworkPolicy keeps everything but HA (and the kubelet) off the pod, so
+# nothing else can send the header.
+#
+# The panel URL keeps the ingress prefix
+# (http://babybuddy.home.svc.cluster.local:8000/api/ingress/babybuddy), so the
+# app is served under that subpath:
+#   SUB_PATH     Baby Buddy builds its static URLs under the prefix
+#   SCRIPT_NAME  gunicorn strips the prefix and Django generates links with it
+#   nginx conf   serves /static and /media under the prefix
+# Requests outside the prefix are rejected by gunicorn, except root /api/,
+# which nginx maps onto the prefix for the HA Baby Buddy integration (token
+# auth). Remote-User is honored on every path, /api/ included, so the network
+# policy is the only thing keeping it from being spoofed.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -22,14 +40,17 @@ spec:
               TZ: America/New_York
               PUID: "1000"
               PGID: "1000"
-              CSRF_TRUSTED_ORIGINS: "https://baby.${SECRET_DOMAIN}"
+              CSRF_TRUSTED_ORIGINS: "https://hass.${SECRET_DOMAIN}"
+              REVERSE_PROXY_AUTH: "True"
+              SUB_PATH: &subpath /api/ingress/babybuddy
+              SCRIPT_NAME: *subpath
             probes:
               liveness:
                 enabled: true
                 custom: true
                 spec:
                   httpGet:
-                    path: /
+                    path: /api/ingress/babybuddy/login/
                     port: 8000
                   initialDelaySeconds: 30
                   periodSeconds: 10
@@ -38,7 +59,7 @@ spec:
                 custom: true
                 spec:
                   httpGet:
-                    path: /
+                    path: /api/ingress/babybuddy/login/
                     port: 8000
                   initialDelaySeconds: 30
                   periodSeconds: 10
@@ -64,23 +85,56 @@ spec:
         size: 2Gi
         globalMounts:
           - path: /config
+      nginx:
+        type: configMap
+        identifier: nginx
+        globalMounts:
+          - path: /config/nginx/site-confs/default.conf
+            subPath: default.conf
+            readOnly: true
 
-    route:
-      app:
-        hostnames: ["baby.${SECRET_DOMAIN}"]
-        parentRefs:
-          - name: envoy-internal
-            namespace: network
-            sectionName: https
-        rules:
-          - backendRefs:
-              - name: babybuddy
-                port: 8000
-            filters:
-              - type: ResponseHeaderModifier
-                responseHeaderModifier:
-                  remove:
-                    - X-Frame-Options
-                  set:
-                    - name: Content-Security-Policy
-                      value: "frame-ancestors https://hass.${SECRET_DOMAIN}"
+    configMaps:
+      nginx:
+        data:
+          # linuxserver's default.conf.sample with /static and /media moved
+          # under the ingress prefix. Root /api/ is mapped onto the prefix so
+          # the HA Baby Buddy integration (host babybuddy.home.svc, empty
+          # path, token auth) keeps working without being re-added.
+          default.conf: |
+            server {
+                listen 8000;
+                listen [::]:8000;
+                server_name _;
+
+                client_max_body_size 0;
+
+                location / {
+                    proxy_pass http://127.0.0.1:3000;
+                    proxy_set_header Host $http_host;
+                    proxy_redirect off;
+                }
+
+                location /api/ingress/babybuddy/ {
+                    proxy_pass http://127.0.0.1:3000;
+                    proxy_set_header Host $http_host;
+                    proxy_redirect off;
+                }
+
+                location /api/ {
+                    proxy_pass http://127.0.0.1:3000/api/ingress/babybuddy/api/;
+                    proxy_set_header Host $http_host;
+                    proxy_redirect off;
+                }
+
+                location ^~ /api/ingress/babybuddy/media/ {
+                    alias /app/www/public/media/;
+                }
+
+                location ^~ /api/ingress/babybuddy/static/ {
+                    alias /app/www/public/static/;
+                }
+
+                location ~ /\.ht {
+                    deny all;
+                }
+            }
