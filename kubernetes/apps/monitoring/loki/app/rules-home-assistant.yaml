@@ -70,3 +70,24 @@ data:
               namespace: home
             annotations:
               summary: "{{ $labels.logger }} logged {{ $value }} errors in 30 minutes"
+          # Log flood: HA normally logs a few lines a minute (a restart is a few
+          # hundred). On 2026-10-20 an alerting automation re-triggered on its
+          # own errors and logged ~27k lines a minute for two hours, filling the
+          # recorder DB and a 5 GB log file. Its logger was an automation's and
+          # its message not "Error while executing automation", so neither rule
+          # above fired. This counts every line, whatever the source.
+          - alert: HomeAssistantLogFlood
+            expr: |
+              sum(count_over_time({namespace="home", pod=~"home-assistant-.*", container="app"}[10m])) > 3000
+            for: 5m
+            labels:
+              severity: critical
+              namespace: home
+            annotations:
+              summary: "Home Assistant is logging {{ $value }} lines per 10 minutes"
+              description: >-
+                Likely a feedback loop (an automation triggered by
+                system_log_event erroring on itself) or an integration stuck
+                retrying. Find the repeating line in the HA log and disable that
+                automation or integration; every line also lands in the
+                recorder DB if system_log_event is not excluded.

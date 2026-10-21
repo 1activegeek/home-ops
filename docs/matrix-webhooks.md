@@ -1036,10 +1036,21 @@ Two paths, on purpose:
   `rest_command.infra_alert`; the bearer token is `token_homeassistant` in the
   `matrix-media-relay` 1P item, mirrored into HA's `secrets.yaml` as
   `matrix_relay_homeassistant_auth` (`Bearer <token>`).
+  **The error automation must not use template conditions** (`conditions:`,
+  `if:`, `choose:`, `wait_template`). `system_log_event` fires synchronously
+  inside whatever logged the error. When that is another template mid-render,
+  a template condition raises `RenderInfo already set`, which is logged at
+  ERROR and re-triggers the automation. On 2026-10-20 that looped ~2.5M times
+  in two hours. The filter is computed in `variables` and gated with
+  `repeat.for_each`, which cannot raise that error. The package's own loggers
+  are excluded, so its failures cannot alert on themselves. The recorder
+  excludes `system_log_event`, so the events are never stored.
 - **Loki → Alertmanager (escalation).** `monitoring/loki/app/rules-home-assistant.yaml`
   fires when one automation fails 3+ times in an hour, an integration fails
-  setup, or one integration logs 10+ errors in 30 minutes. These need nothing
-  from HA, so they still fire if HA is wedged or the package is not loaded yet.
+  setup, one integration logs 10+ errors in 30 minutes, or HA logs more than
+  3000 lines in 10 minutes from any source (`HomeAssistantLogFlood`, critical).
+  These need nothing from HA, so they still fire if HA is wedged or the package
+  is not loaded yet.
 
 Rotating the token means updating both the 1P field and HA's `secrets.yaml`,
 then `rest_command.reload` in HA.
