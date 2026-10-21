@@ -31,6 +31,10 @@ spec:
       main:
         annotations:
           reloader.stakater.com/auto: "true"
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          # Readiness only, no healthchecks.io/url: the network policy keeps the
+          # runner off the pod. The readiness probe already GETs the login page.
+          healthchecks.io/slug: babybuddy
         containers:
           app:
             image:

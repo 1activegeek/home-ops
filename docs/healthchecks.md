@@ -71,7 +71,12 @@ To opt an app in, annotate its Deployment, StatefulSet or DaemonSet. For app-tem
 ```yaml
 healthchecks.io/slug: sonarr                                            # required; lowercase [a-z0-9_-]
 healthchecks.io/url: http://sonarr.media.svc.cluster.local:8989/ping    # optional, must answer 2xx
+healthchecks.io/containers: code-server=ha-code-server                  # optional, "<container>=<slug> ..."
 ```
+
+`healthchecks.io/containers` adds one more check per listed container. Each one is healthy while that
+container is ready in at least one pod. Use it for a sidecar that matters on its own but that the
+pod-level check can't name, such as Home Assistant's code-server.
 
 Every 60 seconds, for each annotated workload:
 
@@ -94,8 +99,16 @@ is correct, because a workload vanishing is exactly what this guards against. De
 the UI.
 
 The runner reads workloads cluster-wide through a read-only ClusterRole: get/list on
-deployments, statefulsets, daemonsets, cronjobs and jobs, plus list on pods for failure reasons. It pings
-the Service directly, and the pod's network policy allows that.
+deployments, statefulsets, daemonsets, cronjobs and jobs, plus list on pods for failure reasons. When a URL is set,
+the runner calls the Service directly, so the app's network policy has to allow the runner in.
+
+Apps whose network policy admits only Home Assistant are Baby Buddy, Z-Wave JS UI, and code-server,
+which listens on loopback. These apps have **no URL** on purpose, because letting the runner in would
+widen exactly the boundary the policy exists for. Their deep check is the kubelet's probe instead,
+since kubelet probes arrive from the host, which the policies allow. Baby Buddy's readiness probe
+loads the login page. Z-Wave JS UI's readiness probe hits `/health/zwave`, so the pod is Ready only
+while the Z-Wave driver is up. code-server has a liveness probe on `/healthz`, not a readiness probe,
+because a failing readiness probe would pull Home Assistant out of its Service.
 
 ## Scheduled jobs (the "Jobs" project)
 

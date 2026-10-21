@@ -17,6 +17,8 @@ spec:
           # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
           healthchecks.io/slug: home-assistant
           healthchecks.io/url: http://home-assistant-app.home.svc.cluster.local:8123/manifest.json
+          # code-server gets its own check (container readiness; see its probe).
+          healthchecks.io/containers: code-server=ha-code-server
         # TEMPORARY WORKAROUND (2026-07-26) — remove once awscrt ships a fix.
         #
         # The HA image ships awscrt 0.32.1 (pre-installed for the core lg_thinq
@@ -110,6 +112,25 @@ spec:
               - --extensions-dir
               - /config/.vscode
               - /config
+            # Liveness, not readiness: a readiness failure here would mark the
+            # whole pod NotReady and pull Home Assistant out of its Service.
+            # A hung editor gets restarted instead, and a crash loop shows up
+            # as not ready on the ha-code-server heartbeat. The kubelet shares
+            # the node's network namespace (hostNetwork), so it can reach the
+            # loopback bind.
+            probes:
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    host: 127.0.0.1
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 30
+                  periodSeconds: 60
+                  timeoutSeconds: 5
+                  failureThreshold: 3
             securityContext:
               allowPrivilegeEscalation: false
               capabilities: { drop: ["ALL"] }
