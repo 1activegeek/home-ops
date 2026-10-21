@@ -8,3 +8,4 @@ resources:
   - ./networkpolicy.yaml
   - ./recurringjobs.yaml
   - ./servicemonitor.yaml
+  - ./storageclass-nobackup.yaml
