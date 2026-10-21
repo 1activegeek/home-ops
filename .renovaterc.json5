@@ -45,6 +45,16 @@
   },
   packageRules: [
     {
+      description: "Workbench image: deploy nightly with no burn-in. The image repo already batches Orca and tool bumps into one nightly build, and the Orca desktop/mobile clients refuse a server that falls too far behind. Each deploy restarts the pod (killing running agents), hence the small overnight window.",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/1activegeek/workbench"],
+      versioning: "loose",
+      schedule: ["* 3-5 * * *"],
+      minimumReleaseAge: "0 days",
+      automerge: true,
+      automergeType: "branch",
+    },
+    {
       description: "Pin onepassword-connect chart to 2.2.1 - chart 2.3.0 changed credentials mounting from base64 env var to raw JSON file, incompatible with current SOPS secret encoding. Fix by re-encoding the 1password-credentials.json SOPS secret as raw JSON before upgrading.",
       matchManagers: ["helmv3", "helm-values"],
       matchPackageNames: ["connect"],

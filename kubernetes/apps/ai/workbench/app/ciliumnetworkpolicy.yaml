@@ -1,0 +1,58 @@
+---
+# Workbench network lockdown (ADR 0002). Ingress: kubelet probes only; clients
+# arrive through in-pod userspace tailscaled, which never touches pod ingress.
+# Egress: internet, the kube API, DNS, Forgejo, the internal gateway (so agents
+# reach internal apps through their routes and auth), and a short list of LAN
+# hosts. Everything else on the LAN and in other namespaces is denied.
+# NFS mounts are made by the kubelet on the node, so they are unaffected.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: workbench
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: workbench
+  ingress:
+    - fromEntities: [host]
+  egress:
+    - toEntities: [kube-apiserver]
+      toPorts:
+        - ports: [{port: "6443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - {port: "53", protocol: UDP}
+            - {port: "53", protocol: TCP}
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tools
+            app.kubernetes.io/name: forgejo
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+    # NAS: DSM API and SSH.
+    - toCIDR: [10.0.3.2/32]
+      toPorts:
+        - ports:
+            - {port: "5001", protocol: TCP}
+            - {port: "22", protocol: TCP}
+    # Network controller/gateway: API and SSH.
+    - toCIDR: [10.0.1.1/32]
+      toPorts:
+        - ports:
+            - {port: "443", protocol: TCP}
+            - {port: "22", protocol: TCP}
+    # Internet only: every private, CGNAT and link-local range is excluded.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10
+            - 169.254.0.0/16
