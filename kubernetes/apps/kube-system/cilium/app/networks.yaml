@@ -4,9 +4,13 @@ kind: CiliumLoadBalancerIPPool
 metadata:
   name: pool
 spec:
-  allowFirstLastIPs: "No"
+  # The k8s range on the LAN is .51-.70. .51 is the Talos API VIP (not a
+  # LoadBalancer), so the pool starts at .52. Never widen this to the whole
+  # /24: Cilium would hand out static hosts' IPs (it once gave the NAS's
+  # address to forgejo-ssh) and answer ARP for them.
   blocks:
-    - cidr: "10.0.3.0/24"
+    - start: "10.0.3.52"
+      stop: "10.0.3.70"
 ---
 apiVersion: cilium.io/v2alpha1
 kind: CiliumL2AnnouncementPolicy
