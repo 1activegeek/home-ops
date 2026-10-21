@@ -1,0 +1,3 @@
+# The Workbench replaces agentbox
+
+agentbox was a Tailscale-SSH shell box running Claude Code in a terminal multiplexer, with no RBAC, no container hardening and no egress controls. The Workbench replaces it with a remote Orca server, so desktop and mobile Orca clients can drive long-running agents that keep going while every client is disconnected. It is built as a new app instead of evolving agentbox, so that hardening (a dedicated service account, a security context, an egress policy, a scoped 1Password service account) is part of the design from the start. Keeping both apps was rejected because two pods writing to the same Synced share doubles the risk of sync conflicts for no benefit.

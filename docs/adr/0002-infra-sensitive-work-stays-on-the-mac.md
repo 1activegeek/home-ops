@@ -1,0 +1,3 @@
+# Infra-sensitive work stays on the Mac
+
+The Workbench is the main place agent work happens, but it is the more exposed host: it is always on, it is reachable over the tailnet, and its credentials sit in cluster Secrets instead of the macOS Keychain. Node, Talos and cluster-upgrade operations, and anything that needs Claude in Chrome, therefore run only on the Mac. Trust flows one way: the Mac may connect to the Workbench, and the Workbench never connects into the Mac. The user orchestrates by choosing the host from an Orca client. We rejected having the Workbench dispatch jobs to the Mac, because that would give a compromised pod a path into the most trusted machine.
