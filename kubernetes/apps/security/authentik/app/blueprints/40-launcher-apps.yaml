@@ -134,7 +134,7 @@ entries:
       meta_description: ''
       meta_hide: false
       meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
-      meta_launch_url: https://home.${SECRET_DOMAIN}
+      meta_launch_url: https://home2.${SECRET_DOMAIN}
       meta_publisher: ''
       name: Homepage
       open_in_new_tab: false

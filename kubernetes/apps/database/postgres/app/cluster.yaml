@@ -72,3 +72,9 @@ spec:
         passwordSecret:
           name: cnpg-role-healthchecks-secret
         comment: "Healthchecks (monitoring namespace)"
+      - name: homarr
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-role-homarr-secret
+        comment: "Homarr (tools namespace)"

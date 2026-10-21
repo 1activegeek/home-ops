@@ -46,8 +46,10 @@ data:
                         url: https://git.${SECRET_DOMAIN}
                       - title: Grafana
                         url: https://grafana.${SECRET_DOMAIN}
-                      - title: Homepage
+                      - title: Homarr
                         url: https://home.${SECRET_DOMAIN}
+                      - title: Homepage
+                        url: https://home2.${SECRET_DOMAIN}
                       - title: n8n
                         url: https://n8n.${SECRET_DOMAIN}
                   - title: Media

@@ -17,6 +17,7 @@ resources:
   - ./bridge/ks.yaml
   - ./zipline/ks.yaml
   - ./homepage/ks.yaml
+  - ./homarr/ks.yaml
   - ./glance/ks.yaml
   - ./rackpeek/ks.yaml
   - ./atuin/ks.yaml
