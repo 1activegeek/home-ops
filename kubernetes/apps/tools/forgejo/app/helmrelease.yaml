@@ -19,8 +19,9 @@ spec:
       http:
         type: ClusterIP
         port: 3000
+      # ClusterIP: LAN SSH goes through envoy-internal (tcproute.yaml).
       ssh:
-        type: LoadBalancer
+        type: ClusterIP
         port: 22
 
     # 10Gi -> 50Gi for Actions job logs/artifacts and the container registry
