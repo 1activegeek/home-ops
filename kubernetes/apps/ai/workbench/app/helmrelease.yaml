@@ -31,11 +31,14 @@ spec:
           app:
             image:
               repository: ghcr.io/1activegeek/workbench
-              tag: 1.4.235.1
+              tag: 1.4.235.5
             env:
               TZ: America/New_York
               WORKBENCH_HOSTNAME: workbench
-              WORKBENCH_VAULT: /data/vault
+              VAULT_WORK_TREE: /data/vault
+              VAULT_GIT_DIR: /home/workbench/orca/workspaces/.vault-git/lifeOS.git
+              VAULT_REMOTE: origin
+              VAULT_BRANCH: master
               WORKBENCH_FORGEJO_SSH_HOST: forgejo-ssh.tools.svc.cluster.local
               WORKBENCH_NAS_HOST: ${NFS_SERVER}
               WORKBENCH_GATEWAY_HOST: 10.0.1.1
