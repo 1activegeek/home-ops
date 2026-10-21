@@ -5,3 +5,15 @@ resources:
   - ./ocirepository.yaml
   - ./externalsecret.yaml
   - ./helmrelease.yaml
+
+# Setup hook, run by the image entrypoint before Apache starts. Flux post-build substitution is
+# disabled on this ConfigMap so the script's shell variables survive untouched.
+configMapGenerator:
+  - name: nextcloud-hooks
+    files:
+      - ./resources/setup.sh
+
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

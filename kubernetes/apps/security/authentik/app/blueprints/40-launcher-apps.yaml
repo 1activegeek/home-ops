@@ -207,22 +207,6 @@ entries:
       slug: n8n
   - model: authentik_core.application
     identifiers:
-      slug: nextcloud
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nextcloud.png
-      meta_launch_url: https://cloud.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Nextcloud
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: nextcloud
-  - model: authentik_core.application
-    identifiers:
       slug: prometheus
     attrs:
       backchannel_providers: []

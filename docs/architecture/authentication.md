@@ -100,6 +100,7 @@ front of it - for an internal-only route that is a deliberate choice, not an omi
 | Forgejo | internal | `native_oidc` | Blueprinted. The auth source also lives in Forgejo's own database |
 | Hermes | internal | `native_oidc` | Blueprinted. Dashboard refuses to bind without a provider |
 | Homarr | internal | `native_oidc` | Blueprinted. Application bound to `tier1` + `tier2` only (tier3 and ungrouped users are denied at Authentik). Homarr syncs the `groups` claim onto same-named Homarr groups: `tier1` holds the admin permission, `tier2` gets board view. Local credentials stay enabled for one break-glass admin; no auto-login |
+| Nextcloud | internal | `native_oidc` | Blueprinted. user_oidc app configured by the app's setup hook. Application bound to `tier1` + `tier2`. Single user backend, so `/login` auto-redirects to Authentik (an existing Authentik session signs straight in). Local admin is break-glass via the direct-login URL. Accounts keyed on the Authentik username; no group sync, so Nextcloud admin rights are granted inside Nextcloud |
 | Matrix (MAS) | internal | `native_oidc` | Blueprinted. Redirect URI embeds a pinned upstream-provider ID |
 | Synapse | internal | `native_oidc` | Auth fully delegated to MAS. Federation disabled; no local passwords |
 | Element | internal | `native_oidc` | Static client; flows through Synapse -> MAS -> Authentik |
