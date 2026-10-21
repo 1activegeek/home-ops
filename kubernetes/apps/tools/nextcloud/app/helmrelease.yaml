@@ -90,9 +90,14 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  httpGet:
+                  httpGet: &statusProbe
                     path: /status.php
                     port: 80
+                    # Once installed, Nextcloud answers 400 to hosts outside trusted_domains,
+                    # and the kubelet would otherwise send the pod IP.
+                    httpHeaders:
+                      - name: Host
+                        value: "cloud.${SECRET_DOMAIN}"
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 90
@@ -100,9 +105,7 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  httpGet:
-                    path: /status.php
-                    port: 80
+                  httpGet: *statusProbe
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 6
@@ -110,9 +113,7 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  httpGet:
-                    path: /status.php
-                    port: 80
+                  httpGet: *statusProbe
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 6
