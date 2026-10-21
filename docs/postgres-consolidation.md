@@ -28,6 +28,7 @@ failover and alerting, not eliminated.
 | App | NS | Role | Database |
 |-----|----|------|----------|
 | forgejo | tools | `forgejo` | `forgejo` |
+| homarr | tools | `homarr` | `homarr` |
 | shlink | tools | `shlink` | `shlink` |
 | atuin | tools | `atuin` | `atuin` |
 | zipline | tools | `zipline` | `zipline` |
@@ -47,6 +48,7 @@ Manifests: `kubernetes/apps/database/postgres/app/`.
 
 - [x] CNPG operator + shared cluster deployed
 - [x] **forgejo** — migrated from SQLite
+- [x] **homarr** — new tenant, no data migrated (2026-10-20)
 - [ ] everything else, in the order below
 
 ## The pattern (identical for every app)

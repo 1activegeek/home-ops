@@ -24,7 +24,7 @@ spec:
               tag: v2.6.0
             env:
               TZ: America/New_York
-              HOMEPAGE_ALLOWED_HOSTS: "home.${SECRET_DOMAIN}"
+              HOMEPAGE_ALLOWED_HOSTS: "home2.${SECRET_DOMAIN}"
               HOMEPAGE_VAR_TAUTULLI_API_KEY:
                 valueFrom:
                   secretKeyRef:
@@ -116,7 +116,7 @@ spec:
 
     route:
       app:
-        hostnames: ["home.${SECRET_DOMAIN}"]
+        hostnames: ["home2.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal
             namespace: network
