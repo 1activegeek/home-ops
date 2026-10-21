@@ -44,7 +44,7 @@ The Workbench is an always-on remote Orca server in the `ai` namespace. It is th
 ### Vault
 Git never writes the Vault folder (ADR 0001).
 - All hosts commit with `vault-commit`: fetch, `reset --mixed` onto the remote, stage only what changed, commit, push, and retry if the push is rejected.
-- Branches are Landed with `vault-land`, which applies the branch's diff with a 3-way apply and refuses if an affected file changed underneath it.
+- Branches are Landed with `vault-land`, which applies only the branch's diff and refuses if any affected file changed on disk since the branch began.
 - Vault PRs are never merged in the Forgejo UI.
 - Claude deny rules block `pull`, `merge`, `checkout`, `stash` and `reset --hard` in the Vault.
 - The Mac keeps its periodic snapshot, which runs through `vault-commit`. The Workbench commits only after agent tasks.
