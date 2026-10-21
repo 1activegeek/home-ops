@@ -72,6 +72,29 @@ entries:
     identifiers:
       name: zwave-js-ui-proxy
 
+  # Removed 2026-10-21 for lack of use (Glance, LibreChat, Open WebUI, Shlink, Webtop). Dropping
+  # their tiles from 40-launcher-apps.yaml leaves the applications in place.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: glance
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: librechat
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: open-webui
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: shlink
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: webtop
+
   # Superseded by zipline-proxy; this OIDC provider has no application attached.
   - model: authentik_providers_oauth2.oauth2provider
     state: absent

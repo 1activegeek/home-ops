@@ -111,22 +111,6 @@ entries:
       slug: bazarr
   - model: authentik_core.application
     identifiers:
-      slug: glance
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/glance.png
-      meta_launch_url: https://glance.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Glance
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: glance
-  - model: authentik_core.application
-    identifiers:
       slug: grimmory
     attrs:
       backchannel_providers: []
@@ -157,22 +141,6 @@ entries:
       policy_engine_mode: any
       provider: null
       slug: homepage
-  - model: authentik_core.application
-    identifiers:
-      slug: librechat
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/librechat.png
-      meta_launch_url: https://librechat.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: LibreChat
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: librechat
   - model: authentik_core.application
     identifiers:
       slug: longhorn
@@ -269,22 +237,6 @@ entries:
       policy_engine_mode: any
       provider: null
       slug: nextcloud
-  - model: authentik_core.application
-    identifiers:
-      slug: open-webui
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/open-webui.png
-      meta_launch_url: https://chat.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Open WebUI
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: open-webui
   - model: authentik_core.application
     identifiers:
       slug: prometheus
@@ -399,22 +351,6 @@ entries:
       slug: seerr
   - model: authentik_core.application
     identifiers:
-      slug: shlink
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/shlink.png
-      meta_launch_url: https://shlink.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Shlink
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: shlink
-  - model: authentik_core.application
-    identifiers:
       slug: sonarr
     attrs:
       backchannel_providers: []
@@ -477,19 +413,3 @@ entries:
       policy_engine_mode: any
       provider: null
       slug: uptime-kuma
-  - model: authentik_core.application
-    identifiers:
-      slug: webtop
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/webtop.png
-      meta_launch_url: https://webtop.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Webtop
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: webtop

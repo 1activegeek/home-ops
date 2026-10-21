@@ -19,8 +19,8 @@ Several apps are currently running as Docker containers on the NAS and need to b
 > The per-app sidecar pattern held up to about ten databases, then the costs it
 > ignored — no HA, ten backup CronJobs, ten hand-run major upgrades, no metrics —
 > outweighed the isolation it bought. Forgejo has migrated; the remaining apps
-> follow the ordering in that document. MariaDB (grimmory) and MongoDB
-> (librechat) stay as sidecars. The original rationale is preserved below.
+> follow the ordering in that document. MariaDB (grimmory) stays
+> a sidecar. The original rationale is preserved below.
 
 **Deploy individual PostgreSQL/MariaDB instances per app** as sidecar containers using the bjw-s app-template multi-controller pattern.
 
@@ -352,4 +352,5 @@ This section is the **source of truth** for tracking progress across sessions. U
 | 2026-10-19 | Removed tools code-server | Removed the general-purpose code-server in `tools` (`code.`, internal, `none`): an unauthenticated LAN editor with read-write access to the projects share, superseded by the HA-only editor. Its Longhorn volume is deleted with it; the Authentik launcher tile is removed via `99-cleanup.yaml`. |
 | 2026-10-19 | Removed inactive apps | Deleted manifests for apps that were commented out and not running: `plex` and `qbittorrent` (media), `syncthing` (tools), plus the dead `kms` and `homarr` entries whose directories were already gone, and the never-built Z-Wave JS UI external route. Dropped the qBittorrent Homepage tile (pointed at a hostname nothing serves). Plex itself still runs outside the cluster; the Homepage tile and Seerr's Plex integration are unchanged. |
 | 2026-10-19 | Z-Wave JS UI lockdown | The `hass-zwave.` envoy-internal route had no SecurityPolicy attached, so the UI was open to the LAN with no login despite a blueprinted Authentik provider. The Z-Wave JS server WebSocket was reachable from any pod. The UI can run arbitrary JavaScript in a privileged container and controls locks. Removed the route and the Authentik provider/application (`99-cleanup.yaml`); a CiliumNetworkPolicy now admits only Home Assistant on both ports. UI access is through an admin-only HA ingress panel, as for code-server. |
+| 2026-10-21 | Removed unused apps | A usage audit (15 days of gateway access logs, excluding Uptime Kuma and probe traffic) showed almost no real use, so these were removed: `ollama`, `open-webui`, `librechat` (with its MongoDB) and `agentbox` (ai); `shlink` (API, web UI and Postgres; Zipline replaces it), `webtop`, `glance` and `bridge` (tools). Their Longhorn volumes are deleted with them, along with their NAS backups, the `db-backup-librechat` and `db-backup-shlink` CronJobs, their Healthchecks checks and Uptime Kuma monitors, their Homepage tiles and their Authentik launcher tiles (via `99-cleanup.yaml`). The Mongo migration tasks went too, since LibreChat was the only Mongo app. `longhorn-nobackup` moved from agentbox to the `longhorn` app, because Prometheus, Loki, the Forgejo runner and workbench use it. |
 | | | *Next: Continue with Phase 4 and remaining auth cleanup.* |

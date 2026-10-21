@@ -39,7 +39,7 @@ opt-out. Nothing in UniFi changes per app.
 Current members (from `task validate:security`):
 
 - **Class 3 (public):** `hass` (Home Assistant), `requests` (Seerr),
-  `auth` (Authentik IdP), `s` (Shlink redirects), `echo` (test)
+  `auth` (Authentik IdP), `echo` (test)
 - **Class 4 (external-only):** `flux-webhook`, `tesladev` (Tesla pubkey)
 - **Class 1:** everything else (~46 apps)
 - **Class 2:** none currently (valid empty class — use it for an internet app
@@ -136,8 +136,7 @@ opt-out on the external route. Two patterns:
   `kubernetes/components/public-access` (see `apps/default/echo`).
 - *Embedded (bjw-s `route:`) external route* → add an inline `SecurityPolicy`
   with an empty `extAuth`, targeting the rendered HTTPRoute
-  (`<release>-<routeKey>`). See `apps/tools/shlink/app/securitypolicy-public.yaml`
-  (`s.` redirect) and `apps/media/seerr` (`requests.`).
+  (`<release>-<routeKey>`). See `apps/media/seerr` (`requests.`).
 
 ```yaml
 apiVersion: gateway.envoyproxy.io/v1alpha1

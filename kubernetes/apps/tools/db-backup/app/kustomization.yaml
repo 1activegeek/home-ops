@@ -8,6 +8,5 @@ resources:
   - ./cronjob-forgejo.yaml
   - ./cronjob-mas.yaml
   - ./cronjob-nextcloud.yaml
-  - ./cronjob-shlink.yaml
   - ./cronjob-synapse.yaml
   - ./cronjob-zipline.yaml

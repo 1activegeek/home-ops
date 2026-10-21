@@ -4,8 +4,9 @@
 # recurringJobSelector points at the group "exclude", for which no RecurringJob
 # exists — so volumes provisioned here get a volume-specific recurring-job label
 # (removing them from "default") while no jobs ever run against them.
-# Used by agentbox so its disposable home (holding CLI auth tokens) is never
-# snapshotted locally nor backed up off-box to the Synology NAS.
+# For rebuildable data only: Prometheus, Loki, the Forgejo runner's Docker
+# storage and the workbench workspaces. (It used to live with agentbox, its
+# first user; moved here when agentbox was removed.)
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
