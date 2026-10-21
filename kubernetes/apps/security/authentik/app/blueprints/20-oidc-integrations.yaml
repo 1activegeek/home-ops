@@ -19,6 +19,10 @@
 # name on every login (tier1 = Homarr admin, tier2 = board viewer), so it needs the homeops-groups
 # scope from 00-foundation.yaml. The application is bound to tier1 and tier2 with
 # policy_engine_mode: any — tier3 and ungrouped users fail both bindings and are denied at authentik.
+#
+# nextcloud signs in through the user_oidc app, configured by the hook in the nextcloud app dir. It
+# keys accounts on preferred_username (unique-uid off), so the Nextcloud user ID is the authentik
+# username and sub_mode does not decide account identity. Bound to tier1 and tier2 like homarr.
 
 version: 1
 
@@ -388,6 +392,83 @@ entries:
   - model: authentik_policies.policybinding
     identifiers:
       target: !KeyOf 'app-homarr'
+      group: !Find [authentik_core.group, [name, tier2]]
+      order: 1
+    attrs:
+      enabled: true
+      failure_result: false
+      negate: false
+      policy: null
+      timeout: 30
+      user: null
+  - id: provider-nextcloud
+    model: authentik_providers_oauth2.oauth2provider
+    identifiers:
+      name: nextcloud
+    attrs:
+      access_code_validity: minutes=1
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      client_id: 2a7PMFNG7RcoqtfmFobTBkmDZ0SkKfbJmo53tI0M
+      client_secret: !Env 'AUTHENTIK_OIDC_NEXTCLOUD_SECRET'
+      client_type: confidential
+      encryption_key: null
+      grant_types:
+        - authorization_code
+        - refresh_token
+      include_claims_in_id_token: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      issuer_mode: per_provider
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      logout_method: backchannel
+      logout_uri: ''
+      name: nextcloud
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+      redirect_uris:
+        - matching_mode: strict
+          redirect_uri_type: authorization
+          url: https://cloud.${SECRET_DOMAIN}/apps/user_oidc/code
+      refresh_token_threshold: seconds=0
+      refresh_token_validity: days=30
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      sub_mode: hashed_user_id
+  - id: app-nextcloud
+    model: authentik_core.application
+    identifiers:
+      slug: nextcloud
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nextcloud.png
+      meta_launch_url: https://cloud.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Nextcloud
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-nextcloud'
+      slug: nextcloud
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'app-nextcloud'
+      group: !Find [authentik_core.group, [name, tier1]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      negate: false
+      policy: null
+      timeout: 30
+      user: null
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'app-nextcloud'
       group: !Find [authentik_core.group, [name, tier2]]
       order: 1
     attrs:
