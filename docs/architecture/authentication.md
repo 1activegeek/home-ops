@@ -99,6 +99,7 @@ front of it - for an internal-only route that is a deliberate choice, not an omi
 | Grafana | internal | `native_oidc` | Blueprinted. Generic OAuth against Authentik |
 | Forgejo | internal | `native_oidc` | Blueprinted. The auth source also lives in Forgejo's own database |
 | Hermes | internal | `native_oidc` | Blueprinted. Dashboard refuses to bind without a provider |
+| Homarr | internal | `native_oidc` | Blueprinted. Application bound to `tier1` + `tier2` only (tier3 and ungrouped users are denied at Authentik). Homarr syncs the `groups` claim onto same-named Homarr groups: `tier1` holds the admin permission, `tier2` gets board view. Local credentials stay enabled for one break-glass admin; no auto-login |
 | Matrix (MAS) | internal | `native_oidc` | Blueprinted. Redirect URI embeds a pinned upstream-provider ID |
 | Synapse | internal | `native_oidc` | Auth fully delegated to MAS. Federation disabled; no local passwords |
 | Element | internal | `native_oidc` | Static client; flows through Synapse -> MAS -> Authentik |

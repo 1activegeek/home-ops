@@ -11,5 +11,6 @@ resources:
   - ./db-backup/ks.yaml
   - ./qdrant/ks.yaml
   - ./n8n/ks.yaml
+  - ./workbench/ks.yaml
   - ./hermes-agent/ks.yaml
   - ./searxng/ks.yaml

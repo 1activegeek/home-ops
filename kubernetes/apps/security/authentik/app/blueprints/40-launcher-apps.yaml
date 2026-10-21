@@ -63,22 +63,6 @@ entries:
       slug: audiobookshelf
   - model: authentik_core.application
     identifiers:
-      slug: babybuddy
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/babybuddy.png
-      meta_launch_url: https://baby.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Baby Buddy
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: babybuddy
-  - model: authentik_core.application
-    identifiers:
       slug: bambuddy
     attrs:
       backchannel_providers: []
@@ -134,7 +118,7 @@ entries:
       meta_description: ''
       meta_hide: false
       meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
-      meta_launch_url: https://home.${SECRET_DOMAIN}
+      meta_launch_url: https://home2.${SECRET_DOMAIN}
       meta_publisher: ''
       name: Homepage
       open_in_new_tab: false

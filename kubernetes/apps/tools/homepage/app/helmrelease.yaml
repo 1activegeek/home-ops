@@ -21,10 +21,10 @@ spec:
           app:
             image:
               repository: ghcr.io/gethomepage/homepage
-              tag: v1.13.2
+              tag: v2.6.0
             env:
               TZ: America/New_York
-              HOMEPAGE_ALLOWED_HOSTS: "home.${SECRET_DOMAIN}"
+              HOMEPAGE_ALLOWED_HOSTS: "home2.${SECRET_DOMAIN}"
               HOMEPAGE_VAR_TAUTULLI_API_KEY:
                 valueFrom:
                   secretKeyRef:
@@ -70,9 +70,13 @@ spec:
                 enabled: true
                 custom: true
                 spec:
+                  # v2 host-checks every route; the probe's default Host (pod IP) gets a 400
                   httpGet:
-                    path: /
+                    path: /api/healthcheck
                     port: &port 3000
+                    httpHeaders:
+                      - name: Host
+                        value: localhost:3000
                   initialDelaySeconds: 15
                   periodSeconds: 30
                   timeoutSeconds: 5
@@ -112,7 +116,7 @@ spec:
 
     route:
       app:
-        hostnames: ["home.${SECRET_DOMAIN}"]
+        hostnames: ["home2.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal
             namespace: network

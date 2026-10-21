@@ -72,6 +72,14 @@ entries:
     identifiers:
       name: zwave-js-ui-proxy
 
+  # Baby Buddy is no longer routed; it is reachable only through the Home Assistant UI
+  # (hass_ingress panel, CiliumNetworkPolicy). Dropping its tile from 40-launcher-apps.yaml
+  # leaves the application in place, so remove it explicitly.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: babybuddy
+
   # Removed 2026-10-21 for lack of use (Glance, LibreChat, Open WebUI, Shlink, Webtop). Dropping
   # their tiles from 40-launcher-apps.yaml leaves the applications in place.
   - model: authentik_core.application

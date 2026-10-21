@@ -4,13 +4,17 @@
 # recurringJobSelector points at the group "exclude", for which no RecurringJob
 # exists — so volumes provisioned here get a volume-specific recurring-job label
 # (removing them from "default") while no jobs ever run against them.
-# For rebuildable data only: Prometheus, Loki, the Forgejo runner's Docker
-# storage and the workbench workspaces. (It used to live with agentbox, its
-# first user; moved here when agentbox was removed.)
+# For disposable or credential-bearing data that must never be snapshotted
+# locally nor backed up off-box to the Synology NAS (runner layers, metrics,
+# logs, agent working copies). Lives here, not in any one app, because several
+# apps depend on it. prune: disabled so removing it from git can't delete a
+# class that bound PVCs still reference.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: longhorn-nobackup
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
 provisioner: driver.longhorn.io
 allowVolumeExpansion: true
 reclaimPolicy: Delete
