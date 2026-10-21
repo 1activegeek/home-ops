@@ -1,0 +1,72 @@
+---
+# Read-only cluster access for Workbench agents: everything except Secrets,
+# plus pods/log. No exec, no port-forward, no writes. Widening this is a
+# documented, deliberate change (docs/workbench.md). The ServiceAccount
+# itself is rendered by the HelmRelease.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: workbench-read
+rules:
+  - apiGroups: [""]
+    resources:
+      - configmaps
+      - endpoints
+      - events
+      - limitranges
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - persistentvolumes
+      - pods
+      - pods/log
+      - replicationcontrollers
+      - resourcequotas
+      - serviceaccounts
+      - services
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      - admissionregistration.k8s.io
+      - apiextensions.k8s.io
+      - apiregistration.k8s.io
+      - apps
+      - autoscaling
+      - batch
+      - cert-manager.io
+      - cilium.io
+      - coordination.k8s.io
+      - discovery.k8s.io
+      - events.k8s.io
+      - external-secrets.io
+      - gateway.envoyproxy.io
+      - gateway.networking.k8s.io
+      - helm.toolkit.fluxcd.io
+      - kustomize.toolkit.fluxcd.io
+      - longhorn.io
+      - metrics.k8s.io
+      - monitoring.coreos.com
+      - networking.k8s.io
+      - notification.toolkit.fluxcd.io
+      - policy
+      - postgresql.cnpg.io
+      - rbac.authorization.k8s.io
+      - scheduling.k8s.io
+      - snapshot.storage.k8s.io
+      - source.toolkit.fluxcd.io
+      - storage.k8s.io
+      - tailscale.com
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: workbench-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: workbench-read
+subjects:
+  - kind: ServiceAccount
+    name: workbench
+    namespace: ai

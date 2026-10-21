@@ -1,0 +1,151 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: workbench
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: workbench
+  interval: 1h
+  values:
+    controllers:
+      workbench:
+        # Single RWO home volume: the old pod must release it first.
+        strategy: Recreate
+        serviceAccount:
+          name: workbench
+        annotations:
+          reloader.stakater.com/auto: "true"
+        pod:
+          # Token only for the read-only workbench-read ClusterRole (rbac.yaml).
+          automountServiceAccountToken: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile: {type: RuntimeDefault}
+        containers:
+          app:
+            image:
+              repository: ghcr.io/1activegeek/workbench
+              tag: 1.4.235.5
+            env:
+              TZ: America/New_York
+              WORKBENCH_HOSTNAME: workbench
+              VAULT_WORK_TREE: /data/vault
+              VAULT_GIT_DIR: /home/workbench/orca/workspaces/.vault-git/lifeOS.git
+              VAULT_REMOTE: origin
+              VAULT_BRANCH: master
+              WORKBENCH_FORGEJO_SSH_HOST: forgejo-ssh.tools.svc.cluster.local
+              WORKBENCH_NAS_HOST: ${NFS_SERVER}
+              WORKBENCH_GATEWAY_HOST: 10.0.1.1
+            probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket: {port: 6768}
+                  periodSeconds: 5
+                  failureThreshold: 120
+              liveness:
+                enabled: true
+                custom: true
+                spec:
+                  tcpSocket: {port: 6768}
+                  periodSeconds: 30
+                  failureThreshold: 6
+              readiness:
+                enabled: false
+            resources:
+              requests:
+                cpu: "2"
+                memory: 4Gi
+              limits:
+                cpu: "8"
+                memory: 12Gi
+                ephemeral-storage: 20Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: {drop: ["ALL"]}
+
+    # No Service, no route: reachable only through the in-pod tailnet node.
+
+    persistence:
+      # Home: Claude/Orca state and live-edited config. Backed up (longhorn);
+      # credentials never live here (they are staged on tmpfs from the Secret).
+      home:
+        type: persistentVolumeClaim
+        storageClass: longhorn
+        accessMode: ReadWriteOnce
+        size: 20Gi
+        advancedMounts:
+          workbench:
+            app:
+              - path: /home/workbench
+      # Working copies and Orca worktrees: disposable, everything is pushed.
+      workspaces:
+        type: persistentVolumeClaim
+        storageClass: longhorn-nobackup
+        accessMode: ReadWriteOnce
+        size: 50Gi
+        advancedMounts:
+          workbench:
+            app:
+              - path: /home/workbench/orca/workspaces
+      secrets:
+        type: secret
+        name: workbench-secret
+        defaultMode: 0440
+        advancedMounts:
+          workbench:
+            app:
+              - path: /run/secrets/workbench
+                readOnly: true
+      tailscale-key:
+        type: secret
+        name: workbench-secret
+        defaultMode: 0440
+        items:
+          - key: ts_authkey
+            path: ts_authkey
+        advancedMounts:
+          workbench:
+            app:
+              - path: /run/secrets/tailscale
+                readOnly: true
+      run:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 64Mi
+        advancedMounts:
+          workbench:
+            app:
+              - path: /run/workbench
+      shm:
+        type: emptyDir
+        medium: Memory
+        sizeLimit: 2Gi
+        advancedMounts:
+          workbench:
+            app:
+              - path: /dev/shm
+      # Synced shares (Syncthing replicas on the NAS), read-write.
+      vault:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/syncthing/ic_obsidian/lifeOS
+        advancedMounts:
+          workbench:
+            app:
+              - path: /data/vault
+      documents:
+        type: nfs
+        server: ${NFS_SERVER}
+        path: /volume1/syncthing/ic_documents
+        advancedMounts:
+          workbench:
+            app:
+              - path: /data/documents
