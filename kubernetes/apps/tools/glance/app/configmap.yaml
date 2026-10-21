@@ -5,6 +5,8 @@ metadata:
   name: glance-config
 data:
   glance.yml: |
+    # Mounted via subPath, so edits reach the pod only through the reloader
+    # restart on the HelmRelease.
     server:
       host: 0.0.0.0
       port: 8080
