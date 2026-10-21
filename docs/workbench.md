@@ -64,5 +64,6 @@ Git never writes the Vault folder ([ADR 0001](adr/0001-git-never-writes-the-vaul
 |---|---|
 | Pod restart: projects and tabs restored | pending first deploy |
 | Pod restart: agents auto-resumed by Orca | pending (expected: manual resume) |
-| Egress: internet allowed; LAN admin UIs and other namespaces denied | pending |
-| RBAC: Secrets denied, `pods/log` allowed, `exec` denied | pending |
+| Egress: internet, kube API, Forgejo, internal gateway, DSM API and gateway API allowed; Talos API and direct services in other namespaces denied | passed (2026-10-21) |
+| RBAC: Secrets denied, `pods/log` allowed, `exec` and deletes denied, Flux CRs readable | passed (2026-10-21) |
+| NAS SSH from the pod | **blocked by an IP conflict**: LB-IPAM assigned the NAS's address to the forgejo-ssh LoadBalancer, so in-cluster port 22 on that IP reaches Forgejo | open |
