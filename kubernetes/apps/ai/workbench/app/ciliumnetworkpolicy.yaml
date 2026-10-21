@@ -35,11 +35,13 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: network
             gateway.envoyproxy.io/owning-gateway-name: envoy-internal
-    # NAS: DSM API and SSH.
+    # NAS: DSM API (DSM listens on 5000 here) and SSH. Note: in-cluster,
+    # this IP's port 22 is currently shadowed by the forgejo-ssh LoadBalancer,
+    # which LB-IPAM assigned the NAS's own address.
     - toCIDR: [10.0.3.2/32]
       toPorts:
         - ports:
-            - {port: "5001", protocol: TCP}
+            - {port: "5000", protocol: TCP}
             - {port: "22", protocol: TCP}
     # Network controller/gateway: API and SSH.
     - toCIDR: [10.0.1.1/32]
