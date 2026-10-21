@@ -129,14 +129,23 @@ spec:
           concurrencyPolicy: Forbid
           successfulJobsHistory: 1
           failedJobsHistory: 1
+          # A failed run otherwise lingers until the next failure replaces it.
+          ttlSecondsAfterFinished: 86400
         containers:
           cron:
             image:
               repository: curlimages/curl
               tag: 8.22.0
+            # Retry so a run that lands during a Nextcloud restart waits for it
+            # instead of failing the Job.
             command:
               - curl
               - -s
+              - --retry
+              - "5"
+              - --retry-connrefused
+              - --retry-delay
+              - "10"
               - http://nextcloud-main:80/cron.php
             resources:
               requests:
