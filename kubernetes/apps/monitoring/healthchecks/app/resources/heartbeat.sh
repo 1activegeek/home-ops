@@ -5,6 +5,8 @@
 # Opt in by annotating a Deployment, StatefulSet or DaemonSet:
 #   healthchecks.io/slug: sonarr                       (required)
 #   healthchecks.io/url: http://sonarr.media.svc...    (optional deep check)
+#   healthchecks.io/containers: "code-server=ha-code-server ..."
+#                                    (optional; extra checks, one per sidecar)
 #
 # Each round, per annotated workload:
 #   healthy   = at least one pod Ready (every pod for a DaemonSet) and, if set,
@@ -14,6 +16,11 @@
 #   unhealthy -> ping /<slug>/log           (recorded, no alert) for the first
 #                HEARTBEAT_FAIL_AFTER-1 rounds, so rollouts and Recreate
 #                restarts don't page; then /<slug>/fail with the reason
+#
+# Each "<container>=<slug>" pair in healthchecks.io/containers gets its own
+# check, healthy while that container is ready in at least one pod (every pod
+# for a DaemonSet). For sidecars that a pod-level check can't name, e.g. an
+# editor bound to loopback inside the Home Assistant pod.
 #
 # Dead-man's switch: a check only stays up while pings keep arriving. A deleted
 # workload, a dead runner, or a dead cluster all mean silence, and Healthchecks
@@ -67,34 +74,49 @@ hc() {
 }
 
 # Why a workload's pods aren't Ready, e.g. " (sonarr-abc: CrashLoopBackOff)".
+# $3 = container name: report only that container.
 pod_states() {
   [ -n "$2" ] || return 0
-  s=$(k get pods -n "$1" -l "$2" -o json 2>/dev/null | jq -r '
+  s=$(k get pods -n "$1" -l "$2" -o json 2>/dev/null | jq -r --arg c "${3:-}" '
     [.items[] | .metadata.name as $p
      | if (.status.containerStatuses // []) == [] then "\($p): \(.status.phase)"
        else (.status.containerStatuses[] | select(.ready | not)
+             | select($c == "" or .name == $c)
              | "\($p): \(.state.waiting.reason // .state.terminated.reason // "not ready")")
        end] | unique | join("; ")')
   [ -n "${s}" ] && printf ' (%s)' "${s}"
 }
 
+# How many of a workload's pods have container $3 ready. Fails if it can't tell.
+container_ready() {
+  pods=$(k get pods -n "$1" -l "$2" -o json) || return 1
+  printf '%s' "${pods}" | jq --arg c "$3" \
+    '[.items[] | select(any(.status.containerStatuses[]?; .name == $c and .ready))] | length'
+}
+
+# $9 = container: check that container's readiness instead of the pod's.
 check_one() {
-  slug=$1 kind=$2 ns=$3 name=$4 url=$5 ready=$6 want=$7 selector=$8
+  slug=$1 kind=$2 ns=$3 name=$4 url=$5 ready=$6 want=$7 selector=$8 container=${9:-}
+  what="${kind} ${ns}/${name}${container:+ container ${container}}"
 
   case "${slug}" in
     "" | *[!a-z0-9_-]*)
-      log "skipping ${kind} ${ns}/${name}: slug '${slug}' must be lowercase [a-z0-9_-]"
+      log "skipping ${what}: slug '${slug}' must be lowercase [a-z0-9_-]"
       return
       ;;
   esac
 
-  desc="Heartbeat from the monitoring/healthchecks runner: ${kind} ${ns}/${name} has a Ready pod"
+  if [ -n "${container}" ]; then
+    desc="Heartbeat from the monitoring/healthchecks runner: container ${container} of ${kind} ${ns}/${name} is ready in a pod"
+  else
+    desc="Heartbeat from the monitoring/healthchecks runner: ${kind} ${ns}/${name} has a Ready pod"
+  fi
   [ -n "${url}" ] && desc="${desc} and ${url} answers 2xx"
   desc="${desc}. Silence means the workload, the runner or the cluster is gone."
   if [ "$(cat "${state}/seen/${slug}" 2>/dev/null)" != "${desc}" ]; then
     if upsert "${slug}" "k8s ${ns}" "${desc}" 120 300; then
       printf '%s' "${desc}" >"${state}/seen/${slug}"
-      log "registered check ${slug} (${kind} ${ns}/${name})"
+      log "registered check ${slug} (${what})"
     else
       log "API upsert of ${slug} failed; retrying next round"
       return
@@ -105,13 +127,13 @@ check_one() {
   if [ "${want}" -eq 0 ]; then
     reason="${kind} ${ns}/${name} is scaled to 0"
   elif { [ "${kind}" = DaemonSet ] && [ "${ready}" -lt "${want}" ]; } || [ "${ready}" -lt 1 ]; then
-    reason="${kind} ${ns}/${name}: ${ready}/${want} pods Ready$(pod_states "${ns}" "${selector}")"
+    reason="${what}: ${ready}/${want} pods Ready$(pod_states "${ns}" "${selector}" "${container}")"
   elif [ -n "${url}" ]; then
     code=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "${url}")
     case "${code}" in
       2??) ;;
-      000) reason="${kind} ${ns}/${name}: ${url} unreachable" ;;
-      *) reason="${kind} ${ns}/${name}: ${url} returned HTTP ${code}" ;;
+      000) reason="${what}: ${url} unreachable" ;;
+      *) reason="${what}: ${url} returned HTTP ${code}" ;;
     esac
   fi
 
@@ -326,20 +348,35 @@ round() {
         (.metadata.annotations["healthchecks.io/url"] // ""),
         (if .kind == "DaemonSet" then .status.numberReady // 0 else .status.readyReplicas // 0 end),
         (if .kind == "DaemonSet" then .status.desiredNumberScheduled // 0 else .spec.replicas // 1 end),
-        ([.spec.selector.matchLabels // {} | to_entries[] | "\(.key)=\(.value)"] | join(",")) ]
+        ([.spec.selector.matchLabels // {} | to_entries[] | "\(.key)=\(.value)"] | join(",")),
+        (.metadata.annotations["healthchecks.io/containers"] // "") ]
     | map(tostring | gsub("[|\n]"; "_")) | join("|")') || {
     log "parsing workloads failed; skipping round"
     return
   }
 
-  dupes=$(printf '%s\n' "${rows}" | cut -d'|' -f1 | sort | uniq -d)
+  dupes=$(printf '%s\n' "${rows}" | awk -F'|' '{ print $1; n = split($9, c, " "); for (i = 1; i <= n; i++) { sub(/^[^=]*=/, "", c[i]); print c[i] } }' | sort | uniq -d)
   [ -n "${dupes}" ] && log "WARNING: slug used by more than one workload: ${dupes}"
 
   count=0
-  while IFS='|' read -r slug kind ns name url ready want selector; do
+  while IFS='|' read -r slug kind ns name url ready want selector containers; do
     [ -n "${slug}" ] || continue
     check_one "${slug}" "${kind}" "${ns}" "${name}" "${url}" "${ready}" "${want}" "${selector}"
     count=$((count + 1))
+    for pair in ${containers}; do
+      c=${pair%%=*} cslug=${pair#*=}
+      if [ "${c}" = "${pair}" ] || [ -z "${selector}" ]; then
+        log "skipping '${pair}' on ${kind} ${ns}/${name}: want <container>=<slug> and a label selector"
+        continue
+      fi
+      # Can't see the pods: send nothing, and let silence speak.
+      cready=$(container_ready "${ns}" "${selector}" "${c}") || {
+        log "listing pods for ${cslug} failed; skipping"
+        continue
+      }
+      check_one "${cslug}" "${kind}" "${ns}" "${name}" "" "${cready}" "${want}" "${selector}" "${c}"
+      count=$((count + 1))
+    done
   done <<EOF
 ${rows}
 EOF
@@ -352,7 +389,7 @@ EOF
     }
   fi
 
-  hc "${self}" "ok: ${count} annotated workloads, ${job_count} CronJobs" || log "ping ${self} failed"
+  hc "${self}" "ok: ${count} service checks, ${job_count} CronJobs" || log "ping ${self} failed"
 }
 
 until upsert "${self}" infra \
