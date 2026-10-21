@@ -163,10 +163,6 @@ data:
             icon: gitea.svg
             href: https://git.${SECRET_DOMAIN}
             description: Git Repos
-        - Shlink:
-            icon: shlink.svg
-            href: https://shlink.${SECRET_DOMAIN}
-            description: URL Shortener
         - Zipline:
             icon: zipline.svg
             href: https://zipline.${SECRET_DOMAIN}
@@ -176,14 +172,6 @@ data:
             href: https://apprise.${SECRET_DOMAIN}
             description: Notifications
     - AI:
-        - LibreChat:
-            icon: librechat.svg
-            href: https://librechat.${SECRET_DOMAIN}
-            description: AI Chat
-        - Open WebUI:
-            icon: open-webui.svg
-            href: https://chat.${SECRET_DOMAIN}
-            description: Chat UI
         - N8N:
             icon: n8n.svg
             href: https://n8n.${SECRET_DOMAIN}

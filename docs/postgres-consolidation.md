@@ -29,7 +29,6 @@ failover and alerting, not eliminated.
 |-----|----|------|----------|
 | forgejo | tools | `forgejo` | `forgejo` |
 | homarr | tools | `homarr` | `homarr` |
-| shlink | tools | `shlink` | `shlink` |
 | atuin | tools | `atuin` | `atuin` |
 | zipline | tools | `zipline` | `zipline` |
 | mas | tools | `mas` | `mas` |
@@ -92,7 +91,7 @@ Manifests: `kubernetes/apps/database/postgres/app/`.
 
 | # | App | Why here | Gotchas |
 |---|-----|----------|---------|
-| 1 | **shlink** | Small, low blast radius. Rehearse the pattern here. | none |
+| 1 | ~~shlink~~ | Removed from the cluster 2026-10-21; nothing to migrate. | — |
 | 2 | **atuin** | Small, single-user | none |
 | 3 | **zipline** | Small | Already uses a `postgres-init` init container — remove it. File uploads are a separate PVC; don't touch. |
 | 4 | **mas** | Small, but **Synapse depends on it for auth** — migrate well before Synapse | DSN lives inside `config.yaml` in `mas-secret`. MAS runs its own schema migrations at boot. |

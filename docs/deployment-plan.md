@@ -19,8 +19,8 @@ Several apps are currently running as Docker containers on the NAS and need to b
 > The per-app sidecar pattern held up to about ten databases, then the costs it
 > ignored — no HA, ten backup CronJobs, ten hand-run major upgrades, no metrics —
 > outweighed the isolation it bought. Forgejo has migrated; the remaining apps
-> follow the ordering in that document. MariaDB (grimmory) and MongoDB
-> (librechat) stay as sidecars. The original rationale is preserved below.
+> follow the ordering in that document. MariaDB (grimmory) stays
+> a sidecar. The original rationale is preserved below.
 
 **Deploy individual PostgreSQL/MariaDB instances per app** as sidecar containers using the bjw-s app-template multi-controller pattern.
 
@@ -356,4 +356,5 @@ This section is the **source of truth** for tracking progress across sessions. U
 | 2026-10-20 | Homepage v2 | Upgraded Homepage v1.13.2 → v2.6.0. v2 adds an optional built-in login gate (password or OIDC); left disabled, so Homepage stays `internal` / `none`. v2 also applies the `HOMEPAGE_ALLOWED_HOSTS` check to every route instead of only `/api/*`, so the probes now hit `/api/healthcheck` with an explicit `Host: localhost:3000` header (the pod-IP Host would get a 400). |
 | 2026-10-20 | Homarr at `home.`, Homepage to `home2.` | Deployed Homarr v2 (official homarr-labs OCI chart, tools namespace, `internal` / `native_oidc`). Third CNPG tenant (new role + database; Homarr's `node-postgres` driver), so no PVC. Authentik provider blueprinted with a new shared `groups` scope mapping in `00-foundation.yaml`; the application is bound to `tier1` and `tier2`, and Homarr maps those claims onto its own `tier1` (admin) and `tier2` (board view) groups. Local credentials kept for a break-glass admin. Homepage moved from `home.` to `home2.` in the same change (route, allowed hosts, Authentik tile, Glance link) so `home.` is never served by two apps. |
 | 2026-10-21 | Heartbeats for HA-only apps | Opted Baby Buddy, Z-Wave JS UI and the Home Assistant code-server sidecar into the Healthchecks heartbeat runner. Uptime Kuma can't watch them because they are reachable only through Home Assistant. They are readiness-only (no `healthchecks.io/url`), so their network policies stay closed to the runner, and kubelet probes are the deep check. Z-Wave JS UI gained a readiness probe on `/health/zwave` (driver up). code-server gained a loopback liveness probe on `/healthz`. The runner learned `healthchecks.io/containers` (`<container>=<slug>`), which gives a sidecar its own check (`ha-code-server`). |
+| 2026-10-21 | Removed unused apps | A usage audit (15 days of gateway access logs, excluding Uptime Kuma and probe traffic) showed almost no real use, so these were removed: `ollama`, `open-webui`, `librechat` (with its MongoDB) and `agentbox` (ai); `shlink` (API, web UI and Postgres; Zipline replaces it), `webtop`, `glance` and `bridge` (tools). Their Longhorn volumes are deleted with them, along with their NAS backups, the `db-backup-librechat` and `db-backup-shlink` CronJobs, their Healthchecks checks and Uptime Kuma monitors, their Homepage tiles and their Authentik launcher tiles (via `99-cleanup.yaml`). The Mongo migration tasks went too, since LibreChat was the only Mongo app. |
 | | | *Next: Continue with Phase 4 and remaining auth cleanup.* |

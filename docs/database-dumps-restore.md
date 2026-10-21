@@ -24,16 +24,14 @@ and immune to the "block snapshot caught the DB mid-write" failure mode.
 | authentik | security | Postgres 17 | `authentik-*.dump` | `pg_dump -Fc` |
 | atuin | tools | Postgres 18 | `atuin-*.dump` | `pg_dump -Fc` |
 | nextcloud | tools | Postgres 18 | `nextcloud-*.dump` | `pg_dump -Fc` |
-| shlink | tools | Postgres 18 | `shlink-*.dump` | `pg_dump -Fc` |
 | zipline | tools | Postgres 18 | `zipline-*.dump` | `pg_dump -Fc` |
 | teslamate | home | Postgres 18 | `teslamate-*.dump` | `pg_dump -Fc` |
 | grimmory | media | MariaDB 12 | `grimmory-*.sql.gz` | `mariadb-dump \| gzip` |
 | n8n | ai | Postgres 18 | `n8n-*.dump` | `pg_dump -Fc` |
-| librechat | ai | MongoDB 8.3 | `librechat-*.archive.gz` | `mongodump --gzip --archive` |
 | qdrant | ai | Qdrant 1.18 | `qdrant-*-<snapshot>` | snapshot API → download |
 | *(all CNPG databases)* | database | Postgres 18 | `<db>-*.dump` + `globals-*.sql` | `pg_dump -Fc` per DB |
 
-**Not covered here:** `litellm` (removed 2026-05).
+**Not covered here:** `litellm` (removed 2026-05); `shlink` and `librechat` (removed 2026-10-21).
 
 ### The `database` namespace job
 
@@ -87,11 +85,6 @@ pg_restore --clean --if-exists --no-owner --no-privileges \
 ```sh
 gunzip -c /path/grimmory-<ts>.sql.gz | \
   mariadb -h grimmory-mariadb.media.svc.cluster.local -u grimmory -p<pw> grimmory
-```
-
-**MongoDB**:
-```sh
-mongorestore --uri="<mongo_uri>" --gzip --archive=/path/librechat-<ts>.archive.gz --drop
 ```
 
 **Qdrant** (snapshot file):
