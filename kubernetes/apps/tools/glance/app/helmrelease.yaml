@@ -11,6 +11,10 @@ spec:
   values:
     controllers:
       main:
+        # The config is a subPath mount, which never updates in place, so a
+        # ConfigMap change only lands when the pod restarts.
+        annotations:
+          reloader.stakater.com/auto: "true"
         containers:
           app:
             image:
