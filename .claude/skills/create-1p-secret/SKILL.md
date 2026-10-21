@@ -114,7 +114,7 @@ spec:
 `dataFrom.extract` is the default and the only shape `task validate:secrets` inspects.
 `data: [{secretKey, remoteRef: {key, property}}]` (with `template.engineVersion: v2`) is
 also in use and perfectly valid — for pulling from two different items (`tools/mas`) or
-cherry-picking single fields (`home/mosquitto`, `ai/open-webui`). Choose on need; just know
+cherry-picking single fields (`home/mosquitto`). Choose on need; just know
 a `data:`-only manifest is skipped by the validator, so check it by hand.
 
 Then close the loop, or the value never reaches the container:

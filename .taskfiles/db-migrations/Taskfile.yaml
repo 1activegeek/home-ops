@@ -4,23 +4,16 @@ version: '3'
 # DB major-version migration tasks.
 #
 # Sequence per Postgres app:
-#   task db-migrations:pg-dump    REL=shlink NS=tools PG_USER=shlink
+#   task db-migrations:pg-dump    REL=atuin NS=tools PG_USER=atuin
 #   (commit tag 17-alpine->18-alpine, push)
-#   task db-migrations:pg-restore REL=shlink NS=tools PG_USER=shlink
+#   task db-migrations:pg-restore REL=atuin NS=tools PG_USER=atuin
 #
 # Apps — PVC is auto-detected; actual names are:
-#   shlink    tools   shlink      PVC: shlink
 #   atuin     tools   atuin       PVC: atuin
 #   n8n       ai      n8n         PVC: n8n
 #   nextcloud tools   nextcloud   PVC: nextcloud-postgres-data
 #   teslamate home    teslamate   PVC: teslamate
 #   (litellm not deployed)
-#
-# Mongo:
-#   task db-migrations:mongo-dump    NS=ai  REL=librechat
-#   (commit tag 7->8, push)
-#   task db-migrations:mongo-restore NS=ai  REL=librechat
-#   Mongo PVC: librechat-data
 #
 # MariaDB (in-place upgrade, no wipe needed):
 #   task db-migrations:mariadb-dump  NS=media REL=grimmory MARIADB_ROOT_PW=<pw>
@@ -75,31 +68,6 @@ tasks:
       BACKUP_DIR: '{{.BACKUP_DIR}}'
       DUMP_FILE: '{{.DUMP_FILE}}'
     cmd: 'bash "{{.SCRIPTS}}/pg-restore.sh" "{{.REL}}" "{{.NS}}" "{{.PG_USER}}"'
-    preconditions:
-      - sh -c 'test -f "{{.ROOT_DIR}}/kubeconfig"'
-
-  mongo-dump:
-    desc: "Dump Mongo 7, scale down, wipe /data/db. Vars: NS, REL"
-    requires:
-      vars: [NS, REL]
-    env:
-      BACKUP_DIR: '{{.BACKUP_DIR}}'
-      NAS_HOST: '{{.NAS_HOST}}'
-      NAS_BACKUP_PATH: '{{.NAS_BACKUP_PATH}}'
-    cmd: 'bash "{{.SCRIPTS}}/mongo-dump-stop.sh" "{{.REL}}" "{{.NS}}"'
-    preconditions:
-      - sh -c 'test -f "{{.ROOT_DIR}}/kubeconfig"'
-
-  mongo-restore:
-    desc: "Resume flux, wait for Mongo 8, restore dump, advance FCV. Vars: NS, REL, [DUMP_FILE]"
-    requires:
-      vars: [NS, REL]
-    vars:
-      DUMP_FILE: '{{.DUMP_FILE | default ""}}'
-    env:
-      BACKUP_DIR: '{{.BACKUP_DIR}}'
-      DUMP_FILE: '{{.DUMP_FILE}}'
-    cmd: 'bash "{{.SCRIPTS}}/mongo-restore.sh" "{{.REL}}" "{{.NS}}"'
     preconditions:
       - sh -c 'test -f "{{.ROOT_DIR}}/kubeconfig"'
 

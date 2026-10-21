@@ -108,7 +108,6 @@ front of it - for an internal-only route that is a deliberate choice, not an omi
 | Zipline | internal | `forward_auth` | Blueprinted proxy provider |
 | HA Code Server | cluster_internal | `none` (HA session) | No Service or route; bound to loopback in the HA pod. Reached only via an admin-only Home Assistant ingress panel (hass_ingress), so HA login is the gate. Never route it: it is a root shell in a privileged pod |
 | Seerr | external | `external_identity_exception` | User flow is intentionally based on Plex auth |
-| Shlink | external | `public_exception` | Redirect service is intended to serve public links |
 | Authentik | external | `public_exception` | It is the IdP. Admin console is 404'd at the public edge |
 | Echo, Flux webhook, Tesla pubkey | external | `public_exception` | Webhook and probe endpoints |
 | Grimmory | internal | `none` | OIDC explicitly disabled in its config |

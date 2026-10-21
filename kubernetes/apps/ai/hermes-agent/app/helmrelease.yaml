@@ -59,8 +59,8 @@ spec:
               # introduces applies to no registered webhook here.
               # The default profile likewise keeps the unprefixed /v1/... API
               # listener on :8642 — only secondary profiles move to
-              # /p/<profile>/v1/... — so open-webui's OPENAI_API_BASE_URL is
-              # unaffected. Session keys do re-namespace to agent:<profile>:…
+              # /p/<profile>/v1/... — so existing OpenAI-compatible clients
+              # are unaffected. Session keys do re-namespace to agent:<profile>:…
               # on the first multiplexed start.
               #
               # Adding a second profile later: it needs its own bot token per
