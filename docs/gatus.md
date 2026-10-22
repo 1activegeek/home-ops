@@ -136,6 +136,11 @@ If Gatus is down and the heartbeat is up, suspect routing. If both are down, sus
 
 ## Troubleshooting
 
+**A renamed check still shows its old name on the status page.** Gatus keeps the name it first
+stored for an endpoint key, and the key is the lowercased group and name, so `sonarr` → `Sonarr`
+keeps `sonarr`. Alerts and the dashboard are unaffected, because they use metric labels. To reset
+the names, change `storage.path` in `app/resources/config.yaml`; that drops the check history.
+
 ```bash
 kubectl -n monitoring logs deploy/gatus -c sidecar     # discovery: "updated endpoint ... url=..."
 kubectl -n monitoring logs deploy/gatus -c app         # check results and config reload errors
