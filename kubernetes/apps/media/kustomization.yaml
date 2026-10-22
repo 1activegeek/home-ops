@@ -21,4 +21,3 @@ resources:
   - ./unpackerr/ks.yaml
   - ./grimmory/ks.yaml
   - ./audiobookshelf/ks.yaml
-  - ./sabnzbd/ks.yaml

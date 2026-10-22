@@ -28,10 +28,9 @@ and immune to the "block snapshot caught the DB mid-write" failure mode.
 | teslamate | home | Postgres 18 | `teslamate-*.dump` | `pg_dump -Fc` |
 | grimmory | media | MariaDB 12 | `grimmory-*.sql.gz` | `mariadb-dump \| gzip` |
 | n8n | ai | Postgres 18 | `n8n-*.dump` | `pg_dump -Fc` |
-| qdrant | ai | Qdrant 1.18 | `qdrant-*-<snapshot>` | snapshot API → download |
 | *(all CNPG databases)* | database | Postgres 18 | `<db>-*.dump` + `globals-*.sql` | `pg_dump -Fc` per DB |
 
-**Not covered here:** `litellm` (removed 2026-05); `shlink` and `librechat` (removed 2026-10-21).
+**Not covered here:** `litellm` (removed 2026-05); `shlink` and `librechat` (removed 2026-10-21); `qdrant` (removed 2026-10-21).
 
 ### The `database` namespace job
 
@@ -85,14 +84,6 @@ pg_restore --clean --if-exists --no-owner --no-privileges \
 ```sh
 gunzip -c /path/grimmory-<ts>.sql.gz | \
   mariadb -h grimmory-mariadb.media.svc.cluster.local -u grimmory -p<pw> grimmory
-```
-
-**Qdrant** (snapshot file):
-```sh
-# upload + recover a collection from a downloaded snapshot
-curl -X POST -H "api-key: <api_key>" \
-  -F "snapshot=@/path/qdrant-<ts>-<name>" \
-  "http://qdrant.ai.svc.cluster.local:6333/collections/<collection>/snapshots/upload?priority=snapshot"
 ```
 
 ## Full disaster recovery order of operations

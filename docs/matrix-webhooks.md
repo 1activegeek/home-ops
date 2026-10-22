@@ -1167,7 +1167,7 @@ ENV
 
 Ghost icons come from
 [`homarr-labs/dashboard-icons`](https://github.com/homarr-labs/dashboard-icons),
-already the source Homepage and the Authentik launcher blueprints use, so the
+already the source Homarr and the Authentik launcher blueprints use, so the
 room matches the dashboards.
 
 `avatar-uptimekuma.png` is upstream's 512×512 PNG **vendored verbatim** — per the

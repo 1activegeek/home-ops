@@ -111,22 +111,6 @@ entries:
       slug: grimmory
   - model: authentik_core.application
     identifiers:
-      slug: homepage
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
-      meta_launch_url: https://home2.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Homepage
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: homepage
-  - model: authentik_core.application
-    identifiers:
       slug: longhorn
     attrs:
       backchannel_providers: []
@@ -237,22 +221,6 @@ entries:
       policy_engine_mode: any
       provider: null
       slug: prowlarr
-  - model: authentik_core.application
-    identifiers:
-      slug: qdrant
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/qdrant.png
-      meta_launch_url: https://qdrant.${SECRET_DOMAIN}/dashboard
-      meta_publisher: ''
-      name: Qdrant
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: qdrant
   - model: authentik_core.application
     identifiers:
       slug: rackpeek

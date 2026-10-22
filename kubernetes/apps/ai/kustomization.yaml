@@ -9,7 +9,5 @@ components:
 resources:
   - ./namespace.yaml
   - ./db-backup/ks.yaml
-  - ./qdrant/ks.yaml
   - ./n8n/ks.yaml
   - ./hermes-agent/ks.yaml
-  - ./searxng/ks.yaml

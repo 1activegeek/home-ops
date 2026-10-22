@@ -27,7 +27,7 @@ spec:
           automountServiceAccountToken: false
           securityContext:
             runAsNonRoot: true
-            # Synology user/group, as the other NFS writers (sabnzbd).
+            # Synology user/group, as the other NFS writers.
             runAsUser: 1027
             runAsGroup: 100
             seccompProfile:

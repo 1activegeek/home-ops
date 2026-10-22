@@ -103,6 +103,17 @@ entries:
     identifiers:
       slug: webtop
 
+  # Removed 2026-10-21 to free cluster resources (Homepage, Qdrant). Dropping their tiles from
+  # 40-launcher-apps.yaml leaves the applications in place.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: homepage
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: qdrant
+
   # Superseded by zipline-proxy; this OIDC provider has no application attached.
   - model: authentik_providers_oauth2.oauth2provider
     state: absent
