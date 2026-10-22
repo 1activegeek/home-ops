@@ -14,7 +14,6 @@ resources:
   - ./apprise/ks.yaml
   - ./artifacts/ks.yaml
   - ./zipline/ks.yaml
-  - ./homepage/ks.yaml
   - ./homarr/ks.yaml
   - ./rackpeek/ks.yaml
   - ./atuin/ks.yaml

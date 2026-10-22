@@ -57,7 +57,7 @@ Rules:
   - contains an `ExternalSecret` → `external-secrets` (namespace `security`; its health check waits for the 1Password store, so this means "secrets can actually be fetched")
   - its own manifests contain a `PersistentVolumeClaim`, or its health check waits on Longhorn-backed storage → `longhorn` (namespace `longhorn-system`). Chart-created PVCs alone don't need it.
   - a CRD or webhook another Kustomization provides (e.g. a `Certificate` → `cert-manager`), the shared CNPG `postgres`, or the IdP
-  - Do **not** add app-to-app dependencies for things that only matter at runtime (e.g. the arrs on sabnzbd); pods retry on their own.
+  - Do **not** add app-to-app dependencies for things that only matter at runtime (e.g. the arrs on their download client); pods retry on their own.
 
   Note the shell-var gotcha: Flux `postBuild` rewrites `${VAR}` — escape `$${VAR}` in scripts.
 - `targetNamespace` is always set.
@@ -103,7 +103,7 @@ Rules:
 - `securityContext` — default `runAsUser/fsGroup: 65534` unless the image requires otherwise (`task validate:security-ctx` flags mismatches)
 - `reloader.stakater.com/auto: "true"` annotation on **any** app consuming an ExternalSecret or ConfigMap
 - Image tags: pinned semver only. Never `latest`, `main`, or channel tags. No digests currently — semver is the standard.
-- Homepage entries live in homepage's own config.
+- Dashboard tiles live in Homarr's database (managed in its UI), not in Git.
 
 ## 8a. Monitoring standard (observability stack, 2026-07)
 

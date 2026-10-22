@@ -1,11 +1,8 @@
 ---
-# Shared by db-backup-n8n and db-backup-qdrant.
+# Used by db-backup-n8n (~0.5MiB/dump).
 #
-# Sizing is driven almost entirely by qdrant: a full snapshot is ~300MiB and
-# grows with the index, while n8n is ~0.5MiB/dump.
-# At RETENTION_DAYS=7 / KEEP_MIN=3 that is ~2.1GiB today and ~4.2GiB if
-# snapshots double, against ~0.1GiB for n8n. 10Gi leaves room for
-# that growth plus the free-space headroom each job reserves before it writes.
+# 10Gi is a leftover from when qdrant snapshots (~300MiB each) shared this
+# volume; qdrant has since been removed.
 #
 # `longhorn` supports online expansion (allowVolumeExpansion: true), so raising
 # this value is applied in place — no pod restart or data loss. Shrinking is

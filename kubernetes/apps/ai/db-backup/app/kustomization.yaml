@@ -4,4 +4,3 @@ kind: Kustomization
 resources:
   - ./pvc.yaml
   - ./cronjob-n8n.yaml
-  - ./cronjob-qdrant.yaml
