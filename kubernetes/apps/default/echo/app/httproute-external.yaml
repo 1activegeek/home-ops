@@ -5,6 +5,9 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  annotations:
+    gatus.home-operations.com/endpoint: |
+      name: Echo
   name: echo-external
   namespace: default
 spec:

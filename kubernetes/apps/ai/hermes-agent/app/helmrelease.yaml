@@ -150,6 +150,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Hermes
         hostnames: ["hermes.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

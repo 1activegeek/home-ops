@@ -50,6 +50,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Apprise
         hostnames: ["apprise.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

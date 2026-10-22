@@ -107,13 +107,13 @@ Rules:
 
 ## 8a. Monitoring standard (observability stack, 2026-07)
 
-The stack: **kube-prometheus-stack** (Prometheus + Alertmanager + node-exporter + kube-state-metrics), **Loki** + **Alloy** (logs), **Uptime Kuma** (uptime), existing **Grafana** — all in `monitoring`. When deploying a new app, wire it in with these standard hooks (everything is picked up automatically, no central config to edit):
+The stack: **kube-prometheus-stack** (Prometheus + Alertmanager + node-exporter + kube-state-metrics), **Loki** + **Alloy** (logs), **Gatus** (uptime), existing **Grafana** — all in `monitoring`. When deploying a new app, wire it in with these standard hooks (everything is picked up automatically, no central config to edit):
 
 - **Metrics** — enable the chart's `serviceMonitor`/`metrics` values, or ship a `ServiceMonitor`/`PodMonitor` next to the app. Prometheus watches ALL monitors cluster-wide (nil selectors) — no labels or registration needed.
 - **Alerts** — ship a `PrometheusRule` CR next to the app; also auto-discovered. Alertmanager delivers to Matrix through a matrix-hookshot generic webhook (see `docs/matrix-webhooks.md`); severity tiers inhibit downward (critical > warning > info). `InfoInhibitor` is nulled; `Watchdog` is routed every minute to the self-hosted Healthchecks `alertmanager-watchdog` check as a dead-man's switch (`docs/healthchecks.md`). (History: this was Discord, then Mattermost `#infrastructure` — both retired.)
 - **Logs** — automatic. Alloy (DaemonSet) tails every pod on its node and pushes to Loki with labels `namespace, pod, container, node, app`. Nothing to configure per app.
 - **Dashboards** — ConfigMap labeled `grafana_dashboard: "1"` (any namespace) with the JSON under `data:`; the Grafana sidecar auto-loads it. Datasources likewise via `grafana_datasource: "1"`.
-- **Uptime** — add a monitor in Uptime Kuma (`uptime.` internal route) for anything user-facing. Manual/API for now; declarative auto-registration is a planned follow-up.
+- **Uptime** — automatic. Gatus checks every HTTPRoute on `envoy-internal`/`envoy-external` (`gatus.` internal route) through DNS → Envoy → TLS, expecting a 200 after redirects. If the app's `/` isn't a 200, or a health path/body check is better, annotate the route with `gatus.home-operations.com/endpoint`: always a display `name:`, plus path, conditions or `extra-labels: {severity: critical}` as needed; `gatus.home-operations.com/enabled: "false"` opts out. Alerts go Gatus metrics → Prometheus → Alertmanager → Matrix. See `docs/gatus.md`.
 - **Heartbeats** — key long-running services get the `healthchecks.io/slug` (+ optional `healthchecks.io/url`) annotation on their workload; the heartbeat runner turns readiness into pings. CronJobs (backups, maintenance) get `healthchecks.io/slug` (+ optional `healthchecks.io/grace`) and become cron-schedule checks in the "Jobs" project, fed by the same runner from Job results. Scripts outside the cluster ping the Jobs project directly: `/ping/<jobs-ping-key>/<slug>?create=1`. See `docs/healthchecks.md`.
 
 In-cluster endpoints (for automations/AI analysis):
@@ -124,10 +124,10 @@ In-cluster endpoints (for automations/AI analysis):
 | Alertmanager | `http://kps-alertmanager.monitoring.svc.cluster.local:9093` |
 | Loki | `http://loki.monitoring.svc.cluster.local:3100` |
 | Grafana | `http://grafana.monitoring.svc.cluster.local:80` |
-| Uptime Kuma | `http://uptime-kuma.monitoring.svc.cluster.local:3001` |
+| Gatus | `http://gatus.monitoring.svc.cluster.local:8080` |
 | Healthchecks | `http://healthchecks.monitoring.svc.cluster.local:8000` |
 
-Prometheus retains 14d/25GB, Loki 14d — both on `longhorn-nobackup` (rebuildable telemetry; the explicit no-backup rationale per §7). Uptime Kuma's PVC is on `longhorn` (its DB holds monitor config).
+Prometheus retains 14d/25GB, Loki 14d — both on `longhorn-nobackup` (rebuildable telemetry; the explicit no-backup rationale per §7). Gatus' check history is on `longhorn-nobackup` too — its checks live in git, so the PVC is only history.
 
 ## 9. Validation & workflow
 

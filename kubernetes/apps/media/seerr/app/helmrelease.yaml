@@ -65,6 +65,9 @@ spec:
           - path: /app/config
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Seerr
         hostnames: ["requests.${SECRET_DOMAIN}"]
         # Dual-homed + public: internal parent so on-LAN resolves to the internal
         # gateway (.53) with no hairpin; external parent for public reachability

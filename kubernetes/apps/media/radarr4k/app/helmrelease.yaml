@@ -81,6 +81,9 @@ spec:
           - path: /data/media
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Radarr 4K
         hostnames: ["radarr4k.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

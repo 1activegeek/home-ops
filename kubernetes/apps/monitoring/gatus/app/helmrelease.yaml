@@ -1,0 +1,166 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: gatus
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: gatus
+  interval: 1h
+  values:
+    controllers:
+      gatus:
+        # Single replica with a ReadWriteOnce history volume.
+        strategy: Recreate
+        annotations:
+          reloader.stakater.com/auto: "true"
+        serviceAccount:
+          identifier: gatus
+        pod:
+          automountServiceAccountToken: true
+        initContainers:
+          # Native sidecar (restartPolicy: Always): starts before Gatus and runs
+          # for the life of the pod. Watches every HTTPRoute attached to either
+          # Envoy gateway and writes one Gatus endpoint per route to
+          # /config/gatus-sidecar.yaml. Defaults come from each Gateway's
+          # gatus.home-operations.com/endpoint annotation, per-route overrides
+          # from the same annotation on the route (child wins). Services are
+          # watched too, but only emitted when annotated (opt-in TCP checks).
+          sidecar:
+            image:
+              repository: ghcr.io/home-operations/gatus-sidecar
+              tag: 0.5.5
+            restartPolicy: Always
+            args:
+              - --auto-httproute
+              - --gateway-name=envoy-internal
+              - --gateway-name=envoy-external
+              - --enable-service
+              - --output=/config/gatus-sidecar.yaml
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+        containers:
+          app:
+            image:
+              repository: ghcr.io/twin/gatus
+              tag: v5.37.0
+            env:
+              TZ: America/New_York
+              # A directory: Gatus merges config.yaml (ours) with the sidecar's
+              # generated gatus-sidecar.yaml.
+              GATUS_CONFIG_PATH: /config
+            probes:
+              liveness: &probes
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health
+                    port: &port 8080
+                  periodSeconds: 10
+                  timeoutSeconds: 2
+                  failureThreshold: 3
+              readiness: *probes
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 20m
+                memory: 64Mi
+              limits:
+                memory: 256Mi
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+
+    serviceAccount:
+      gatus: {}
+    rbac:
+      roles:
+        gatus:
+          type: ClusterRole
+          rules:
+            - apiGroups: [""]
+              resources: ["services"]
+              verbs: ["get", "list", "watch"]
+            # Gateways are read for the inherited default template.
+            - apiGroups: ["gateway.networking.k8s.io"]
+              resources: ["httproutes", "gateways"]
+              verbs: ["get", "list", "watch"]
+      bindings:
+        gatus:
+          type: ClusterRoleBinding
+          roleRef:
+            identifier: gatus
+          subjects:
+            - identifier: gatus
+
+    service:
+      app:
+        controller: gatus
+        ports:
+          http:
+            port: *port
+
+    # /metrics on the web port (metrics: true in config.yaml). Feeds the
+    # GatusEndpointDown / certificate alerts in prometheusrule.yaml.
+    serviceMonitor:
+      app:
+        service:
+          identifier: app
+        endpoints:
+          - port: http
+            scheme: http
+            path: /metrics
+            interval: 1m
+            scrapeTimeout: 10s
+
+    persistence:
+      # Shared between the sidecar (writes gatus-sidecar.yaml) and Gatus.
+      config:
+        type: emptyDir
+        globalMounts:
+          - path: /config
+      config-file:
+        type: configMap
+        name: gatus-config
+        advancedMounts:
+          gatus:
+            app:
+              - path: /config/config.yaml
+                subPath: config.yaml
+                readOnly: true
+      # Check history only; the checks themselves are all in git. Rebuildable
+      # telemetry, so no Longhorn backups (same rationale as Prometheus/Loki).
+      data:
+        type: persistentVolumeClaim
+        storageClass: longhorn-nobackup
+        accessMode: ReadWriteOnce
+        size: 2Gi
+        advancedMounts:
+          gatus:
+            app:
+              - path: /data
+
+    route:
+      app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Gatus
+        hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https

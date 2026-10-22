@@ -1,0 +1,74 @@
+---
+# Gatus alerting goes through Prometheus -> Alertmanager -> Matrix (no Gatus
+# alerting providers), so uptime alerts share grouping, inhibition, silences and
+# the Watchdog dead-man's switch with everything else.
+#
+# `severity` comes from the endpoint itself: Gatus exports each endpoint's
+# `extra-labels` as metric labels, the Gateway annotations default it to
+# `warning`, and a route can raise it with
+#   gatus.home-operations.com/endpoint: |
+#     extra-labels: {severity: critical}
+# The rule sets no severity of its own so the series' label carries through.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gatus
+spec:
+  groups:
+    - name: gatus
+      rules:
+        - alert: GatusEndpointDown
+          # Checks run every minute; 3m matches Uptime Kuma's old
+          # "down after 2 retries" behaviour and rides out a Recreate restart.
+          expr: gatus_results_endpoint_success == 0
+          for: 3m
+          annotations:
+            summary: "{{ $labels.name }} ({{ $labels.group }}) is failing its uptime check"
+            description: >-
+              Gatus endpoint {{ $labels.key }} has failed every check for 3
+              minutes. The failing condition is shown on the Gatus status page.
+
+        - alert: GatusCertificateExpiringSoon
+          # cert-manager renews 30 days out; under 14 days means renewal is
+          # stuck or something is serving the wrong certificate.
+          expr: |
+            gatus_results_certificate_expiration_seconds > 0
+              and gatus_results_certificate_expiration_seconds < 14 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "TLS certificate for {{ $labels.name }} expires in {{ $value | humanizeDuration }}"
+            description: >-
+              The certificate presented for Gatus endpoint {{ $labels.key }}
+              is close to expiry. Check cert-manager Certificates and the
+              gateway listener secret.
+
+        - alert: GatusDomainExpiringSoon
+          # From the "Domain registration" check (hourly WHOIS/RDAP lookup).
+          # Fires well before that check itself fails at 14 days, so renewal
+          # can be sorted out calmly.
+          expr: |
+            gatus_results_domain_expiration_seconds > 0
+              and gatus_results_domain_expiration_seconds < 30 * 86400
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Domain registration expires in {{ $value | humanizeDuration }}"
+            description: >-
+              The registered domain behind every hostname is close to expiry.
+              Check auto-renew and the payment method at the registrar.
+
+        - alert: GatusNoResults
+          # Gatus down, the sidecar wedged, or scraping broken: uptime
+          # monitoring is blind, which nothing else would report.
+          expr: absent(gatus_results_endpoint_success)
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Gatus is producing no uptime results
+            description: >-
+              No gatus_results_endpoint_success series for 10 minutes. Check
+              the gatus pod in monitoring and its ServiceMonitor target.

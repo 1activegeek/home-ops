@@ -72,6 +72,9 @@ spec:
           - path: /data/media
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Bazarr
         hostnames: ["bazarr.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

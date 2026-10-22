@@ -11,7 +11,7 @@
 # Each round, per annotated workload:
 #   healthy   = at least one pod Ready (every pod for a DaemonSet) and, if set,
 #               GET url answers 2xx straight at the Service (no Envoy/DNS/TLS;
-#               that path is Uptime Kuma's job)
+#               that path is Gatus' job)
 #   healthy   -> ping /<slug>               (resets the check's timer)
 #   unhealthy -> ping /<slug>/log           (recorded, no alert) for the first
 #                HEARTBEAT_FAIL_AFTER-1 rounds, so rollouts and Recreate

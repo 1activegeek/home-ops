@@ -134,6 +134,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Grimmory
         hostnames: ["books.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

@@ -153,3 +153,9 @@ entries:
     state: absent
     identifiers:
       name: login-reputation-check
+
+  # Uptime Kuma was replaced by Gatus (portal tile `gatus` in 40-launcher-apps.yaml).
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: uptime-kuma

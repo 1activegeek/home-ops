@@ -785,7 +785,7 @@ which is not necessarily the display name):
 | Infrastructure | Alertmanager | `Alertmanager` | `Alertmanager` | 1P `hookshot-hooks` (`alertmanager_hook_id`, `alertmanager_url`) |
 | Infrastructure | Forgejo | `Forgejo` | `Forgejo` | 1P `hookshot-hooks` (`forgejo_hook_id`, `forgejo_url`) |
 
-Longhorn, Uptime Kuma and the Cloudflare DNS monitor are **not** in this table —
+Longhorn and the Cloudflare DNS monitor are **not** in this table —
 they take the relay path instead (see the relay profiles table below).
 
 **`@hookshot` must hold PL50 in a room before either of these can exist.** The
@@ -801,7 +801,6 @@ Synapse):
 |---|---|---|---|
 | Media Server | Tautulli → `/notify` | `@_webhooks_plex` | `Plex` |
 | Media Server | Seerr → `/notify` | `@_webhooks_requests` | `Requests` |
-| Infrastructure | Uptime Kuma → `/notify` | `@_webhooks_uptimekuma` | `Uptime Kuma` |
 | Infrastructure | Longhorn backup CronJob → `/notify` | `@_webhooks_longhorn` | `Longhorn` |
 | Infrastructure | Cloudflare DNS monitor CronJob → `/notify` | `@_webhooks_cloudflare` | `Cloudflare` |
 | Infrastructure | Healthchecks webhook integration → `/notify` | `@_webhooks_healthchecks` | `Healthchecks` |
@@ -819,7 +818,6 @@ one reason: **whether the sender can shape its own JSON body.**
 |---|---|---|
 | Alertmanager | hookshot + JS transform | `webhook_configs` has no body templating |
 | Forgejo | hookshot + JS transform | fixed Forgejo webhook schema |
-| Uptime Kuma | relay | its webhook notification supports a custom JSON body |
 | Longhorn backup alert | relay | our CronJob, we own the payload |
 | Cloudflare DNS monitor | relay | our CronJob, we own the payload |
 | Healthchecks | relay (`render_healthchecks`) | webhook body is templatable but cannot HTML-escape, so the relay renders the card from structured placeholders |
@@ -931,7 +929,12 @@ in its logs. The state key is the connection name, and the ghost is
 trimming drops the rendered HTML *before* it drops that blob, so a large Forgejo
 push would arrive as a JSON dump instead of the formatted message.
 
-## Wiring Uptime Kuma
+## Wiring Uptime Kuma (retired)
+
+> **Retired 2026-10.** Uptime Kuma was replaced by Gatus (`docs/gatus.md`), whose
+> alerts reach this room through Alertmanager rather than the relay. The
+> `uptimekuma` relay profile, its token mapping and avatar were removed. The
+> section is kept as a record of the custom-body pattern.
 
 Uptime Kuma takes the **relay** path, because its Webhook notification supports
 a **custom JSON body** — so it emits `{"text": ..., "html": ...}` itself and

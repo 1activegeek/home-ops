@@ -125,6 +125,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Matrix Account
         hostnames: ["mas.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal
@@ -143,6 +146,9 @@ spec:
       # no mid-path wildcard, so each client-API version is listed; the longer
       # PathPrefix beats Synapse's catch-all at the gateway.
       compat:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Matrix Login (compat)
         hostnames: ["synapse.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

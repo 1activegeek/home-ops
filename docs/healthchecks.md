@@ -82,7 +82,7 @@ Every 60 seconds, for each annotated workload:
 
 - **Healthy** means at least one pod is Ready (every scheduled pod, for a DaemonSet) and, if a URL is
   set, a GET straight at the Service answers 2xx. The URL skips Envoy, DNS and TLS on purpose:
-  that path is Uptime Kuma's job. So "Kuma down, heartbeat up" points at routing, and both down
+  that path is Gatus' job (`docs/gatus.md`). So "Gatus down, heartbeat up" points at routing, and both down
   points at the app.
 - **Healthy** sends a ping to `/<slug>`.
 - **Unhealthy** sends `/<slug>/log` for the first four rounds. That records the failure without
@@ -154,7 +154,7 @@ Three layers, each covering a failure the others can't see:
 | `self-check` CronJob (every 5m; `app/resources/self-check.sh`) | Healthchecks, DB, gateway, DNS or TLS broken | Local `healthchecks-self` check, **and** the healthchecks.io cloud check (`/fail` with the reason) |
 | healthchecks.io cloud check | the whole cluster or network is dead (the CronJob stops pinging) | healthchecks.io, outside the cluster |
 | `alertmanager-watchdog` check | Prometheus or Alertmanager down (the always-firing `Watchdog` alert stops arriving every minute) | Local Healthchecks |
-| Uptime Kuma monitor on `/api/v3/status/` | Healthchecks UI or API down | Uptime Kuma |
+| Gatus `healthchecks-machine` check on `/api/v3/status/` (body `OK`) | Healthchecks UI or API down | Alertmanager → Matrix (`GatusEndpointDown`) |
 | `heartbeat-runner` check | the heartbeat runner is dead or can't read the cluster | Local Healthchecks |
 
 The CronJob also upserts the `healthchecks-self` and `alertmanager-watchdog` checks through the

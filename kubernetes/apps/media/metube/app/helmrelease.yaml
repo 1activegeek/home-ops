@@ -68,6 +68,9 @@ spec:
           - path: /downloads
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: MeTube
         hostnames: ["{{ .Release.Name }}.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal
