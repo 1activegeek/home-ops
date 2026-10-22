@@ -166,6 +166,7 @@ spec:
         annotations:
           # `/` is a 404; /healthz is the relay's own health handler.
           gatus.home-operations.com/endpoint: |
+            name: Matrix Media Relay
             path: /healthz
             conditions:
               - "[STATUS] == 200"

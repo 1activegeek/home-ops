@@ -199,6 +199,7 @@ spec:
       app:
         annotations:
           gatus.home-operations.com/endpoint: |
+            name: Home Assistant
             extra-labels:
               severity: critical
         hostnames: ["hass.${SECRET_DOMAIN}"]

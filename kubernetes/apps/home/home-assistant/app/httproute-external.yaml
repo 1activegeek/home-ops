@@ -6,10 +6,11 @@ kind: HTTPRoute
 metadata:
   name: home-assistant-external
   annotations:
-    # Same hostname as the internal `home-assistant` route. In-cluster split DNS
-    # resolves it to envoy-internal, so a Gatus probe here would just repeat
-    # that check; external reachability needs an out-of-cluster probe.
-    gatus.home-operations.com/enabled: "false"
+    # Outside-in twin of the internal `home-assistant` check: the envoy-external
+    # Gatus default resolves through public DNS, so this one goes via
+    # Cloudflare and the tunnel.
+    gatus.home-operations.com/endpoint: |
+      name: Home Assistant (external)
   namespace: home
 spec:
   hostnames:

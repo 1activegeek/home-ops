@@ -29,7 +29,7 @@ endpoints:
   # Public DNS for the Cloudflare tunnel target that every envoy-external
   # hostname CNAMEs to. Asked of 1.1.1.1, not the cluster resolver, so it
   # sees what the internet sees (split DNS answers internal names locally).
-  - name: public-dns
+  - name: Public DNS
     group: external
     url: 1.1.1.1
     interval: 5m
@@ -40,3 +40,16 @@ endpoints:
       - "[DNS_RCODE] == NOERROR"
     extra-labels:
       severity: warning
+
+  # Registration expiry of the domain itself (WHOIS/RDAP), not a TLS cert. The
+  # HTTPS request is only the vehicle; the condition is all that is judged.
+  # Gatus refuses intervals under 5m for this (public WHOIS); hourly is plenty.
+  # GatusDomainExpiringSoon warns at 30 days; this condition fails (critical) at 14.
+  - name: Domain registration
+    group: external
+    url: https://${SECRET_DOMAIN}
+    interval: 1h
+    conditions:
+      - "[DOMAIN_EXPIRATION] > 336h"
+    extra-labels:
+      severity: critical

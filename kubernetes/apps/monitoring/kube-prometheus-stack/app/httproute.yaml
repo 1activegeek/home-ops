@@ -2,6 +2,9 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  annotations:
+    gatus.home-operations.com/endpoint: |
+      name: Prometheus
   name: prometheus
 spec:
   hostnames:
@@ -18,6 +21,9 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  annotations:
+    gatus.home-operations.com/endpoint: |
+      name: Alertmanager
   name: alertmanager
 spec:
   hostnames:

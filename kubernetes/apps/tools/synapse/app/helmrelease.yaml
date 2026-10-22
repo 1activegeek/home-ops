@@ -179,6 +179,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Synapse
         hostnames: ["synapse.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal
@@ -198,6 +201,7 @@ spec:
           # The prefix itself is a 405; the client document is what Element
           # and other clients fetch to find the homeserver.
           gatus.home-operations.com/endpoint: |
+            name: Matrix Discovery
             path: /.well-known/matrix/client
         hostnames: ["matrix.${SECRET_DOMAIN}"]
         parentRefs:

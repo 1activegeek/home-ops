@@ -86,6 +86,7 @@ spec:
           annotations:
             # The IdP: every SSO and forward-auth app fails with it.
             gatus.home-operations.com/endpoint: |
+              name: Authentik
               extra-labels:
                 severity: critical
           hostnames:

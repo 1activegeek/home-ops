@@ -14,6 +14,17 @@ configMapGenerator:
   - name: gatus-config
     files:
       - ./resources/config.yaml
+  # Grafana dashboard, auto-loaded by the Grafana sidecar (grafana_dashboard
+  # label, any namespace). Substitution off: the JSON uses Grafana's own
+  # $variables.
+  - name: gatus-dashboard
+    files:
+      - gatus.json=./resources/dashboard.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled
 
 generatorOptions:
   disableNameSuffixHash: true

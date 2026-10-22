@@ -61,6 +61,9 @@ spec:
           - path: /config
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Tautulli
         hostnames: ["tautulli.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

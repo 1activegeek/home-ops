@@ -25,17 +25,35 @@ How a generated endpoint is built:
 
 | Field | Source |
 |---|---|
-| `name` | the HTTPRoute name |
+| `name` | the `name:` in the route's annotation (the display name every route carries), else the HTTPRoute name |
 | `url` | `https://` + the route's first hostname + its first non-`/` path match |
 | `group` | `internal` / `external`, set by the gateway of the route's **first** parentRef |
-| defaults | the Gateway's `gatus.home-operations.com/endpoint` annotation (`network/envoy-gateway/app/envoy.yaml`): `[STATUS] == 200`, 1m interval, 30s timeout, `severity: warning` |
+| defaults | the Gateway's `gatus.home-operations.com/endpoint` annotation (`network/envoy-gateway/app/envoy.yaml`): `[STATUS] == 200`, 1m interval, 30s timeout, `severity: warning`. `envoy-external` also sets `client.dns-resolver: tcp://1.1.1.1:53` (see Outside-in checks below) |
 | overrides | the route's own `gatus.home-operations.com/endpoint` annotation. It merges over the gateway default, and the route wins. |
 
 Redirects are followed, so an app behind Authentik passes when the Authentik login page renders.
 `[STATUS] == 200` is therefore the default for every route.
 
-`app/resources/config.yaml` holds only Gatus' own settings and the few checks that have no route
-to annotate. Currently that is one check, `public-dns`.
+`app/resources/config.yaml` holds only Gatus' own settings and the checks that have no route to
+annotate: `Public DNS` (the tunnel target resolves on 1.1.1.1) and `Domain registration` (WHOIS
+expiry of the domain, hourly, because Gatus refuses intervals under 5m for this check).
+
+## Outside-in checks
+
+Every route on `envoy-external` resolves its hostname through public DNS (1.1.1.1) instead of the
+cluster's split DNS. The probe therefore leaves the cluster, reaches Cloudflare's edge, and comes
+back through the tunnel and the external gateway, including its default forward-auth. Because the
+tunnel is outbound-only, that is the same path an internet user takes. It catches tunnel,
+Cloudflare, public-DNS and external-gateway breakage that an internal check can't see.
+
+What it cannot catch is the home connection being down. In that case Gatus still alerts, but
+Matrix (also at home) can't deliver the alert. That gap is covered by the healthchecks.io cloud
+check (`docs/healthchecks.md`), which alerts from outside when the cluster stops pinging.
+
+Hostnames that have both an internal and an external route get two checks: the internal one and
+an `(external)` twin, for example `Home Assistant` and `Home Assistant (external)`. Routes whose
+**first** parentRef is `envoy-internal` (echo, Seerr) are checked internally only. Add a separate
+external route or a static check if one of those needs the outside view.
 
 ## Annotating a route
 
@@ -52,6 +70,7 @@ route:
           - "[STATUS] == 200"
           - "[BODY].status == ok"
           - "[RESPONSE_TIME] < 1500"
+        name: My App                   # display name (every route sets one)
         extra-labels:
           severity: critical           # alert severity (default warning)
     hostnames: [...]
@@ -67,12 +86,8 @@ doesn't recognise are passed through unchanged.
 | Probe a health endpoint | `path: /health` |
 | Check the body, not just the status | `conditions: ["[STATUS] == 200", "[BODY] == OK"]`, or `[BODY].field == value` for JSON |
 | Page louder | `extra-labels: {severity: critical}` |
-| Rename on the status page | `name: Home Assistant` (names must stay unique within a group) |
+| Display name | `name: Home Assistant`. Set it on every new route; names must stay unique within a group. Charts that can't annotate their route (Homarr) get it through a HelmRelease `postRenderers` patch. |
 | TCP check on a Service (no route) | annotate the **Service**: `gatus.home-operations.com/endpoint: \| conditions: ["[CONNECTED] == true"]`. Services are watched opt-in only. |
-
-**Disable the twin route when one hostname has both an internal and an external route.** In-cluster
-split DNS resolves the hostname to `envoy-internal`, so a second probe would repeat the first one.
-`home-assistant-external` and `authentik-external` are disabled for this reason.
 
 Current overrides:
 
@@ -84,7 +99,8 @@ Current overrides:
 | `synapse-wellknown` | `/.well-known/matrix/client` | the prefix itself is a 405 |
 | `tesla-pubkey` | the `.pem` path, body has `BEGIN PUBLIC KEY` | the only thing the host serves |
 | `home-assistant`, `authentik-server` | `severity: critical` | everything else depends on them |
-| `github-webhook`, `healthchecks-plain-http`, `*-external` twins | disabled | nothing healthy to probe, or a duplicate |
+| `authentik-external` | `path: ""` | its first path match is the admin console, which is a 404 at the edge |
+| `github-webhook`, `healthchecks-plain-http` | disabled | nothing healthy to probe, or a duplicate |
 
 ## Alerts
 
@@ -97,7 +113,13 @@ switch with every other alert.
 |---|---|---|
 | `GatusEndpointDown` | an endpoint failed every check for 3m | from the endpoint's `severity` extra-label |
 | `GatusCertificateExpiringSoon` | a served certificate has less than 14 days left (cert-manager renews at 30) | warning |
+| `GatusDomainExpiringSoon` | domain registration has less than 30 days left (the check itself fails, as critical, at 14) | warning |
 | `GatusNoResults` | no results at all for 10m (Gatus down or scrape broken) | critical |
+
+Dashboard: **Gatus — Uptime** in Grafana (`app/resources/dashboard.json`, loaded by the sidecar).
+It shows up/down counts, 24h uptime, the nearest certificate and domain expiry, a status timeline
+per endpoint, an endpoint table (status, 24h/7d uptime, response time, certificate expiry),
+response times, and non-200 responses. Filter it by group and endpoint.
 
 To silence a planned outage, use an Alertmanager silence or a `maintenance-windows` annotation on
 the route.

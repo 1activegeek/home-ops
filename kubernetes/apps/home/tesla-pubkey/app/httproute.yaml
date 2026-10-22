@@ -9,6 +9,7 @@ metadata:
     # internet, and the probe goes the same way (external-only hostname, so
     # in-cluster DNS resolves it through Cloudflare).
     gatus.home-operations.com/endpoint: |
+      name: Tesla Public Key
       path: /.well-known/appspecific/com.tesla.3p.public-key.pem
       conditions:
         - "[STATUS] == 200"

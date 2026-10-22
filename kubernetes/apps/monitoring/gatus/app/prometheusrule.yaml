@@ -44,6 +44,22 @@ spec:
               is close to expiry. Check cert-manager Certificates and the
               gateway listener secret.
 
+        - alert: GatusDomainExpiringSoon
+          # From the "Domain registration" check (hourly WHOIS/RDAP lookup).
+          # Fires well before that check itself fails at 14 days, so renewal
+          # can be sorted out calmly.
+          expr: |
+            gatus_results_domain_expiration_seconds > 0
+              and gatus_results_domain_expiration_seconds < 30 * 86400
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Domain registration expires in {{ $value | humanizeDuration }}"
+            description: >-
+              The registered domain behind every hostname is close to expiry.
+              Check auto-renew and the payment method at the registrar.
+
         - alert: GatusNoResults
           # Gatus down, the sidecar wedged, or scraping broken: uptime
           # monitoring is blind, which nothing else would report.

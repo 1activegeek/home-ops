@@ -112,6 +112,7 @@ spec:
         annotations:
           # `/` is a 404; /ready reports the bridge is connected.
           gatus.home-operations.com/endpoint: |
+            name: Hookshot
             path: /ready
             conditions:
               - "[STATUS] == 200"

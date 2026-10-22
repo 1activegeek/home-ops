@@ -75,6 +75,9 @@ spec:
           - path: /config
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Prowlarr
         hostnames: ["prowlarr.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

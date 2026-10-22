@@ -70,6 +70,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Matrix (Element)
         hostnames: ["matrix.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

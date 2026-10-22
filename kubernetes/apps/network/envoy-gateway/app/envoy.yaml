@@ -69,13 +69,15 @@ metadata:
     external-dns.kubernetes.io/target: external.${SECRET_DOMAIN}
     # Gatus default for every route on this gateway (gatus-sidecar merges this
     # under each HTTPRoute's own annotation; the route wins). See docs/gatus.md.
-    # In-cluster DNS sends external-only hostnames through Cloudflare, so these
-    # checks exercise the tunnel end to end.
+    # Outside-in: names are resolved through public DNS, not split DNS, so even a
+    # hostname that also has an internal route goes out to Cloudflare and back
+    # through the tunnel to this gateway, the path an internet user takes.
     gatus.home-operations.com/endpoint: |
       group: external
       interval: 1m
       client:
         timeout: 30s
+        dns-resolver: tcp://1.1.1.1:53
       conditions:
         - "[STATUS] == 200"
       extra-labels:

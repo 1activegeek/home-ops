@@ -98,3 +98,17 @@ spec:
         - backendRefs:
             - name: homarr
               port: 7575
+  # The chart's HTTPRoute template has no annotations field; this adds the Gatus
+  # display name (docs/gatus.md).
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: HTTPRoute
+              name: homarr
+            patch: |
+              - op: add
+                path: /metadata/annotations
+                value:
+                  gatus.home-operations.com/endpoint: |
+                    name: Homarr
