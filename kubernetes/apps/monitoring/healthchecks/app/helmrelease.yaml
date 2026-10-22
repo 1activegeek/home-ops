@@ -24,7 +24,7 @@ spec:
           bootstrap:
             image: &image
               repository: docker.io/healthchecks/healthchecks
-              tag: v4.4
+              tag: v5.0
             command:
               - /bin/sh
               - -c
