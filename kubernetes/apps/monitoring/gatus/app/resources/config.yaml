@@ -12,9 +12,14 @@
 # every other alert in the cluster.
 metrics: true
 
+# Gatus stores an endpoint's display name on first sight and never updates it,
+# so a rename (or a key collision like sonarr -> Sonarr) keeps the old name on
+# the status page; metrics are unaffected. Changing this file name starts a
+# clean history. Done once for the 2026-10 display-name rollout; the orphaned
+# data.db on the PVC is harmless.
 storage:
   type: sqlite
-  path: /data/data.db
+  path: /data/gatus.db
   caching: true
 
 web:
