@@ -95,7 +95,7 @@ if jobs_api_key and jobs_ping_key:
         print("bootstrap: created email integration for Jobs")
 
 # Matrix Infrastructure room, through matrix-media-relay as the
-# @_webhooks_healthchecks ghost (own name + icon, like Uptime Kuma/Longhorn).
+# @_webhooks_healthchecks ghost (own name + icon, like Longhorn).
 # Declared here rather than clicked into the UI so it survives a DB rebuild and
 # follows relay-token rotation. The body is Healthchecks' structured
 # placeholders, not a pre-rendered card: Healthchecks cannot HTML-escape a check

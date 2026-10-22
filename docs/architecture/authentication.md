@@ -113,6 +113,7 @@ front of it - for an internal-only route that is a deliberate choice, not an omi
 | Echo, Flux webhook, Tesla pubkey | external | `public_exception` | Webhook and probe endpoints |
 | Grimmory | internal | `none` | OIDC explicitly disabled in its config |
 | Healthchecks | internal | `forward_auth` | First **enforced** internal forward-auth (`internal-forward-auth` component) on the UI route, gated to `tier1`; app trusts `X-authentik-email` (`REMOTE_USER_HEADER`). `/ping/`, `/api/`, `/badge/` on a separate unauthenticated route (also plain HTTP for ping/api) that strips `X-authentik-*`; CiliumNetworkPolicy blocks direct pod access |
+| Gatus | internal | `none` | Read-only status page; no write actions or secrets in the UI. Replaced Uptime Kuma (which had its own login) |
 | All other internal apps | internal | `none` | Internal-only; no gateway auth and no OIDC configured |
 
 Apps in the last row include the *arr stack, media tooling, monitoring UIs, and the AI services. They

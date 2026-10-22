@@ -194,6 +194,11 @@ spec:
       # otherwise Element Web's host) so clients discover the client API and
       # MAS. More-specific path beats Element's catch-all at the gateway.
       wellknown:
+        annotations:
+          # The prefix itself is a 405; the client document is what Element
+          # and other clients fetch to find the homeserver.
+          gatus.home-operations.com/endpoint: |
+            path: /.well-known/matrix/client
         hostnames: ["matrix.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

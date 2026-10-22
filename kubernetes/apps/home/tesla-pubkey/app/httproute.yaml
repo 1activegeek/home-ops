@@ -4,6 +4,15 @@ kind: HTTPRoute
 metadata:
   name: tesla-pubkey
   namespace: home
+  annotations:
+    # The only thing this host serves. Tesla's Fleet API fetches it over the
+    # internet, and the probe goes the same way (external-only hostname, so
+    # in-cluster DNS resolves it through Cloudflare).
+    gatus.home-operations.com/endpoint: |
+      path: /.well-known/appspecific/com.tesla.3p.public-key.pem
+      conditions:
+        - "[STATUS] == 200"
+        - "[BODY] == pat(*BEGIN PUBLIC KEY*)"
 spec:
   hostnames:
     - tesladev.${SECRET_DOMAIN}

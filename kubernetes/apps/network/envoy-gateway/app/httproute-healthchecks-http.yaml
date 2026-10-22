@@ -18,6 +18,9 @@ metadata:
   name: healthchecks-plain-http
   annotations:
     external-dns.alpha.kubernetes.io/controller: none
+    # Same host and backend as healthchecks-machine (which Gatus checks over
+    # HTTPS); the sidecar can only probe https:// for routes anyway.
+    gatus.home-operations.com/enabled: "false"
 spec:
   hostnames:
     - hc.${SECRET_DOMAIN}

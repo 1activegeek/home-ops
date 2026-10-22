@@ -21,7 +21,6 @@ configMapGenerator:
     files:
       - avatar-plex.png
       - avatar-requests.png
-      - avatar-uptimekuma.png
       - avatar-longhorn.png
       - avatar-cloudflare.png
       - avatar-healthchecks.png

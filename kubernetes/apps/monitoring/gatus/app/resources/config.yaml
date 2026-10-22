@@ -1,0 +1,42 @@
+# Gatus base config. Mounted as /config/config.yaml; the gatus-sidecar writes
+# /config/gatus-sidecar.yaml next to it and Gatus merges every file in the
+# directory (GATUS_CONFIG_PATH=/config), hot-reloading when either changes.
+#
+# Do not add route checks here. Every HTTPRoute on envoy-internal/-external is
+# discovered automatically; tune one with the gatus.home-operations.com/endpoint
+# annotation on the route itself (docs/gatus.md). This file is only for checks
+# that have no route to annotate.
+#
+# No alerting block on purpose: Prometheus scrapes /metrics and the gatus
+# PrometheusRule raises alerts through Alertmanager -> Matrix, the same path as
+# every other alert in the cluster.
+metrics: true
+
+storage:
+  type: sqlite
+  path: /data/data.db
+  caching: true
+
+web:
+  port: 8080
+
+ui:
+  title: Status | Home Ops
+  header: Home Ops Status
+  default-sort-by: group
+
+endpoints:
+  # Public DNS for the Cloudflare tunnel target that every envoy-external
+  # hostname CNAMEs to. Asked of 1.1.1.1, not the cluster resolver, so it
+  # sees what the internet sees (split DNS answers internal names locally).
+  - name: public-dns
+    group: external
+    url: 1.1.1.1
+    interval: 5m
+    dns:
+      query-name: external.${SECRET_DOMAIN}
+      query-type: A
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+    extra-labels:
+      severity: warning

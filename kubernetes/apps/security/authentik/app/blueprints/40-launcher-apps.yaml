@@ -95,6 +95,22 @@ entries:
       slug: bazarr
   - model: authentik_core.application
     identifiers:
+      slug: gatus
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/gatus.png
+      meta_launch_url: https://gatus.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Gatus
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: gatus
+  - model: authentik_core.application
+    identifiers:
       slug: grimmory
     attrs:
       backchannel_providers: []
@@ -333,19 +349,3 @@ entries:
       policy_engine_mode: any
       provider: null
       slug: teslamate
-  - model: authentik_core.application
-    identifiers:
-      slug: uptime-kuma
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png
-      meta_launch_url: https://uptime.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Uptime Kuma
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: uptime-kuma

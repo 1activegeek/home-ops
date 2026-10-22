@@ -197,6 +197,10 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            extra-labels:
+              severity: critical
         hostnames: ["hass.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

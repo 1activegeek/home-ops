@@ -67,6 +67,19 @@ metadata:
   name: envoy-external
   annotations:
     external-dns.kubernetes.io/target: external.${SECRET_DOMAIN}
+    # Gatus default for every route on this gateway (gatus-sidecar merges this
+    # under each HTTPRoute's own annotation; the route wins). See docs/gatus.md.
+    # In-cluster DNS sends external-only hostnames through Cloudflare, so these
+    # checks exercise the tunnel end to end.
+    gatus.home-operations.com/endpoint: |
+      group: external
+      interval: 1m
+      client:
+        timeout: 30s
+      conditions:
+        - "[STATUS] == 200"
+      extra-labels:
+        severity: warning
 spec:
   # INTERNET boundary — distinct class so k8s-gateway split-DNS ignores it.
   gatewayClassName: envoy-external
@@ -98,6 +111,19 @@ metadata:
   name: envoy-internal
   annotations:
     external-dns.kubernetes.io/target: internal.${SECRET_DOMAIN}
+    # Gatus default for every route on this gateway (gatus-sidecar merges this
+    # under each HTTPRoute's own annotation; the route wins). Redirects are
+    # followed, so apps behind Authentik pass when the login page renders.
+    # See docs/gatus.md.
+    gatus.home-operations.com/endpoint: |
+      group: internal
+      interval: 1m
+      client:
+        timeout: 30s
+      conditions:
+        - "[STATUS] == 200"
+      extra-labels:
+        severity: warning
 spec:
   # INTERNAL tier — class `envoy` is the one k8s-gateway resolves on-LAN (.53).
   gatewayClassName: envoy

@@ -56,12 +56,6 @@ spec:
                     "displayname": "Requests",
                     "avatar": "avatar-requests.png"
                   },
-                  "uptimekuma": {
-                    "sender": "@_webhooks_uptimekuma:matrix.${SECRET_DOMAIN}",
-                    "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
-                    "displayname": "Uptime Kuma",
-                    "avatar": "avatar-uptimekuma.png"
-                  },
                   "longhorn": {
                     "sender": "@_webhooks_longhorn:matrix.${SECRET_DOMAIN}",
                     "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
@@ -153,9 +147,6 @@ spec:
               - path: /app/avatars/avatar-requests.png
                 subPath: avatar-requests.png
                 readOnly: true
-              - path: /app/avatars/avatar-uptimekuma.png
-                subPath: avatar-uptimekuma.png
-                readOnly: true
               - path: /app/avatars/avatar-longhorn.png
                 subPath: avatar-longhorn.png
                 readOnly: true
@@ -172,6 +163,13 @@ spec:
     # Internal only. Tautulli reaches it in-cluster; the route is for testing.
     route:
       app:
+        annotations:
+          # `/` is a 404; /healthz is the relay's own health handler.
+          gatus.home-operations.com/endpoint: |
+            path: /healthz
+            conditions:
+              - "[STATUS] == 200"
+              - "[BODY].ok == true"
         hostnames: ["matrix-media-relay.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

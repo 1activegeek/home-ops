@@ -49,7 +49,7 @@ Rationale:
 | `media` | Plex, SABnzbd, qBittorrent+Gluetun, Prowlarr, Radarr, Radarr-4K, Sonarr, Autoscan, Seerr, Tautulli, MeTube, Bazarr, Recyclarr, Unpackerr, Notifiarr, Grimmory, Audiobookshelf |
 | `ai` | Ollama, OpenWebUI, n8n, Qdrant |
 | `tools` | Shlink, Shlink-web, Forgejo, KMS, Zipline |
-| `monitoring` | Gatus, Grafana |
+| `monitoring` | Gatus, Grafana, kube-prometheus-stack, Loki, Alloy, Healthchecks, Headlamp |
 | `home` | Teslamate |
 
 ### Storage Strategy
@@ -97,7 +97,7 @@ No dependencies on other apps. Can be deployed in parallel.
 | App | Namespace | Chart | Auth | Notes |
 |-----|-----------|-------|------|-------|
 | 1a. KMS (vlmcsd) | tools | app-template | N/A (TCP only) | LoadBalancer TCP/1688 |
-| 1b. Gatus | monitoring | app-template | Native OIDC | Endpoint monitoring, ConfigMap-driven |
+| 1b. Gatus | monitoring | app-template | none (internal, read-only) | Uptime checks auto-generated from HTTPRoutes by gatus-sidecar; alerts via Prometheus/Alertmanager |
 | 1c. MeTube | media | app-template | Forward-auth | YouTube downloader |
 | 1d. Grafana | monitoring | Official chart | Native OIDC | Dashboard sidecar for auto-discovery |
 
@@ -297,7 +297,7 @@ This section is the **source of truth** for tracking progress across sessions. U
 | App | Status | Branch | Notes |
 |-----|--------|--------|-------|
 | 1a. KMS | `deployed` | `main` | HelmRelease healthy; app running |
-| 1b. Gatus | `deployed` | `main` | HelmRelease healthy; app running |
+| 1b. Gatus | `deployed` | `main` | 2026-07 removed for Uptime Kuma; 2026-10 redeployed as Uptime Kuma's replacement with annotation-driven route discovery (`docs/gatus.md`) |
 | 1c. MeTube | `deployed` | `main` | HelmRelease deployed; 2026-03-30 tuned to `MAX_CONCURRENT_DOWNLOADS=3` and `3Gi` memory limit after OOMKills under queued batch processing |
 | 1d. Grafana | `deployed` | `main` | HelmRelease healthy; app running |
 
@@ -359,4 +359,5 @@ This section is the **source of truth** for tracking progress across sessions. U
 | 2026-10-21 | Removed unused apps | A usage audit (15 days of gateway access logs, excluding Uptime Kuma and probe traffic) showed almost no real use, so these were removed: `ollama`, `open-webui`, `librechat` (with its MongoDB) and `agentbox` (ai); `shlink` (API, web UI and Postgres; Zipline replaces it), `webtop`, `glance` and `bridge` (tools). Their Longhorn volumes are deleted with them, along with their NAS backups, the `db-backup-librechat` and `db-backup-shlink` CronJobs, their Healthchecks checks and Uptime Kuma monitors, their Homepage tiles and their Authentik launcher tiles (via `99-cleanup.yaml`). The Mongo migration tasks went too, since LibreChat was the only Mongo app. |
 | 2026-10-21 | Nextcloud setup + Authentik SSO | Nextcloud had never finished installing: the first auto-install failed because the NAS share only accepts writes from the Synology media UID, and the image never retries once `version.php` exists, so it sat at the setup wizard and the webcron CronJob failed. The pod now runs as that UID (unprivileged-port sysctl for Apache), a root init container re-owns the app volume, data lives in a subdirectory Nextcloud owns, and a before-starting hook installs the instance if needed and converges core settings (trusted domain, CLI cron, phone region, maintenance window, missing indices, repair) on every start. Background jobs moved from the HTTP CronJob to a CLI sidecar. Auth is `internal` / `native_oidc` via the user_oidc app, bound to `tier1` + `tier2`; the login page redirects straight to Authentik, local admin stays available as break-glass. |
 | 2026-10-21 | Removed SABnzbd, SearXNG, Qdrant, Homepage | Removed to free cluster resources: `sabnzbd` (media), `searxng` and `qdrant` (ai), `homepage` (tools). Their Longhorn volumes (SABnzbd config + 150Gi scratch, Qdrant data) go with them, as do the `longhorn-scratch` StorageClass and SABnzbd's static media PV (Retain; the NAS share itself is untouched). Also removed: the `db-backup-qdrant` CronJob, the Homepage and Qdrant Authentik launcher tiles (`state: absent` in `99-cleanup.yaml`), and the SABnzbd migration doc and scripts. Homarr is now the only dashboard. |
+| 2026-10-21 | Uptime Kuma → Gatus | Replaced Uptime Kuma with Gatus + gatus-sidecar. Every HTTPRoute on either gateway now gets a check automatically; defaults are annotations on the two Gateways, per-route tuning is an annotation on the route. All 31 Kuma monitors for apps still in the cluster carried over (the Healthchecks keyword monitor became a body check on `healthchecks-machine`; Qdrant and Kuma's self-check went with their apps), plus 10 routes Kuma never watched (Atuin, Artifacts, Hookshot, MAS compat, Synapse, Synapse well-known, the media relay, echo, Tesla pubkey, Healthchecks UI) and a public-DNS check. Alerts moved to Prometheus (`GatusEndpointDown`, `GatusCertificateExpiringSoon`, `GatusNoResults`) → Alertmanager → Matrix; the Kuma relay profile was removed. Gatus is internal, auth `none` (read-only status page). |
 | | | *Next: Continue with Phase 4 and remaining auth cleanup.* |

@@ -331,6 +331,14 @@ spec:
               - name: healthchecks
                 port: *port
       machine:
+        annotations:
+          # Healthchecks' own status API: plain-text "OK" when the app and its
+          # database are up (the UI route only proves the Authentik redirect).
+          gatus.home-operations.com/endpoint: |
+            path: /api/v3/status/
+            conditions:
+              - "[STATUS] == 200"
+              - "[BODY] == OK"
         hostnames: ["hc.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal
