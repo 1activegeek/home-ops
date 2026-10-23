@@ -93,8 +93,20 @@ spec:
           SSH_PORT: 22
           START_SSH_SERVER: true
 
+        # Self-service sign-up is CLOSED (security finding GOP-02). New accounts
+        # are created by an admin (Site administration -> User accounts).
+        #
+        # DISABLE_REGISTRATION=true also closes registration through the
+        # Authentik auth source, because ALLOW_ONLY_EXTERNAL_REGISTRATION is
+        # left false (its default) and [oauth2_client] ENABLE_AUTO_REGISTRATION
+        # is unset (false). Deliberate: otherwise any Authentik identity that
+        # can reach the Forgejo application would get an account on first
+        # login. Accounts already linked to Authentik keep signing in through
+        # SSO unchanged; an existing local account that is not linked yet is
+        # offered "link to existing account" (sign in with its password once)
+        # instead of a registration form.
         service:
-          DISABLE_REGISTRATION: false
+          DISABLE_REGISTRATION: true
           REQUIRE_SIGNIN_VIEW: false
           DEFAULT_KEEP_EMAIL_PRIVATE: true
 
