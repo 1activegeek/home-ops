@@ -15,38 +15,6 @@ metadata:
 entries:
   - model: authentik_core.application
     identifiers:
-      slug: alertmanager
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/alertmanager.png
-      meta_launch_url: https://alertmanager.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Alertmanager
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: alertmanager
-  - model: authentik_core.application
-    identifiers:
-      slug: apprise
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/apprise.png
-      meta_launch_url: https://apprise.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Apprise
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: apprise
-  - model: authentik_core.application
-    identifiers:
       slug: audiobookshelf
     attrs:
       backchannel_providers: []
