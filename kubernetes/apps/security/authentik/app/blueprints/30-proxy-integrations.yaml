@@ -465,6 +465,56 @@ entries:
       policy_engine_mode: any
       provider: !KeyOf 'provider-alertmanager'
       slug: alertmanager
+  # MeTube has no login of its own; the whole route is behind forward-auth
+  # (internal-forward-auth component). Was a provider-less tile in
+  # 40-launcher-apps.yaml; same slug, so this takes the existing object over.
+  - id: provider-metube
+    model: authentik_providers_proxy.proxyprovider
+    identifiers:
+      name: metube-proxy
+    attrs:
+      access_token_validity: hours=1
+      authentication_flow: null
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      basic_auth_enabled: false
+      basic_auth_password_attribute: ''
+      basic_auth_user_attribute: ''
+      certificate: null
+      cookie_domain: ${SECRET_DOMAIN}
+      external_host: https://metube.${SECRET_DOMAIN}
+      intercept_header_auth: true
+      internal_host: ''
+      internal_host_ssl_validation: true
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      jwt_federation_providers: []
+      jwt_federation_sources: []
+      mode: forward_single
+      name: metube-proxy
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-entitlements]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/proxy/scope-proxy]]
+      refresh_token_validity: days=30
+      skip_path_regex: ''
+  - id: app-metube
+    model: authentik_core.application
+    identifiers:
+      slug: metube
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/metube.png
+      meta_launch_url: https://metube.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: MeTube
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: !KeyOf 'provider-metube'
+      slug: metube
   - model: authentik_outposts.outpost
     identifiers:
       managed: goauthentik.io/outposts/embedded
@@ -501,6 +551,7 @@ entries:
         - !KeyOf 'provider-bambuddy'
         - !KeyOf 'provider-prometheus'
         - !KeyOf 'provider-alertmanager'
+        - !KeyOf 'provider-metube'
   - model: authentik_policies.policybinding
     identifiers:
       target: !KeyOf 'app-home-assistant'
@@ -599,6 +650,19 @@ entries:
   - model: authentik_policies.policybinding
     identifiers:
       target: !KeyOf 'app-alertmanager'
+      group: !Find [authentik_core.group, [name, tier1]]
+      order: 0
+    attrs:
+      enabled: true
+      failure_result: false
+      negate: false
+      policy: null
+      timeout: 30
+      user: null
+  # MeTube downloads to cluster storage and keeps the download history: owner tier only.
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf 'app-metube'
       group: !Find [authentik_core.group, [name, tier1]]
       order: 0
     attrs:

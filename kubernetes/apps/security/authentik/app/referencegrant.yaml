@@ -28,6 +28,9 @@ spec:
     - group: gateway.envoyproxy.io
       kind: SecurityPolicy
       namespace: tools  # internal-forward-auth component (apprise)
+    - group: gateway.envoyproxy.io
+      kind: SecurityPolicy
+      namespace: media  # internal-forward-auth component (metube)
   to:
     - group: ""
       kind: Service

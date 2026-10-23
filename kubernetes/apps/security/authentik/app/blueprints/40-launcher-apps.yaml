@@ -95,22 +95,6 @@ entries:
       slug: matrix-account
   - model: authentik_core.application
     identifiers:
-      slug: metube
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/metube.png
-      meta_launch_url: https://metube.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: MeTube
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: metube
-  - model: authentik_core.application
-    identifiers:
       slug: music-assistant
     attrs:
       backchannel_providers: []

@@ -66,6 +66,8 @@ spec:
         size: 20Gi
         globalMounts:
           - path: /downloads
+    # Behind Authentik forward-auth (internal-forward-auth component, see
+    # kustomization.yaml). Single route, so it renders as `metube`.
     route:
       app:
         annotations:

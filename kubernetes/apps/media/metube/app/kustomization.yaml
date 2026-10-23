@@ -4,3 +4,22 @@ kind: Kustomization
 resources:
   - ./helmrelease.yaml
   - ./ocirepository.yaml
+
+# The whole route (metube) is behind Authentik forward-auth: MeTube has no
+# login of its own. Upstream's browser extensions, bookmarklet and iOS
+# Shortcut POST to /add without an Authentik session, so they stop working;
+# none were seen in the access logs when this was added.
+components:
+  - ../../../../components/internal-forward-auth
+
+patches:
+  - target:
+      kind: SecurityPolicy
+      name: internal-forward-auth
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: metube-forward-auth
+      - op: replace
+        path: /spec/targetRefs/0/name
+        value: metube
