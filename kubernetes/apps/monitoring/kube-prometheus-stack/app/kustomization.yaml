@@ -8,3 +8,27 @@ resources:
   - ./httproute.yaml
   - ./configmap.yaml
   - ./prometheusrule.yaml
+
+# Prometheus and Alertmanager routes behind Authentik forward-auth. Grafana,
+# Loki and Prometheus itself reach both through their in-cluster Services, so
+# only browsers go through these routes. One SecurityPolicy targets both.
+components:
+  - ../../../../components/internal-forward-auth
+
+patches:
+  - target:
+      kind: SecurityPolicy
+      name: internal-forward-auth
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: kps-forward-auth
+      - op: replace
+        path: /spec/targetRefs/0/name
+        value: prometheus
+      - op: add
+        path: /spec/targetRefs/-
+        value:
+          group: gateway.networking.k8s.io
+          kind: HTTPRoute
+          name: alertmanager

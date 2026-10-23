@@ -31,6 +31,22 @@ entries:
       slug: alertmanager
   - model: authentik_core.application
     identifiers:
+      slug: apprise
+    attrs:
+      backchannel_providers: []
+      group: ''
+      meta_description: ''
+      meta_hide: false
+      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/apprise.png
+      meta_launch_url: https://apprise.${SECRET_DOMAIN}
+      meta_publisher: ''
+      name: Apprise
+      open_in_new_tab: false
+      policy_engine_mode: any
+      provider: null
+      slug: apprise
+  - model: authentik_core.application
+    identifiers:
       slug: audiobookshelf
     attrs:
       backchannel_providers: []
@@ -157,22 +173,6 @@ entries:
       policy_engine_mode: any
       provider: null
       slug: n8n
-  - model: authentik_core.application
-    identifiers:
-      slug: prometheus
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/prometheus.png
-      meta_launch_url: https://prometheus.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Prometheus
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: prometheus
   - model: authentik_core.application
     identifiers:
       slug: prowlarr
