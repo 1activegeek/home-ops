@@ -5,3 +5,21 @@ resources:
   - ./ocirepository.yaml
   - ./externalsecret.yaml
   - ./helmrelease.yaml
+
+# The whole route (teslamate) is behind Authentik forward-auth: TeslaMate has
+# no login of its own and shows location and drive history. Nothing calls the
+# hostname as an API; drive logging pulls from Tesla and is unaffected.
+components:
+  - ../../../../components/internal-forward-auth
+
+patches:
+  - target:
+      kind: SecurityPolicy
+      name: internal-forward-auth
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: teslamate-forward-auth
+      - op: replace
+        path: /spec/targetRefs/0/name
+        value: teslamate

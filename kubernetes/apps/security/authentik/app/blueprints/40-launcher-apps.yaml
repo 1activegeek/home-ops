@@ -317,19 +317,3 @@ entries:
       policy_engine_mode: any
       provider: null
       slug: tautulli
-  - model: authentik_core.application
-    identifiers:
-      slug: teslamate
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/teslamate.png
-      meta_launch_url: https://teslamate.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: TeslaMate
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: teslamate

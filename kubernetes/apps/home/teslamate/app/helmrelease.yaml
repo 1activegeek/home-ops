@@ -105,6 +105,8 @@ spec:
             postgres:
               - path: /var/lib/postgresql/data
 
+    # Behind Authentik forward-auth (internal-forward-auth component, see
+    # kustomization.yaml). Single route, so it renders as `teslamate`.
     route:
       app:
         annotations:
