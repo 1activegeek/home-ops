@@ -87,3 +87,7 @@ spec:
           - SYS_RESOURCE
     socketLB:
       hostNamespaceOnly: true
+    # Cilium minor version this cluster was first installed with. Keeps the
+    # chart from switching datapath defaults across minor upgrades.
+    # Ref: https://docs.cilium.io/en/stable/operations/upgrade/
+    upgradeCompatibility: "1.18"
