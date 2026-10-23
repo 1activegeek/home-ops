@@ -5,3 +5,22 @@ resources:
   - ./ocirepository.yaml
   - ./externalsecret.yaml
   - ./helmrelease.yaml
+
+# The only route (bambuddy) sits behind Authentik forward-auth. Bambuddy's own
+# login is also enabled (in its database), so a direct pod hit still needs a
+# session. Nothing outside the browser calls this host: Home Assistant is
+# called by Bambuddy, not the other way round, and printers are polled.
+components:
+  - ../../../../components/internal-forward-auth
+
+patches:
+  - target:
+      kind: SecurityPolicy
+      name: internal-forward-auth
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: bambuddy-forward-auth
+      - op: replace
+        path: /spec/targetRefs/0/name
+        value: bambuddy

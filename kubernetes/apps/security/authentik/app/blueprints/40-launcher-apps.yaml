@@ -47,22 +47,6 @@ entries:
       slug: audiobookshelf
   - model: authentik_core.application
     identifiers:
-      slug: bambuddy
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://bambuddy.${SECRET_DOMAIN}/img/apple-touch-icon.png
-      meta_launch_url: https://bambuddy.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Bambuddy
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: bambuddy
-  - model: authentik_core.application
-    identifiers:
       slug: bazarr
     attrs:
       backchannel_providers: []
