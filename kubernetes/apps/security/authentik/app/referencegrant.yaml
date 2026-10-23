@@ -22,6 +22,9 @@ spec:
     - group: gateway.envoyproxy.io
       kind: SecurityPolicy
       namespace: monitoring  # internal-forward-auth component (healthchecks)
+    - group: gateway.envoyproxy.io
+      kind: SecurityPolicy
+      namespace: longhorn-system  # internal-forward-auth component (longhorn UI)
   to:
     - group: ""
       kind: Service

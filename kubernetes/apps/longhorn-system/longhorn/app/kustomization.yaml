@@ -9,3 +9,20 @@ resources:
   - ./recurringjobs.yaml
   - ./servicemonitor.yaml
   - ./storageclass-nobackup.yaml
+
+# UI route (longhorn-ui) behind Authentik forward-auth. Longhorn has no login of
+# its own, and the same route serves the API that can delete volumes and backups.
+components:
+  - ../../../../components/internal-forward-auth
+
+patches:
+  - target:
+      kind: SecurityPolicy
+      name: internal-forward-auth
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: longhorn-ui-forward-auth
+      - op: replace
+        path: /spec/targetRefs/0/name
+        value: longhorn-ui
