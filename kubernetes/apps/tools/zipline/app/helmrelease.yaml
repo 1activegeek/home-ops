@@ -54,7 +54,7 @@ spec:
           app:
             image:
               repository: ghcr.io/diced/zipline
-              tag: "4.7.0"
+              tag: "4.8.1"
             env:
               TZ: America/New_York
             envFrom:
