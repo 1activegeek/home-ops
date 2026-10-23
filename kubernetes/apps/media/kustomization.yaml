@@ -18,6 +18,5 @@ resources:
   - ./tautulli/ks.yaml
   - ./recyclarr/ks.yaml
   - ./bazarr/ks.yaml
-  - ./unpackerr/ks.yaml
   - ./grimmory/ks.yaml
   - ./audiobookshelf/ks.yaml

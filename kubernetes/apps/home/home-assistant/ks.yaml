@@ -20,4 +20,3 @@ spec:
   dependsOn:
     - name: zwave-js-ui
     - name: matter-server
-    # - name: mosquitto ## Disabling for now, likely to archive later

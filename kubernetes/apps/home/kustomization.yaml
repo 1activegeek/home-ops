@@ -17,7 +17,6 @@ resources:
   - ./ha-archive/ks.yaml
   - ./music-assistant/ks.yaml
   - ./tesla-pubkey/ks.yaml
-  - ./mosquitto/ks.yaml
   - ./teslamate/ks.yaml
   - ./teslamate/grafana-externalsecret.yaml
   - ./teslamate/grafana-ks.yaml
