@@ -7,9 +7,9 @@ This file provides guidance to Claude Code when working with this repository.
 This is a GitOps-based Kubernetes home lab cluster running on **Talos Linux** with **Flux CD** for declarative cluster management.
 
 **Infrastructure:**
-- **OS:** Talos Linux v1.12.1 (immutable, API-managed)
-- **Kubernetes:** v1.35.0
-- **GitOps:** Flux CD v2.7.5
+- **OS:** Talos Linux v1.14.4 (immutable, API-managed)
+- **Kubernetes:** v1.36.5
+- **GitOps:** Flux CD v2.9.5
 - **Cluster:** 3-node HA control plane (10.0.3.21-23, VIP: 10.0.3.51)
 
 **Core Components:**
@@ -445,8 +445,11 @@ task talos:generate-config
 # Apply config to node
 task talos:apply-node IP=10.0.3.21
 
-# Upgrade Talos on node
-task talos:upgrade-node IP=10.0.3.21
+# Upgrade Talos on node. talhelper (archived at 3.1.17) can't render the 1.14
+# config contract, so talenv.yaml's talosVersion stays on 1.13.x and
+# `task talos:upgrade-node` would install a 1.13 image. Upgrade with an explicit
+# Image Factory installer instead (schematic in talconfig.yaml):
+talosctl -n <ip> -e <ip> upgrade --image factory.talos.dev/metal-installer/<schematic>:v1.14.x
 
 # Upgrade Kubernetes
 task talos:upgrade-k8s
