@@ -102,59 +102,36 @@ spec:
                 # nodes). Image layers themselves live on the PVC below.
                 ephemeral-storage: 2Gi
 
-          register:
+          # The runner is now registered through server.connections in
+          # configmap.yaml (user-scoped uuid + token). Forgejo Runner refuses to
+          # start when a legacy .runner file ALSO exists, so delete the
+          # instance-wide registration left on the PVC by the old
+          # create-runner-file flow. Idempotent: a no-op once the file is gone.
+          #
+          # Re-registering never needs this PVC reset: the credential is
+          # declared, not stored. Rotate it in 1Password + configmap.yaml.
+          retire-legacy-registration:
             image:
               repository: code.forgejo.org/forgejo/runner
               tag: 12.13.2
-            dependsOn: dind
             command: ["/bin/sh", "-c"]
             args:
               - |
-                set -eu
                 if [ -f /data/.runner ]; then
-                  echo "Runner already registered; nothing to do."
-                  exit 0
+                  rm -f /data/.runner
+                  echo "Removed legacy instance-wide registration file."
                 fi
-                echo "Creating runner file for $${RUNNER_NAME} against $${FORGEJO_INSTANCE}"
-                # create-runner-file, NOT `register`. `register` consumes the
-                # one-shot registration token the web UI mints and fails against
-                # a pre-shared secret with "runner registration token not found".
-                # This subcommand is the counterpart to the server-side
-                # `forgejo-cli actions register --secret`, which is what we use so
-                # the runner's identity is reproducible from Git + 1Password.
-                # --connect proves the secret is accepted before the daemon starts.
-                /bin/forgejo-runner create-runner-file \
-                  --config /config/config.yaml \
-                  --instance "$${FORGEJO_INSTANCE}" \
-                  --secret "$${RUNNER_SECRET}" \
-                  --name "$${RUNNER_NAME}" \
-                  --connect
-            env:
-              # Shell variables above are escaped $${VAR}: this Kustomization
-              # declares postBuild.substituteFrom, so a bare ${VAR} would be
-              # replaced by Flux with an empty string before the pod ever runs.
-              # ${SECRET_DOMAIN} below is intentionally UNescaped — that one
-              # Flux *should* substitute.
-              FORGEJO_INSTANCE: "https://git.${SECRET_DOMAIN}"
-              RUNNER_NAME: k8s-runner-1
-              # A pre-shared secret, not a registration token — the two are
-              # consumed by different subcommands. Named accordingly.
-              RUNNER_SECRET:
-                valueFrom:
-                  secretKeyRef:
-                    name: forgejo-runner-secret
-                    key: RUNNER_SECRET
             securityContext:
               allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: false
+              readOnlyRootFilesystem: true
               capabilities:
                 drop: ["ALL"]
             resources:
               requests:
                 cpu: 10m
-                memory: 64Mi
+                memory: 16Mi
               limits:
-                memory: 256Mi
+                memory: 64Mi
 
         containers:
           app:
@@ -223,6 +200,34 @@ spec:
                 memory: 128Mi
 
         pod:
+          # Keep CI off the Home Assistant node (security finding HRD-01). The
+          # dind sidecar is privileged, so a job escaping it would land on the
+          # node; HA is the most sensitive workload here and runs with
+          # hostNetwork.
+          #
+          # Both rules are required, for different reasons:
+          # - podAntiAffinity follows HA if it is ever pinned elsewhere.
+          # - nodeAffinity mirrors HA's own nodeSelector. Required
+          #   anti-affinity is SYMMETRIC: if the runner were scheduled onto
+          #   HA's node while HA happened to be down (e.g. mid-rollout), HA
+          #   could not be scheduled back onto its pinned node. Excluding the
+          #   node outright closes that window. Update it together with HA's
+          #   nodeSelector.
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values: ["asgard-mpc-01"]
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  namespaces: ["home"]
+                  labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: home-assistant
           securityContext:
             # Matches the runner image's built-in 1000:1000 user. The dind
             # sidecar overrides this to root above.
@@ -240,7 +245,7 @@ spec:
         size: 10Gi
         advancedMounts:
           forgejo-runner:
-            register:
+            retire-legacy-registration:
               - path: /data
             app:
               - path: /data
@@ -286,11 +291,20 @@ spec:
         name: forgejo-runner-config
         advancedMounts:
           forgejo-runner:
-            register:
-              - path: /config
-                readOnly: true
             app:
               - path: /config
+                readOnly: true
+
+      # Runner token, read by server.connections.forgejo.token_url in
+      # configmap.yaml (file:/secrets/RUNNER_TOKEN).
+      runner-token:
+        type: secret
+        name: forgejo-runner-secret
+        defaultMode: 0440
+        advancedMounts:
+          forgejo-runner:
+            app:
+              - path: /secrets
                 readOnly: true
 
       # Job working directories. emptyDir is correct here — short-lived, and
