@@ -8,7 +8,29 @@ data:
     log:
       level: info
 
+    # Registration: one connection, scoped to the OWNER'S USER ACCOUNT (not
+    # instance-wide; security finding HRD-01). The runner only receives jobs
+    # from repositories owned by that account.
+    #
+    # Registered through the Forgejo API (POST /api/v1/user/actions/runners as
+    # the owner), which returns a uuid + token pair. The uuid below is an
+    # identifier, not a credential. The token is read from the Secret mounted
+    # at /secrets (ExternalSecret -> 1Password item forgejo-runner, field
+    # runner_token). To rotate: register a new user-level runner, put its
+    # token in runner_token and its uuid here, then delete the old runner in
+    # Forgejo (user Settings -> Actions -> Runners).
+    server:
+      connections:
+        forgejo:
+          url: https://git.${SECRET_DOMAIN}
+          uuid: a21943a2-06d3-41a0-8633-6a59990696b1
+          token_url: file:/secrets/RUNNER_TOKEN
+
     runner:
+      # Legacy registration file. It MUST NOT exist: the runner refuses to
+      # start when both a .runner file and server.connections are present.
+      # The retire-legacy-registration init container deletes the old
+      # instance-wide one from the PVC on every start.
       file: /data/.runner
       # Concurrency comes from here, not from pod count: one pod running two
       # jobs shares a single warm Docker image cache. Deliberately low — all
