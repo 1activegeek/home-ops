@@ -1,8 +1,7 @@
 ---
 # Nightly: archive yesterday's Home Assistant history + logbook to the NAS as
 # uncompressed JSONL (one dir per local day), kept for 12 months. Backfills any
-# missing day still inside the recorder's 30-day window. See export.py and
-# docs/home-assistant-archive.md.
+# missing day still inside the recorder's 30-day window. See export.py.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

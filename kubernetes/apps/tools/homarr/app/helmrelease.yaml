@@ -99,7 +99,7 @@ spec:
             - name: homarr
               port: 7575
   # The chart's HTTPRoute template has no annotations field; this adds the Gatus
-  # display name (docs/gatus.md).
+  # display name.
   postRenderers:
     - kustomize:
         patches:

@@ -4,7 +4,7 @@
 #
 # Do not add route checks here. Every HTTPRoute on envoy-internal/-external is
 # discovered automatically; tune one with the gatus.home-operations.com/endpoint
-# annotation on the route itself (docs/gatus.md). This file is only for checks
+# annotation on the route itself. This file is only for checks
 # that have no route to annotate.
 #
 # No alerting block on purpose: Prometheus scrapes /metrics and the gatus

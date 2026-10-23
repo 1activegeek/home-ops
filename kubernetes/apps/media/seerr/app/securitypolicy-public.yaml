@@ -7,7 +7,7 @@
 # extAuth block, which overrides the default and disables gateway auth for THIS
 # route only. Seerr's own Plex login remains the sole gate.
 #
-# Auth mode: external_identity_exception (see docs/architecture/authentication.md).
+# Auth mode: external_identity_exception
 # Empty extAuth needs no ReferenceGrant to authentik-server.
 #
 # Targets the rendered HTTPRoute `seerr` — bjw-s app-template 5.x names the route

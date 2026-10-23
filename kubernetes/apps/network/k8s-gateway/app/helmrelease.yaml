@@ -27,7 +27,7 @@ spec:
       gatewayClasses: ["envoy"]
     # Hosts with NO internal-tier route (external-only apps) produce no record
     # and fall through to the forwarder below -> public DNS -> Cloudflare Tunnel,
-    # so they stay reachable on-LAN (hairpin). See docs/architecture/routing.md.
+    # so they stay reachable on-LAN (hairpin).
     fallthrough:
       enabled: true
     # Override default zone plugins:

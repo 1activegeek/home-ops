@@ -8,7 +8,7 @@ Reliable replacement for validate-external-routes.sh. Unlike the old script it:
     (rendered name = "<release>-<routeKey>"), which the old grep missed entirely
   * reports the 4 classes and fails if an internet-facing route has no auth posture
 
-Route classes (see docs/architecture/routing.md):
+Route classes:
   1. internal-only              parents all on internal-tier class
   2. internal+external (auth)   both tiers, external route uses gateway default auth
   3. internal+external (public) both tiers, external route has a public opt-out

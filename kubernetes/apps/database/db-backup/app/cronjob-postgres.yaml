@@ -1,7 +1,7 @@
 ---
 # Logical backup for the whole shared CNPG cluster: globals (roles, tablespaces)
 # plus a custom-format dump per database. Replaces the per-app pg_dump cronjobs
-# as each app migrates onto this cluster — see docs/postgres-consolidation.md.
+# as each app migrates onto this cluster
 #
 # This is the AUTHORITATIVE backup. CNPG's native barman backups need an S3
 # endpoint, and no object storage exists in this cluster (Longhorn's only

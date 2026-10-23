@@ -8,8 +8,7 @@ resources:
 
 # Gatus' own settings only (storage, UI, metrics, the few checks that have no
 # route to hang an annotation on). Route checks are NOT listed here: the
-# gatus-sidecar generates them from HTTPRoute/Gateway annotations. See
-# docs/gatus.md.
+# gatus-sidecar generates them from HTTPRoute/Gateway annotations.
 configMapGenerator:
   - name: gatus-config
     files:

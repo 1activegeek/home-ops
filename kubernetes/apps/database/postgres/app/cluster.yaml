@@ -1,7 +1,6 @@
 ---
 # Shared PostgreSQL cluster. Replaces the per-app `postgres:18-alpine` sidecar
-# pattern documented in docs/deployment-plan.md. Apps migrate onto it one at a
-# time — see docs/postgres-consolidation.md for the runbook and ordering.
+# pattern. Apps migrate onto it one at a time.
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
