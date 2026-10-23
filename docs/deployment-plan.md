@@ -4,7 +4,7 @@
 
 ## Context
 
-This plan covers deploying ~30+ applications into an existing Talos Linux / Flux CD Kubernetes cluster. The cluster already has core infrastructure (Cilium, Envoy Gateway, Authentik, External Secrets + 1Password, Longhorn, NFS CSI, cert-manager, Cloudflare Tunnel, Mosquitto MQTT). The goal is a well-organized, GitOps-managed deployment with explicit auth decisions for routed apps, sane defaults, and proper inter-app connections.
+This plan covers deploying ~30+ applications into an existing Talos Linux / Flux CD Kubernetes cluster. The cluster already has core infrastructure (Cilium, Envoy Gateway, Authentik, External Secrets + 1Password, Longhorn, NFS CSI, cert-manager, Cloudflare Tunnel). The goal is a well-organized, GitOps-managed deployment with explicit auth decisions for routed apps, sane defaults, and proper inter-app connections.
 
 Several apps are currently running as Docker containers on the NAS and need to be migrated with their data intact.
 
@@ -46,7 +46,7 @@ Rationale:
 
 | Namespace | Apps |
 |-----------|------|
-| `media` | Plex, SABnzbd, qBittorrent+Gluetun, Prowlarr, Radarr, Radarr-4K, Sonarr, Autoscan, Seerr, Tautulli, MeTube, Bazarr, Recyclarr, Unpackerr, Notifiarr, Grimmory, Audiobookshelf |
+| `media` | Plex, SABnzbd, qBittorrent+Gluetun, Prowlarr, Radarr, Radarr-4K, Sonarr, Autoscan, Seerr, Tautulli, MeTube, Bazarr, Recyclarr, Notifiarr, Grimmory, Audiobookshelf |
 | `ai` | Ollama, OpenWebUI, n8n, Qdrant |
 | `tools` | Shlink, Shlink-web, Forgejo, KMS, Zipline |
 | `monitoring` | Gatus, Grafana, kube-prometheus-stack, Loki, Alloy, Healthchecks, Headlamp |
@@ -142,7 +142,7 @@ Depends on Phase 3 (Plex) and Phase 4 (*arr apps).
 | 5c. Tautulli | media | Yes | Plex monitoring |
 | 5d. Bazarr | media | No | Subtitle management |
 | 5e. Recyclarr | media | No | TRaSH Guides quality profiles (CronJob) |
-| 5f. Unpackerr | media | No | Archive extraction daemon |
+| 5f. Unpackerr | media | No | Archive extraction daemon. Removed 2026-10-22 (unused). |
 | 5g. Notifiarr | media | No | Notification hub (requires notifiarr.com account) |
 
 ### Phase 6: Shlink Stack
@@ -360,4 +360,5 @@ This section is the **source of truth** for tracking progress across sessions. U
 | 2026-10-21 | Nextcloud setup + Authentik SSO | Nextcloud had never finished installing: the first auto-install failed because the NAS share only accepts writes from the Synology media UID, and the image never retries once `version.php` exists, so it sat at the setup wizard and the webcron CronJob failed. The pod now runs as that UID (unprivileged-port sysctl for Apache), a root init container re-owns the app volume, data lives in a subdirectory Nextcloud owns, and a before-starting hook installs the instance if needed and converges core settings (trusted domain, CLI cron, phone region, maintenance window, missing indices, repair) on every start. Background jobs moved from the HTTP CronJob to a CLI sidecar. Auth is `internal` / `native_oidc` via the user_oidc app, bound to `tier1` + `tier2`; the login page redirects straight to Authentik, local admin stays available as break-glass. |
 | 2026-10-21 | Removed SABnzbd, SearXNG, Qdrant, Homepage | Removed to free cluster resources: `sabnzbd` (media), `searxng` and `qdrant` (ai), `homepage` (tools). Their Longhorn volumes (SABnzbd config + 150Gi scratch, Qdrant data) go with them, as do the `longhorn-scratch` StorageClass and SABnzbd's static media PV (Retain; the NAS share itself is untouched). Also removed: the `db-backup-qdrant` CronJob, the Homepage and Qdrant Authentik launcher tiles (`state: absent` in `99-cleanup.yaml`), and the SABnzbd migration doc and scripts. Homarr is now the only dashboard. |
 | 2026-10-21 | Uptime Kuma → Gatus | Replaced Uptime Kuma with Gatus + gatus-sidecar. Every HTTPRoute on either gateway now gets a check automatically; defaults are annotations on the two Gateways, per-route tuning is an annotation on the route. All 31 Kuma monitors for apps still in the cluster carried over (the Healthchecks keyword monitor became a body check on `healthchecks-machine`; Qdrant and Kuma's self-check went with their apps), plus 10 routes Kuma never watched (Atuin, Artifacts, Hookshot, MAS compat, Synapse, Synapse well-known, the media relay, echo, Tesla pubkey, Healthchecks UI) and a public-DNS check. Alerts moved to Prometheus (`GatusEndpointDown`, `GatusCertificateExpiringSoon`, `GatusNoResults`) → Alertmanager → Matrix; the Kuma relay profile was removed. Also: display names on every route, outside-in checks for `envoy-external` routes (resolved through public DNS, so they go via Cloudflare and the tunnel; the HA and Authentik external twins re-enabled as `(external)` checks), a domain-registration expiry check + `GatusDomainExpiringSoon`, and a Grafana dashboard. Gatus is internal, auth `none` (read-only status page). |
+| 2026-10-22 | Removed Unpackerr and Mosquitto | A usage check showed neither was doing any work. Unpackerr only handles torrent downloads, but Sonarr, Radarr and Radarr-4K all use NZBGet (usenet), which extracts its own downloads; after 4 days it had extracted nothing. Mosquitto's only client was TeslaMate, and nothing subscribed to what TeslaMate published (Home Assistant has no MQTT integration). TeslaMate now runs with `DISABLE_MQTT`, its `mosquitto` dependency and MQTT credentials are gone, and the Mosquitto volume is deleted with the app. Re-add Mosquitto if TeslaMate → Home Assistant over MQTT is ever wanted. |
 | | | *Next: Continue with Phase 4 and remaining auth cleanup.* |
