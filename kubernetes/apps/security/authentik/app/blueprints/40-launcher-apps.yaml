@@ -127,22 +127,6 @@ entries:
       slug: grimmory
   - model: authentik_core.application
     identifiers:
-      slug: longhorn
-    attrs:
-      backchannel_providers: []
-      group: ''
-      meta_description: ''
-      meta_hide: false
-      meta_icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/longhorn.png
-      meta_launch_url: https://longhorn.${SECRET_DOMAIN}
-      meta_publisher: ''
-      name: Longhorn
-      open_in_new_tab: false
-      policy_engine_mode: any
-      provider: null
-      slug: longhorn
-  - model: authentik_core.application
-    identifiers:
       slug: matrix-account
     attrs:
       backchannel_providers: []
