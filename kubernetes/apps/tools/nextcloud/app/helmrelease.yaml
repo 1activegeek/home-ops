@@ -11,14 +11,40 @@ spec:
   values:
     controllers:
       main:
+        strategy: Recreate
         annotations:
           reloader.stakater.com/auto: "true"
-        containers:
-          app:
-            image:
+        pod:
+          # The NAS share only accepts writes from UID 1027 (Synology ACLs ignore POSIX modes), so
+          # the whole pod runs as that user instead of the image's www-data (33). Apache binds :80
+          # as non-root through the unprivileged-port sysctl.
+          securityContext:
+            runAsUser: 1027
+            runAsGroup: 100
+            sysctls:
+              - name: net.ipv4.ip_unprivileged_port_start
+                value: "0"
+        initContainers:
+          # Root, so it can hand the app volume (first created as www-data) to 1027 and seed a
+          # writable PHP conf.d: the entrypoint writes redis-session.ini there on every start.
+          init-perms:
+            image: &image
               repository: nextcloud
               tag: 34.0.4
-            env:
+            command:
+              - sh
+              - -c
+              - >-
+                cp -a /usr/local/etc/php/conf.d/. /php-conf/ &&
+                chown -R 1027:100 /php-conf &&
+                find /var/www/html \( ! -user 1027 -o ! -group 100 \) -exec chown -h 1027:100 {} +
+            securityContext:
+              runAsUser: 0
+              runAsGroup: 0
+        containers:
+          app:
+            image: *image
+            env: &env
               POSTGRES_HOST: nextcloud-postgres
               POSTGRES_DB: nextcloud
               POSTGRES_USER: nextcloud
@@ -39,21 +65,47 @@ spec:
                   secretKeyRef:
                     name: nextcloud-secret
                     key: admin_password
-              NEXTCLOUD_TRUSTED_DOMAINS: "cloud.${SECRET_DOMAIN}"
+              NEXTCLOUD_DATA_DIR: /mnt/nextcloud/data
+              NEXTCLOUD_DOMAIN: "cloud.${SECRET_DOMAIN}"
+              NEXTCLOUD_PHONE_REGION: US
+              OIDC_CLIENT_ID:
+                valueFrom:
+                  secretKeyRef:
+                    name: nextcloud-secret
+                    key: oidc_client_id
+              OIDC_CLIENT_SECRET:
+                valueFrom:
+                  secretKeyRef:
+                    name: nextcloud-secret
+                    key: oidc_client_secret
+              OIDC_DISCOVERY_URI: "https://auth.${SECRET_DOMAIN}/application/o/nextcloud/.well-known/openid-configuration"
               TRUSTED_PROXIES: 10.0.0.0/8
               OVERWRITEPROTOCOL: https
               OVERWRITECLIURL: "https://cloud.${SECRET_DOMAIN}"
               PHP_MEMORY_LIMIT: 512M
               PHP_UPLOAD_LIMIT: 16G
             probes:
+              # The setup hook runs before Apache starts; a first install on NFS takes minutes.
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet: &statusProbe
+                    path: /status.php
+                    port: 80
+                    # Once installed, Nextcloud answers 400 to hosts outside trusted_domains,
+                    # and the kubelet would otherwise send the pod IP.
+                    httpHeaders:
+                      - name: Host
+                        value: "cloud.${SECRET_DOMAIN}"
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 90
               liveness:
                 enabled: true
                 custom: true
                 spec:
-                  httpGet:
-                    path: /status.php
-                    port: 80
-                  initialDelaySeconds: 60
+                  httpGet: *statusProbe
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 6
@@ -61,19 +113,35 @@ spec:
                 enabled: true
                 custom: true
                 spec:
-                  httpGet:
-                    path: /status.php
-                    port: 80
-                  initialDelaySeconds: 60
+                  httpGet: *statusProbe
                   periodSeconds: 10
                   timeoutSeconds: 5
                   failureThreshold: 6
+            securityContext: &securityContext
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
             resources:
               requests:
                 cpu: 100m
                 memory: 512Mi
               limits:
                 memory: 2Gi
+          # Background jobs must run through the CLI: cron.php over HTTP runs a single job per
+          # request. A sidecar shares the RWO app volume, which a separate CronJob pod cannot.
+          cron:
+            image: *image
+            command:
+              - sh
+              - -c
+              - while true; do php -f /var/www/html/cron.php; sleep 300; done
+            env: *env
+            securityContext: *securityContext
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 1Gi
 
       postgres:
         containers:
@@ -122,29 +190,6 @@ spec:
               limits:
                 memory: 128Mi
 
-      cron:
-        type: cronjob
-        cronjob:
-          schedule: "*/5 * * * *"
-          concurrencyPolicy: Forbid
-          successfulJobsHistory: 1
-          failedJobsHistory: 1
-        containers:
-          cron:
-            image:
-              repository: curlimages/curl
-              tag: 8.22.0
-            command:
-              - curl
-              - -s
-              - http://nextcloud-main:80/cron.php
-            resources:
-              requests:
-                cpu: 10m
-                memory: 16Mi
-              limits:
-                memory: 64Mi
-
     service:
       main:
         controller: main
@@ -170,8 +215,14 @@ spec:
         size: 5Gi
         advancedMounts:
           main:
+            init-perms:
+              - path: /var/www/html
             app:
               - path: /var/www/html
+            cron:
+              - path: /var/www/html
+      # Mounted outside the web root; Nextcloud keeps its data in a data/ subdirectory it owns,
+      # since the share root belongs to the NAS.
       data:
         type: nfs
         server: ${NFS_SERVER}
@@ -179,7 +230,28 @@ spec:
         advancedMounts:
           main:
             app:
-              - path: /var/www/html/data
+              - path: /mnt/nextcloud
+            cron:
+              - path: /mnt/nextcloud
+      php-conf:
+        type: emptyDir
+        advancedMounts:
+          main:
+            init-perms:
+              - path: /php-conf
+            app:
+              - path: /usr/local/etc/php/conf.d
+            cron:
+              - path: /usr/local/etc/php/conf.d
+      hooks:
+        type: configMap
+        name: nextcloud-hooks
+        defaultMode: 0555
+        advancedMounts:
+          main:
+            app:
+              - path: /docker-entrypoint-hooks.d/before-starting
+                readOnly: true
       postgres-data:
         type: persistentVolumeClaim
         storageClass: longhorn
@@ -192,6 +264,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Nextcloud
         hostnames: ["cloud.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

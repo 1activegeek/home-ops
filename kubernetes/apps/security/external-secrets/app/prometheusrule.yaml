@@ -1,0 +1,82 @@
+---
+# Secrets path: 1Password Connect -> ClusterSecretStore -> ExternalSecrets.
+# Almost every app depends on it, so every break here is critical.
+#
+# Use the status="True" series, not status="False": ESO does not reset the
+# False gauge immediately when a condition recovers (after the 2026-10-18 cold
+# boot it read 1 for ~1h on secrets that were Ready). Both ESO replicas
+# reconcile (no leader election), so min() across pods catches either one
+# seeing a failure.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: external-secrets
+spec:
+  groups:
+    - name: external-secrets
+      rules:
+        - alert: OnePasswordConnectDown
+          expr: |
+            kube_deployment_status_replicas_available{namespace="security", deployment="onepassword-connect"} < 1
+            or absent(kube_deployment_status_replicas_available{namespace="security", deployment="onepassword-connect"})
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "1Password Connect has no available pods"
+            description: >-
+              No 1Password Connect pod has been available for 2m. ExternalSecrets
+              cannot create or refresh secrets; existing Secrets keep working.
+
+        - alert: ExternalSecretsOperatorDown
+          expr: |
+            kube_deployment_status_replicas_available{namespace="security", deployment=~"external-secrets|external-secrets-webhook|external-secrets-cert-controller"} < 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "External Secrets {{ $labels.deployment }} has no available pods"
+            description: >-
+              {{ $labels.deployment }} has had no available pods for 2m. Without
+              the webhook, every Flux Kustomization that contains an ExternalSecret
+              fails to apply.
+
+        - alert: OnePasswordStoreNotReady
+          expr: |
+            min(clustersecretstore_status_condition{name="onepassword-store", condition="Ready", status="True"}) < 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ClusterSecretStore onepassword-store is not Ready"
+            description: >-
+              ESO cannot validate the 1Password store (Connect unreachable,
+              token expired or revoked, or vault access lost). Check
+              `kubectl get clustersecretstore onepassword-store` and the
+              onepassword-connect logs.
+
+        - alert: ExternalSecretsMetricsAbsent
+          expr: |
+            absent(clustersecretstore_status_condition{name="onepassword-store", condition="Ready", status="True"})
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No External Secrets store metrics"
+            description: >-
+              Prometheus has had no onepassword-store status from ESO for 10m,
+              so the store alerts above cannot fire. ESO is down or no longer
+              scraped.
+
+        - alert: ExternalSecretNotReady
+          expr: |
+            min by (exported_namespace, name) (externalsecret_status_condition{condition="Ready", status="True"}) < 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ExternalSecret {{ $labels.exported_namespace }}/{{ $labels.name }} is not syncing"
+            description: >-
+              This ExternalSecret has not been Ready for 15m, usually because a
+              1Password item or field is missing or renamed. Check
+              `kubectl -n {{ $labels.exported_namespace }} describe externalsecret {{ $labels.name }}`.

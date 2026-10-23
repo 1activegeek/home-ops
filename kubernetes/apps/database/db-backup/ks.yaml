@@ -6,6 +6,8 @@ metadata:
 spec:
   dependsOn:
     - name: postgres
+    - name: longhorn
+      namespace: longhorn-system
   interval: 1h
   path: ./kubernetes/apps/database/db-backup/app
   prune: true

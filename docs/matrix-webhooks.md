@@ -203,7 +203,8 @@ with `qlmanage -t -s 512`: `avatar-plex.svg` was recolored to Plex's palette and
 inset to 58% so Element's circular crop does not clip the chevron. Where the
 source project already ships a square icon, vendor that instead of redrawing it
 -- `avatar-requests.png` is Seerr's own `public/android-chrome-512x512.png`,
-copied verbatim, so it has no `.svg` beside it.
+copied verbatim, so it has no `.svg` beside it. `avatar-homeassistant.png` is
+likewise vendored verbatim from homarr-labs/dashboard-icons (`png/home-assistant.png`).
 
 Hookshot rewrites display names on restart but never touches avatars, so what
 the relay sets here survives (verified by restarting hookshot and re-firing).
@@ -784,7 +785,7 @@ which is not necessarily the display name):
 | Infrastructure | Alertmanager | `Alertmanager` | `Alertmanager` | 1P `hookshot-hooks` (`alertmanager_hook_id`, `alertmanager_url`) |
 | Infrastructure | Forgejo | `Forgejo` | `Forgejo` | 1P `hookshot-hooks` (`forgejo_hook_id`, `forgejo_url`) |
 
-Longhorn, Uptime Kuma and the Cloudflare DNS monitor are **not** in this table —
+Longhorn and the Cloudflare DNS monitor are **not** in this table —
 they take the relay path instead (see the relay profiles table below).
 
 **`@hookshot` must hold PL50 in a room before either of these can exist.** The
@@ -800,25 +801,27 @@ Synapse):
 |---|---|---|---|
 | Media Server | Tautulli → `/notify` | `@_webhooks_plex` | `Plex` |
 | Media Server | Seerr → `/notify` | `@_webhooks_requests` | `Requests` |
-| Infrastructure | Uptime Kuma → `/notify` | `@_webhooks_uptimekuma` | `Uptime Kuma` |
 | Infrastructure | Longhorn backup CronJob → `/notify` | `@_webhooks_longhorn` | `Longhorn` |
 | Infrastructure | Cloudflare DNS monitor CronJob → `/notify` | `@_webhooks_cloudflare` | `Cloudflare` |
+| Infrastructure | Healthchecks webhook integration → `/notify` | `@_webhooks_healthchecks` | `Healthchecks` |
+| Infrastructure | Home Assistant `rest_command.infra_alert` → `/notify` | `@_webhooks_homeassistant` | `Home Assistant` |
 
 ## The Infrastructure room
 
 Room ID `!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}` — **public, unencrypted**,
 which is what lets the relay ghosts self-join on first use with no invite.
 
-Five infrastructure sources land here, split across the two delivery paths for
+Seven infrastructure sources land here, split across the two delivery paths for
 one reason: **whether the sender can shape its own JSON body.**
 
 | Source | Path | Why |
 |---|---|---|
 | Alertmanager | hookshot + JS transform | `webhook_configs` has no body templating |
 | Forgejo | hookshot + JS transform | fixed Forgejo webhook schema |
-| Uptime Kuma | relay | its webhook notification supports a custom JSON body |
 | Longhorn backup alert | relay | our CronJob, we own the payload |
 | Cloudflare DNS monitor | relay | our CronJob, we own the payload |
+| Healthchecks | relay (`render_healthchecks`) | webhook body is templatable but cannot HTML-escape, so the relay renders the card from structured placeholders |
+| Home Assistant | relay (`render_homeassistant`) | automation names and exception text are unescaped, so HA posts structured fields and the relay renders the card. See [Wiring Home Assistant](#wiring-home-assistant) |
 
 The split is not cosmetic. A relay-delivered source gets a **clean display
 name** and a **git-declared avatar**; a hookshot-delivered one inherits
@@ -926,7 +929,12 @@ in its logs. The state key is the connection name, and the ghost is
 trimming drops the rendered HTML *before* it drops that blob, so a large Forgejo
 push would arrive as a JSON dump instead of the formatted message.
 
-## Wiring Uptime Kuma
+## Wiring Uptime Kuma (retired)
+
+> **Retired 2026-10.** Uptime Kuma was replaced by Gatus (`docs/gatus.md`), whose
+> alerts reach this room through Alertmanager rather than the relay. The
+> `uptimekuma` relay profile, its token mapping and avatar were removed. The
+> section is kept as a record of the custom-body pattern.
 
 Uptime Kuma takes the **relay** path, because its Webhook notification supports
 a **custom JSON body** — so it emits `{"text": ..., "html": ...}` itself and
@@ -978,6 +986,77 @@ Four things about the template context, which is built in
 - **`| json` is what makes this safe.** Monitor names and error strings are
   interpolated into a JSON document; the filter quotes and escapes them.
   `| escape` handles the separate HTML-escaping problem inside `html_body`.
+
+## Wiring Healthchecks
+
+Healthchecks (`monitoring/healthchecks`, see `docs/healthchecks.md`) takes the
+**relay** path, with one difference from Uptime Kuma: the card is rendered by
+the **relay**, not by the sender.
+
+Healthchecks' webhook templates substitute raw strings. Only `$NAME_JSON` is
+escaped, and only as a whole JSON value, so a hand-built `{"text", "html"}` body
+breaks on any check name containing `"` or `<` and the alert is dropped. The
+integration therefore posts Healthchecks' structured placeholders instead:
+
+```json
+{"healthchecks": {"status": "$STATUS", "check": $JSON, "body": $BODY_JSON, "site": "<SITE_ROOT>"}}
+```
+
+`render_healthchecks()` in `relay.py` builds the standard card from that payload:
+
+- `🔴 DOWN` or `✅ UP`, with the check name linked to its details page.
+- The last ping time.
+- On down, the last ping body (trimmed to 300 characters). This is where a `/fail` ping's reason appears.
+- Description and tags in grey.
+
+Every value is escaped. The renderer only runs when `healthchecks` is present, so other profiles are unaffected.
+
+**The integration is declared in git, not in the Healthchecks UI.**
+`bootstrap.py` (the Healthchecks init container) upserts a webhook channel
+named `Matrix - Infrastructure` on every start, from `HC_MATRIX_RELAY_URL`
+(HelmRelease) and the relay token (1P `matrix-media-relay`,
+`token_healthchecks`, read straight from the relay's item). When the channel is
+first created it is assigned to every existing check. New checks pick it up
+automatically: `?create=1` pings, API creates with `"channels": "*"`, and the
+UI's add-check flow. UI edits to the channel are overwritten on the next pod
+start.
+
+The ghost icon `avatar-healthchecks.png` comes from upstream's 424×512 mark,
+inset to 68% on a 512×512 dark-navy (`#1f2937`) square. The white half of the mark
+would vanish on Element's light theme without the fill. Its source is
+`avatar-healthchecks.svg`.
+
+## Wiring Home Assistant
+
+Two paths, on purpose:
+
+- **HA → relay (per event).** `packages/infra_alerts.yaml` on the HA config
+  volume (not in git: HA's `/config` is a PVC) turns on
+  `system_log: fire_event: true` and posts a `Home Assistant` card for every
+  automation or script error, linked to its trace, and for any Z-Wave node dead
+  for 10+ minutes (plus a resolved card when they all recover). It sends
+  `{"homeassistant": {"status", "title", "detail", "url", "meta"}}` through
+  `rest_command.infra_alert`; the bearer token is `token_homeassistant` in the
+  `matrix-media-relay` 1P item, mirrored into HA's `secrets.yaml` as
+  `matrix_relay_homeassistant_auth` (`Bearer <token>`).
+  **The error automation must not use template conditions** (`conditions:`,
+  `if:`, `choose:`, `wait_template`). `system_log_event` fires synchronously
+  inside whatever logged the error. When that is another template mid-render,
+  a template condition raises `RenderInfo already set`, which is logged at
+  ERROR and re-triggers the automation. On 2026-10-20 that looped ~2.5M times
+  in two hours. The filter is computed in `variables` and gated with
+  `repeat.for_each`, which cannot raise that error. The package's own loggers
+  are excluded, so its failures cannot alert on themselves. The recorder
+  excludes `system_log_event`, so the events are never stored.
+- **Loki → Alertmanager (escalation).** `monitoring/loki/app/rules-home-assistant.yaml`
+  fires when one automation fails 3+ times in an hour, an integration fails
+  setup, one integration logs 10+ errors in 30 minutes, or HA logs more than
+  3000 lines in 10 minutes from any source (`HomeAssistantLogFlood`, critical).
+  These need nothing from HA, so they still fire if HA is wedged or the package
+  is not loaded yet.
+
+Rotating the token means updating both the 1P field and HA's `secrets.yaml`,
+then `rest_command.reload` in HA.
 
 ## Wiring Alertmanager
 
@@ -1091,7 +1170,7 @@ ENV
 
 Ghost icons come from
 [`homarr-labs/dashboard-icons`](https://github.com/homarr-labs/dashboard-icons),
-already the source Homepage and the Authentik launcher blueprints use, so the
+already the source Homarr and the Authentik launcher blueprints use, so the
 room matches the dashboards.
 
 `avatar-uptimekuma.png` is upstream's 512×512 PNG **vendored verbatim** — per the

@@ -13,6 +13,10 @@
 # headlamp-email-verified exists because kube-apiserver requires an `email_verified` claim when
 # oidc-username-claim=email, and authentik's built-in `email` scope hardcodes it to false. The
 # built-in mapping is left untouched because Grafana and others share it.
+#
+# homeops-groups serves a dedicated `groups` scope. The built-in `profile` scope already carries the
+# same claim, but apps such as Homarr request `groups` by name; without a mapping for it authentik
+# silently drops the scope and the app's group sync then depends on an unrelated scope's contents.
 
 version: 1
 
@@ -65,6 +69,18 @@ entries:
         }
       name: headlamp-email-verified
       scope_name: email
+  - id: scope-groups
+    model: authentik_providers_oauth2.scopemapping
+    identifiers:
+      name: homeops-groups
+    attrs:
+      description: authentik group names as a `groups` claim
+      expression: |-
+        return {
+            "groups": [group.name for group in request.user.groups.all()],
+        }
+      name: homeops-groups
+      scope_name: groups
   - model: authentik_policies_expression.expressionpolicy
     identifiers:
       name: allow-authenticated-users

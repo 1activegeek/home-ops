@@ -110,6 +110,9 @@ spec:
           - path: /data
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Artifacts
         hostnames: ["art.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

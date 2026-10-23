@@ -1,0 +1,84 @@
+---
+# Nightly: archive yesterday's Home Assistant history + logbook to the NAS as
+# uncompressed JSONL (one dir per local day), kept for 12 months. Backfills any
+# missing day still inside the recorder's 30-day window. See export.py and
+# docs/home-assistant-archive.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ha-archive-export
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: ha-archive-export
+spec:
+  # After local midnight, well before the recorder's nightly purge (~04:12).
+  schedule: "30 1 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            # Synology user/group, as the other NFS writers.
+            runAsUser: 1027
+            runAsGroup: 100
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: export
+              image: python:3.14.8-slim
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                # POSIX rule rather than America/New_York: the slim image has no
+                # tzdata. Defines the local day boundaries, DST included.
+                - name: TZ
+                  value: EST5EDT,M3.2.0,M11.1.0
+                - name: HA_URL
+                  value: http://home-assistant-app.home.svc.cluster.local:8123
+                - name: HA_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ha-archive-secret
+                      key: HA_TOKEN
+                - name: ARCHIVE_DIR
+                  value: /nas/home-assistant-archive
+                # Recorder keeps 30 days; stay clear of the day being purged.
+                - name: BACKFILL_DAYS
+                  value: "28"
+                - name: RETENTION_DAYS
+                  value: "365"
+              command: ["python3", "/scripts/export.py"]
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: nas
+                  mountPath: /nas
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: scripts
+              configMap:
+                name: ha-archive-scripts
+            - name: nas
+              nfs:
+                server: ${NFS_SERVER}
+                path: /volume1/backup

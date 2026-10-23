@@ -17,7 +17,7 @@ spec:
           app:
             image:
               repository: ghcr.io/music-assistant/server
-              tag: 2.10.5
+              tag: 2.10.8
             env:
               TZ: America/New_York
               LOG_LEVEL: info
@@ -73,6 +73,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Music Assistant
         hostnames: ["music.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

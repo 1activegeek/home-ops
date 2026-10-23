@@ -9,11 +9,5 @@ components:
 resources:
   - ./namespace.yaml
   - ./db-backup/ks.yaml
-  - ./ollama/ks.yaml
-  - ./open-webui/ks.yaml
-  - ./qdrant/ks.yaml
   - ./n8n/ks.yaml
-  - ./librechat/ks.yaml
-  - ./agentbox/ks.yaml
   - ./hermes-agent/ks.yaml
-  - ./searxng/ks.yaml

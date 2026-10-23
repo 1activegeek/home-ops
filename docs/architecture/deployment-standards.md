@@ -53,9 +53,15 @@ spec:
 Rules:
 - `wait: true` **only** for infra/CRD providers that other apps depend on (flux-operator, longhorn, external-secrets, onepassword-connect, authentik, cert-manager class, CNI/DNS, csi drivers, tailscale-operator, cloudflare-dns).
 - `substituteFrom` is `cluster-secrets` only. Add `cluster-1p-secrets` **only when a manifest in that app actually consumes one of its variables** — never copy it in by habit.
-- `dependsOn` only for real ordering requirements (CRDs, an IdP, a DB the app can't start without). Note the shell-var gotcha: Flux `postBuild` rewrites `${VAR}` — escape `$${VAR}` in scripts.
+- `dependsOn` only for real ordering requirements, but shared infrastructure the app consumes **always counts** — declare it directly, even if another dependency already covers it transitively:
+  - contains an `ExternalSecret` → `external-secrets` (namespace `security`; its health check waits for the 1Password store, so this means "secrets can actually be fetched")
+  - its own manifests contain a `PersistentVolumeClaim`, or its health check waits on Longhorn-backed storage → `longhorn` (namespace `longhorn-system`). Chart-created PVCs alone don't need it.
+  - a CRD or webhook another Kustomization provides (e.g. a `Certificate` → `cert-manager`), the shared CNPG `postgres`, or the IdP
+  - Do **not** add app-to-app dependencies for things that only matter at runtime (e.g. the arrs on their download client); pods retry on their own.
+
+  Note the shell-var gotcha: Flux `postBuild` rewrites `${VAR}` — escape `$${VAR}` in scripts.
 - `targetNamespace` is always set.
-- No `retryInterval`/`timeout` unless there is a documented reason.
+- No per-app `retryInterval`/`timeout` unless there is a documented reason. `retryInterval: 2m` is already set for every Kustomization by the root `cluster-apps` patch, so a failed reconcile (e.g. a webhook not serving yet after a cold boot) retries in minutes instead of waiting a full `interval`.
 
 ## 4. HelmRelease
 
@@ -79,6 +85,7 @@ Rules:
 - File naming: `httproute.yaml` = internal, `httproute-external.yaml` = external.
 - **External exposure is a security decision** — `envoy-external` carries a gateway-level default forward-auth SecurityPolicy (`envoy-external-default-auth`). To expose something *without* Authentik, opt out explicitly with the `kubernetes/components/public-access` component. **Never write an inline one-off SecurityPolicy.** Per-route auth is declared as a proxy provider in `kubernetes/apps/security/authentik/app/blueprints/30-proxy-integrations.yaml`, not as a second SecurityPolicy.
 - Every routed app declares an auth mode per `docs/architecture/authentication.md` before merge.
+- **Internal forward-auth** is opt-in per route via the `kubernetes/components/internal-forward-auth` component (JSON-patch its target to the rendered route name). This component is the sanctioned shape — still no inline one-off SecurityPolicies.
 - Remember: the Tailscale subnet router makes *all* internal services tailnet-reachable — "internal" is not "unreachable".
 
 ## 7. Storage
@@ -96,17 +103,18 @@ Rules:
 - `securityContext` — default `runAsUser/fsGroup: 65534` unless the image requires otherwise (`task validate:security-ctx` flags mismatches)
 - `reloader.stakater.com/auto: "true"` annotation on **any** app consuming an ExternalSecret or ConfigMap
 - Image tags: pinned semver only. Never `latest`, `main`, or channel tags. No digests currently — semver is the standard.
-- Homepage entries live in homepage's own config.
+- Dashboard tiles live in Homarr's database (managed in its UI), not in Git.
 
 ## 8a. Monitoring standard (observability stack, 2026-07)
 
-The stack: **kube-prometheus-stack** (Prometheus + Alertmanager + node-exporter + kube-state-metrics), **Loki** + **Alloy** (logs), **Uptime Kuma** (uptime), existing **Grafana** — all in `monitoring`. When deploying a new app, wire it in with these standard hooks (everything is picked up automatically, no central config to edit):
+The stack: **kube-prometheus-stack** (Prometheus + Alertmanager + node-exporter + kube-state-metrics), **Loki** + **Alloy** (logs), **Gatus** (uptime), existing **Grafana** — all in `monitoring`. When deploying a new app, wire it in with these standard hooks (everything is picked up automatically, no central config to edit):
 
 - **Metrics** — enable the chart's `serviceMonitor`/`metrics` values, or ship a `ServiceMonitor`/`PodMonitor` next to the app. Prometheus watches ALL monitors cluster-wide (nil selectors) — no labels or registration needed.
-- **Alerts** — ship a `PrometheusRule` CR next to the app; also auto-discovered. Alertmanager delivers to Matrix through a matrix-hookshot generic webhook (see `docs/matrix-webhooks.md`); severity tiers inhibit downward (critical > warning > info). `Watchdog`/`InfoInhibitor` are nulled. (History: this was Discord, then Mattermost `#infrastructure` — both retired.)
+- **Alerts** — ship a `PrometheusRule` CR next to the app; also auto-discovered. Alertmanager delivers to Matrix through a matrix-hookshot generic webhook; severity tiers inhibit downward (critical > warning > info). `InfoInhibitor` is nulled; `Watchdog` is routed every minute to the self-hosted Healthchecks `alertmanager-watchdog` check as a dead-man's switch (`docs/healthchecks.md`). (History: this was Discord, then Mattermost `#infrastructure` — both retired.)
 - **Logs** — automatic. Alloy (DaemonSet) tails every pod on its node and pushes to Loki with labels `namespace, pod, container, node, app`. Nothing to configure per app.
 - **Dashboards** — ConfigMap labeled `grafana_dashboard: "1"` (any namespace) with the JSON under `data:`; the Grafana sidecar auto-loads it. Datasources likewise via `grafana_datasource: "1"`.
-- **Uptime** — add a monitor in Uptime Kuma (`uptime.` internal route) for anything user-facing. Manual/API for now; declarative auto-registration is a planned follow-up.
+- **Uptime** — automatic. Gatus checks every HTTPRoute on `envoy-internal`/`envoy-external` (`gatus.` internal route) through DNS → Envoy → TLS, expecting a 200 after redirects. If the app's `/` isn't a 200, or a health path/body check is better, annotate the route with `gatus.home-operations.com/endpoint`: always a display `name:`, plus path, conditions or `extra-labels: {severity: critical}` as needed; `gatus.home-operations.com/enabled: "false"` opts out. Alerts go Gatus metrics → Prometheus → Alertmanager → Matrix.
+- **Heartbeats** — key long-running services get the `healthchecks.io/slug` (+ optional `healthchecks.io/url`) annotation on their workload; the heartbeat runner turns readiness into pings. CronJobs (backups, maintenance) get `healthchecks.io/slug` (+ optional `healthchecks.io/grace`) and become cron-schedule checks in the "Jobs" project, fed by the same runner from Job results. Scripts outside the cluster ping the Jobs project directly: `/ping/<jobs-ping-key>/<slug>?create=1`.
 
 In-cluster endpoints (for automations/AI analysis):
 
@@ -116,9 +124,10 @@ In-cluster endpoints (for automations/AI analysis):
 | Alertmanager | `http://kps-alertmanager.monitoring.svc.cluster.local:9093` |
 | Loki | `http://loki.monitoring.svc.cluster.local:3100` |
 | Grafana | `http://grafana.monitoring.svc.cluster.local:80` |
-| Uptime Kuma | `http://uptime-kuma.monitoring.svc.cluster.local:3001` |
+| Gatus | `http://gatus.monitoring.svc.cluster.local:8080` |
+| Healthchecks | `http://healthchecks.monitoring.svc.cluster.local:8000` |
 
-Prometheus retains 14d/25GB, Loki 14d — both on `longhorn-nobackup` (rebuildable telemetry; the explicit no-backup rationale per §7). Uptime Kuma's PVC is on `longhorn` (its DB holds monitor config).
+Prometheus retains 14d/25GB, Loki 14d — both on `longhorn-nobackup` (rebuildable telemetry; the explicit no-backup rationale per §7). Gatus' check history is on `longhorn-nobackup` too — its checks live in git, so the PVC is only history.
 
 ## 9. Validation & workflow
 

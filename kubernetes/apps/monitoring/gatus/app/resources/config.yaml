@@ -1,0 +1,60 @@
+# Gatus base config. Mounted as /config/config.yaml; the gatus-sidecar writes
+# /config/gatus-sidecar.yaml next to it and Gatus merges every file in the
+# directory (GATUS_CONFIG_PATH=/config), hot-reloading when either changes.
+#
+# Do not add route checks here. Every HTTPRoute on envoy-internal/-external is
+# discovered automatically; tune one with the gatus.home-operations.com/endpoint
+# annotation on the route itself (docs/gatus.md). This file is only for checks
+# that have no route to annotate.
+#
+# No alerting block on purpose: Prometheus scrapes /metrics and the gatus
+# PrometheusRule raises alerts through Alertmanager -> Matrix, the same path as
+# every other alert in the cluster.
+metrics: true
+
+# Gatus stores an endpoint's display name on first sight and never updates it,
+# so a rename (or a key collision like sonarr -> Sonarr) keeps the old name on
+# the status page; metrics are unaffected. Changing this file name starts a
+# clean history. Done once for the 2026-10 display-name rollout; the orphaned
+# data.db on the PVC is harmless.
+storage:
+  type: sqlite
+  path: /data/gatus.db
+  caching: true
+
+web:
+  port: 8080
+
+ui:
+  title: Status | Home Ops
+  header: Home Ops Status
+  default-sort-by: group
+
+endpoints:
+  # Public DNS for the Cloudflare tunnel target that every envoy-external
+  # hostname CNAMEs to. Asked of 1.1.1.1, not the cluster resolver, so it
+  # sees what the internet sees (split DNS answers internal names locally).
+  - name: Public DNS
+    group: external
+    url: 1.1.1.1
+    interval: 5m
+    dns:
+      query-name: external.${SECRET_DOMAIN}
+      query-type: A
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+    extra-labels:
+      severity: warning
+
+  # Registration expiry of the domain itself (WHOIS/RDAP), not a TLS cert. The
+  # HTTPS request is only the vehicle; the condition is all that is judged.
+  # Gatus refuses intervals under 5m for this (public WHOIS); hourly is plenty.
+  # GatusDomainExpiringSoon warns at 30 days; this condition fails (critical) at 14.
+  - name: Domain registration
+    group: external
+    url: https://${SECRET_DOMAIN}
+    interval: 1h
+    conditions:
+      - "[DOMAIN_EXPIRATION] > 336h"
+    extra-labels:
+      severity: critical

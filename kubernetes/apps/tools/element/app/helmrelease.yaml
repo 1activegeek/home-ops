@@ -17,7 +17,7 @@ spec:
           app:
             image:
               repository: ghcr.io/element-hq/element-web
-              tag: v1.12.28
+              tag: v1.12.30
             probes:
               liveness:
                 enabled: true
@@ -70,6 +70,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Matrix (Element)
         hostnames: ["matrix.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

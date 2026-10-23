@@ -12,13 +12,40 @@ spec:
     controllers:
       zwave-js-ui:
         type: statefulset
+        annotations:
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          # Readiness only, no healthchecks.io/url: the network policy keeps the
+          # runner off the pod. The readiness probe below is the deep check.
+          healthchecks.io/slug: zwave-js-ui
         containers:
           app:
             image:
               repository: ghcr.io/zwave-js/zwave-js-ui
-              tag: 11.24.1
+              tag: 11.24.3
             env:
               TZ: America/New_York
+            probes:
+              # Ready only while the Z-Wave driver is up (USB stick answering),
+              # not just the web server. Kubelet probes arrive as `host`, which
+              # the network policy allows. Every 60s: /health shares a
+              # 500-per-hour, per-IP rate limit with HA's panel traffic, which
+              # comes from the same node IP. The Accept header matters: with
+              # kubelet's default `*/*` the SPA history fallback answers
+              # instead, and the probe always passes.
+              readiness:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /health/zwave
+                    port: 8091
+                    httpHeaders:
+                      - name: Accept
+                        value: text/plain
+                  initialDelaySeconds: 30
+                  periodSeconds: 60
+                  timeoutSeconds: 5
+                  failureThreshold: 2
             resources:
               requests:
                 cpu: 50m
@@ -32,6 +59,12 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: asgard-mpc-01
 
+    # No route. The UI (8091) and the Z-Wave JS server (3000) are reachable
+    # only by Home Assistant: see ciliumnetworkpolicy.yaml. HA connects to
+    # 3000 for the integration and proxies 8091 into an admin-only sidebar
+    # panel via hass_ingress, so an HA login is the only way into the UI.
+    # Both ports are unauthenticated and the container is privileged; never
+    # add a route for either.
     service:
       app:
         controller: zwave-js-ui
@@ -54,15 +87,3 @@ spec:
         hostPath: /dev/serial/by-id/usb-Silicon_Labs_Zooz_ZST10_700_Z-Wave_Stick_0001-if00-port0
         globalMounts:
           - path: /dev/zwave
-
-    route:
-      app:
-        hostnames: ["hass-zwave.${SECRET_DOMAIN}"]
-        parentRefs:
-          - name: envoy-internal
-            namespace: network
-            sectionName: https
-        rules:
-          - backendRefs:
-              - identifier: app
-                port: 8091

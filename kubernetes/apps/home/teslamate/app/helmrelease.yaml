@@ -33,14 +33,7 @@ spec:
                   secretKeyRef:
                     name: teslamate-secret
                     key: encryption_key
-              MQTT_HOST: mosquitto.home.svc.cluster.local
-              MQTT_PORT: "1883"
-              MQTT_USERNAME: teslamate
-              MQTT_PASSWORD:
-                valueFrom:
-                  secretKeyRef:
-                    name: teslamate-secret
-                    key: mqtt_password
+              DISABLE_MQTT: "true"
               TZ: America/Denver
             probes:
               liveness: &probes
@@ -114,6 +107,9 @@ spec:
 
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: TeslaMate
         hostnames: ["teslamate.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

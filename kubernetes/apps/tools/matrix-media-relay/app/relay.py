@@ -22,6 +22,7 @@ Stdlib only, so it runs on a stock python image with no build step.
 
 import hashlib
 import hmac
+import html as htmllib
 import json
 import logging
 import os
@@ -369,11 +370,108 @@ def fetch_image(img):
     return fetch_poster(img)
 
 
+def _when(iso):
+    """'2026-10-17T02:45:02+00:00' -> '2026-10-17 02:45 UTC' (best effort)."""
+    if not iso:
+        return ""
+    return str(iso)[:16].replace("T", " ") + (" UTC" if str(iso).endswith("+00:00") else "")
+
+
+def render_healthchecks(hc):
+    """Card for a self-hosted Healthchecks webhook.
+
+    Healthchecks' webhook templates substitute raw strings with no HTML (or,
+    except for $NAME_JSON, JSON) escaping, so a check name containing a quote
+    or `<` would break a hand-built {"text","html"} body and drop the alert.
+    Instead the channel posts its structured placeholders --
+    {"healthchecks": {"status": "$STATUS", "check": $JSON, "body": $BODY_JSON,
+    "site": "<SITE_ROOT>"}} -- and the card is built here, escaped, in the
+    room's shared blockquote format (docs/matrix-webhooks.md).
+    """
+    esc = htmllib.escape
+    check = hc.get("check") or {}
+    down = str(hc.get("status", "")).lower() == "down"
+    name = check.get("name") or check.get("slug") or check.get("uuid") or "unnamed check"
+    site = str(hc.get("site") or "").rstrip("/")
+    url = "%s/checks/%s/details/" % (site, check["uuid"]) if site and check.get("uuid") else ""
+    color, word = ("#f04747", "🔴 DOWN") if down else ("#43b581", "✅ UP")
+
+    if down:
+        # Down is either a missed deadline or an explicit /fail ping; $JSON does
+        # not say which, so state the fact rather than guess. A /fail usually
+        # carries its reason in the ping body, shown below.
+        detail = "Last ping %s" % _when(check["last_ping"]) if check.get("last_ping") \
+            else "Never pinged"
+    else:
+        detail = "Pinging again" + (", last ping %s" % _when(check["last_ping"])
+                                    if check.get("last_ping") else "")
+    # The last ping body carries the reason for /fail pings (e.g. the
+    # self-check's "status endpoint unreachable"); trimmed so a dumped log
+    # cannot flood the room.
+    body = str(hc.get("body") or "").strip()
+    if down and len(body) > 300:
+        body = body[:300] + "…"
+    meta = " · ".join(x for x in (check.get("desc"), check.get("tags") and "tags: " + check["tags"]) if x)
+
+    text = "%s - %s\n%s" % (word, name, detail) + \
+        ("\n" + body if down and body else "") + ("\n" + url if url else "")
+    title = '<a href="%s">%s</a>' % (esc(url), esc(name)) if url else esc(name)
+    html = ('<blockquote><span data-mx-color="%s"><b>%s &middot; %s</b></span><br>%s' %
+            (color, word, title, esc(detail)) +
+            ("<br><code>%s</code>" % esc(body) if down and body else "") +
+            ('<br><span data-mx-color="#888888">%s</span>' % esc(meta) if meta else "") +
+            "</blockquote>")
+    return text, html
+
+
+def render_homeassistant(ha):
+    """Card for Home Assistant's own alerts (packages/infra_alerts.yaml on HA).
+
+    HA posts {"homeassistant": {"status", "title", "detail", "url", "meta"}}
+    rather than a hand-built body: titles and details are automation names and
+    raw exception text, which can contain `<` or `&`, and Jinja in a
+    rest_command cannot be trusted to escape them. The card is built here,
+    escaped, in the room's shared blockquote format (docs/matrix-webhooks.md).
+    status is "error", "warning" or "resolved".
+    """
+    esc = htmllib.escape
+    status = str(ha.get("status") or "error").lower()
+    color, word = {
+        "resolved": ("#43b581", "✅ RESOLVED"),
+        "warning": ("#faa61a", "⚠️ WARNING"),
+    }.get(status, ("#f04747", "🔥 ERROR"))
+    title = str(ha.get("title") or "Home Assistant")
+    url = str(ha.get("url") or "")
+    # Exception text can be long (tracebacks); trim so one error cannot flood
+    # the room.
+    detail = str(ha.get("detail") or "").strip()
+    if len(detail) > 500:
+        detail = detail[:500] + "…"
+    meta = str(ha.get("meta") or "")
+
+    text = "%s - %s" % (word, title) + ("\n" + detail if detail else "") + \
+        ("\n" + url if url else "")
+    link = '<a href="%s">%s</a>' % (esc(url), esc(title)) if url else esc(title)
+    html = ('<blockquote><span data-mx-color="%s"><b>%s &middot; %s</b></span>' %
+            (color, word, link) +
+            ("<br><code>%s</code>" % esc(detail) if detail else "") +
+            ('<br><span data-mx-color="#888888">%s</span>' % esc(meta) if meta else "") +
+            "</blockquote>")
+    return text, html
+
+
 def send(profile, payload):
     sender, allowed = profile["sender"], profile["rooms"]
     room = payload.get("room") or allowed[0]
     if room not in allowed:
         raise PermissionError("profile %r may not post to %s" % (profile["name"], room))
+
+    if isinstance(payload.get("healthchecks"), dict):
+        payload = dict(payload)
+        payload["text"], payload["html"] = render_healthchecks(payload["healthchecks"])
+    elif isinstance(payload.get("homeassistant"), dict):
+        payload = dict(payload)
+        payload["text"], payload["html"] = render_homeassistant(payload["homeassistant"])
 
     text = payload.get("text") or ""
     html = payload.get("html")

@@ -8,6 +8,8 @@ spec:
   # so the registration secret (owned by synapse) must exist first.
   dependsOn:
     - name: synapse
+    - name: external-secrets
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/tools/matrix-media-relay/app
   postBuild:

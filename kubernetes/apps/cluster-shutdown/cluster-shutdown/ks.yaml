@@ -1,0 +1,20 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster-shutdown
+spec:
+  dependsOn:
+    - name: external-secrets
+      namespace: security
+  interval: 1h
+  path: ./kubernetes/apps/cluster-shutdown/cluster-shutdown/app
+  # NOTE: intentionally NO postBuild.substituteFrom — cluster-shutdown.sh uses
+  # ${VAR} expansions and Flux var substitution would blank them.
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: cluster-shutdown
+  wait: false

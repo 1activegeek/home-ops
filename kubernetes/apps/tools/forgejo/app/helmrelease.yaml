@@ -19,8 +19,9 @@ spec:
       http:
         type: ClusterIP
         port: 3000
+      # ClusterIP: LAN SSH goes through envoy-internal (tcproute.yaml).
       ssh:
-        type: LoadBalancer
+        type: ClusterIP
         port: 22
 
     # 10Gi -> 50Gi for Actions job logs/artifacts and the container registry
@@ -173,6 +174,12 @@ spec:
 
     strategy:
       type: Recreate
+
+    deployment:
+      annotations:
+        # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+        healthchecks.io/slug: forgejo
+        healthchecks.io/url: http://forgejo-http.tools.svc.cluster.local:3000/api/healthz
 
     # Headroom for the Actions job queue, log ingestion and registry blob
     # uploads, which all run in the Forgejo process.

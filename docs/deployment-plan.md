@@ -1,10 +1,10 @@
 # Cluster Application Deployment Plan
 
-> **Note:** Sensitive details (network topology, internal service URLs, secret naming, migration commands, storage paths, redirect URIs, and private contact details) are kept out of this repo in a local, gitignored `.private/` directory. This public version covers architecture, phases, auth policy, and status tracking.
+> **Note:** Sensitive details (network topology, internal service URLs, secret naming, migration commands, storage paths, redirect URIs, and private contact details) are stored in `.private/PRD.md` (gitignored). This public version covers architecture, phases, auth policy, and status tracking.
 
 ## Context
 
-This plan covers deploying ~30+ applications into an existing Talos Linux / Flux CD Kubernetes cluster. The cluster already has core infrastructure (Cilium, Envoy Gateway, Authentik, External Secrets + 1Password, Longhorn, NFS CSI, cert-manager, Cloudflare Tunnel, Mosquitto MQTT). The goal is a well-organized, GitOps-managed deployment with explicit auth decisions for routed apps, sane defaults, and proper inter-app connections.
+This plan covers deploying ~30+ applications into an existing Talos Linux / Flux CD Kubernetes cluster. The cluster already has core infrastructure (Cilium, Envoy Gateway, Authentik, External Secrets + 1Password, Longhorn, NFS CSI, cert-manager, Cloudflare Tunnel). The goal is a well-organized, GitOps-managed deployment with explicit auth decisions for routed apps, sane defaults, and proper inter-app connections.
 
 Several apps are currently running as Docker containers on the NAS and need to be migrated with their data intact.
 
@@ -19,8 +19,8 @@ Several apps are currently running as Docker containers on the NAS and need to b
 > The per-app sidecar pattern held up to about ten databases, then the costs it
 > ignored — no HA, ten backup CronJobs, ten hand-run major upgrades, no metrics —
 > outweighed the isolation it bought. Forgejo has migrated; the remaining apps
-> follow the ordering in that document. MariaDB (grimmory) and MongoDB
-> (librechat) stay as sidecars. The original rationale is preserved below.
+> follow the ordering in that document. MariaDB (grimmory) stays
+> a sidecar. The original rationale is preserved below.
 
 **Deploy individual PostgreSQL/MariaDB instances per app** as sidecar containers using the bjw-s app-template multi-controller pattern.
 
@@ -46,10 +46,10 @@ Rationale:
 
 | Namespace | Apps |
 |-----------|------|
-| `media` | Plex, SABnzbd, qBittorrent+Gluetun, Prowlarr, Radarr, Radarr-4K, Sonarr, Autoscan, Seerr, Tautulli, MeTube, Bazarr, Recyclarr, Unpackerr, Notifiarr, Grimmory, Audiobookshelf |
+| `media` | Plex, SABnzbd, qBittorrent+Gluetun, Prowlarr, Radarr, Radarr-4K, Sonarr, Autoscan, Seerr, Tautulli, MeTube, Bazarr, Recyclarr, Notifiarr, Grimmory, Audiobookshelf |
 | `ai` | Ollama, OpenWebUI, n8n, Qdrant |
 | `tools` | Shlink, Shlink-web, Forgejo, KMS, Zipline |
-| `monitoring` | Gatus, Grafana |
+| `monitoring` | Gatus, Grafana, kube-prometheus-stack, Loki, Alloy, Healthchecks, Headlamp |
 | `home` | Teslamate |
 
 ### Storage Strategy
@@ -97,7 +97,7 @@ No dependencies on other apps. Can be deployed in parallel.
 | App | Namespace | Chart | Auth | Notes |
 |-----|-----------|-------|------|-------|
 | 1a. KMS (vlmcsd) | tools | app-template | N/A (TCP only) | LoadBalancer TCP/1688 |
-| 1b. Gatus | monitoring | app-template | Native OIDC | Endpoint monitoring, ConfigMap-driven |
+| 1b. Gatus | monitoring | app-template | none (internal, read-only) | Uptime checks auto-generated from HTTPRoutes by gatus-sidecar; alerts via Prometheus/Alertmanager |
 | 1c. MeTube | media | app-template | Forward-auth | YouTube downloader |
 | 1d. Grafana | monitoring | Official chart | Native OIDC | Dashboard sidecar for auto-discovery |
 
@@ -142,7 +142,7 @@ Depends on Phase 3 (Plex) and Phase 4 (*arr apps).
 | 5c. Tautulli | media | Yes | Plex monitoring |
 | 5d. Bazarr | media | No | Subtitle management |
 | 5e. Recyclarr | media | No | TRaSH Guides quality profiles (CronJob) |
-| 5f. Unpackerr | media | No | Archive extraction daemon |
+| 5f. Unpackerr | media | No | Archive extraction daemon. Removed 2026-10-22 (unused). |
 | 5g. Notifiarr | media | No | Notification hub (requires notifiarr.com account) |
 
 ### Phase 6: Shlink Stack
@@ -200,7 +200,7 @@ Apps migrating from Docker follow this general process:
 
 **Apps being migrated:** Prowlarr, Sonarr, Radarr, Radarr-4K, Autoscan, Overseerr (to Seerr), Tautulli, Teslamate
 
-Detailed migration commands, path mappings, and secret extraction steps are kept out of the repo (local `.private/`).
+See `.private/PRD.md` for detailed migration commands, path mappings, and secret extraction steps.
 
 ---
 
@@ -270,8 +270,8 @@ Well within a 3-node cluster capacity, though the AI stack (Ollama) will be the 
 
 This section is the **source of truth** for tracking progress across sessions. Update it after each deployment action.
 
-**Last updated:** 2026-10-11
-**Current focus:** Auth governance, postgres consolidation, and doc upkeep
+**Last updated:** 2026-03-07
+**Current focus:** Auth governance, tracker reconciliation, and deployment policy cleanup
 
 ### Status Legend
 
@@ -297,24 +297,22 @@ This section is the **source of truth** for tracking progress across sessions. U
 | App | Status | Branch | Notes |
 |-----|--------|--------|-------|
 | 1a. KMS | `deployed` | `main` | HelmRelease healthy; app running |
-| 1b. Gatus | `deployed` | `main` | HelmRelease healthy; app running |
+| 1b. Gatus | `deployed` | `main` | 2026-07 removed for Uptime Kuma; 2026-10 redeployed as Uptime Kuma's replacement with annotation-driven route discovery (`docs/gatus.md`) |
 | 1c. MeTube | `deployed` | `main` | HelmRelease deployed; 2026-03-30 tuned to `MAX_CONCURRENT_DOWNLOADS=3` and `3Gi` memory limit after OOMKills under queued batch processing |
 | 1d. Grafana | `deployed` | `main` | HelmRelease healthy; app running |
 
 ### Phases 2-9
 
-Statuses below reflect manifests present on `main` (2026-10-11 reconciliation). Live health and migration completion were not re-checked.
-
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 2: Forgejo + Zipline | `deployed` | Both in `tools`; auth follow-up remains |
-| Phase 3: Media Infrastructure | `deployed` | Plex, SABnzbd, qBittorrent |
-| Phase 4: *Arr Stack | `deployed` | Prowlarr, Sonarr, Radarr, Radarr-4K; migration status unconfirmed |
-| Phase 5: Media Support | `deployed` | Seerr, Tautulli, Bazarr, Recyclarr, Unpackerr (Autoscan, Notifiarr have no manifests) |
-| Phase 6: Shlink | `deployed` | In `tools` |
-| Phase 7: Teslamate | `deployed` | In `home`; migration status unconfirmed |
-| Phase 8: AI Stack | `deployed` | Ollama, Qdrant, OpenWebUI, n8n, plus LibreChat, SearXNG, Hermes agent |
-| Phase 9: Books | `deployed` | Grimmory, Audiobookshelf |
+| Phase 2: Forgejo + Zipline | `deployed` | Both apps are running; auth follow-up remains |
+| Phase 3: Media Infrastructure | `deployed` | Plex, SABnzbd, and qBittorrent are running |
+| Phase 4: *Arr Stack | `not started` | Migration apps |
+| Phase 5: Media Support | `not started` | |
+| Phase 6: Shlink | `not started` | |
+| Phase 7: Teslamate | `not started` | Migration app |
+| Phase 8: AI Stack | `not started` | |
+| Phase 9: Books | `not started` | |
 
 ### Blockers & Open Questions
 
@@ -339,7 +337,7 @@ Statuses below reflect manifests present on `main` (2026-10-11 reconciliation). 
 | 2026-02-12 | Phase 0 + Phase 1 | Created 4 namespaces. Created Phase 1 apps: KMS, Gatus, Uptime Kuma, Grafana, MeTube. NFS deferred to Phase 3. |
 | 2026-02-12 | Tailscale | Added Tailscale Operator + Gateway to plan and created manifests |
 | 2026-02-12 | Branch split | Split monolithic branch into per-app branches for independent PRs |
-| 2026-02-15 | Security cleanup | Moved sensitive details to a local gitignored directory, created redacted public version |
+| 2026-02-15 | Security cleanup | Moved sensitive details to `.private/deployment-plan.md`, created redacted public version |
 | 2026-03-07 | Reconciliation and auth governance | Reconciled the tracker against the live cluster, documented the auth standard, and removed Uptime Kuma from the planned stack in favor of Gatus. |
 | 2026-03-30 | MeTube stability tuning | Confirmed `OOMKilled` restarts during queued download processing and raised MeTube memory limit to `3Gi` while keeping concurrent downloads at `3` to preserve throughput. |
 | 2026-04-01 | Homepage Kubernetes widget fix | Added Homepage's missing in-cluster Kubernetes config and a dedicated service account binding so the Kubernetes status widget can authenticate against the cluster API. |
@@ -347,5 +345,20 @@ Statuses below reflect manifests present on `main` (2026-10-11 reconciliation). 
 | 2026-09-03 | Hermes per-user memory | Carried upstream hermes-agent PR #27183 (per-user `USER.md` isolation) as a runtime patch — initContainer + ConfigMap diff, image anchored across all three containers. Added `task validate:hermes-patch` to pre-flight the patch against a pinned tag before merging an upgrade. Runbook: `docs/hermes-memory-patch.md`. |
 | 2026-09-03 | Alert notification links + Longhorn scrape fix | Added per-alert `Alertmanager` / `Silence` / `Graph` / `Runbook` links to the Matrix Alertmanager notifications, replacing the link Mattermost's `slack_configs` used to provide (`docs/matrix-webhooks.md`). Root-caused the two standing `KubeJobFailed` alerts and `TargetDown longhorn-backend` to Longhorn chart 1.12.1 gating its internal-traffic NetworkPolicies on `restrictInternalTraffic` (default true) instead of `networkPolicies.enabled` (false), which cut Prometheus and the backup-alert CronJob off from `longhorn-manager:9500`. Fixed with an additive allow policy. |
 | 2026-09-20 | Hermes carried patch removed | Dropped the runtime patch added 2026-09-03. Upstream closed BOTH per-user `USER.md` PRs unmerged (#27183 closed by its author in favour of #23784, which was itself closed; issue #27182 still open), so there was no upstream endgame — the diff had to be hand-ported on every refactor and hard-failed the pod when it could not apply, costing two outages in eight days (~4h on v2026.9.11, ~9h on v2026.9.14). `MATRIX_ALLOWED_USERS` is a single entry, so the isolation was guarding nothing in practice. Removed the `patch-memory` initContainer, the ConfigMap diff, the `hermes-patch` / `hermes-patch-src` volumes, `task validate:hermes-patch` and its script, and `docs/hermes-memory-patch.md`. **If `MATRIX_ALLOWED_USERS` ever grows past one, every allowlisted user shares one `/opt/data/memories/USER.md` again — re-evaluate before widening it.** |
-| 2026-10-11 | Doc refresh | Reconciled Phase 2-9 status against manifests on `main`, refreshed version references in `AGENTS.md`, and removed references to files that are not in the repo. |
-| | | *Next: Finish postgres consolidation and remaining auth cleanup.* |
+| 2026-10-16 | Healthchecks | Deployed self-hosted Healthchecks at `hc.` (monitoring namespace, `internal` / `forward_auth` — Authentik passkey login via the new `internal-forward-auth` component, gated to `tier1`, app trusts `X-authentik-email`). Second CNPG tenant (new role + database). Plain-HTTP `/ping/` and `/api/` exception to the global HTTPS redirect for non-TLS clients. Self-check CronJob chains local → healthchecks.io cloud dead-man's switch; Alertmanager `Watchdog` now routed to a Healthchecks check instead of `null`. `validate:secrets` now understands multiple `dataFrom` items and `data[]` refs, and compares labels case-insensitively. Runbook: `docs/healthchecks.md`. |
+| 2026-10-17 | Healthchecks service heartbeats | Added a heartbeat runner (a `heartbeat` controller in the Healthchecks release, read-only ClusterRole). It turns Kubernetes readiness, plus an optional direct HTTP check, into Healthchecks pings for any workload annotated `healthchecks.io/slug`. Failures are debounced for 5 rounds, then `/fail` with the reason. The runner has its own shorter-grace check. Opted in: Home Assistant, Sonarr, Radarr, Radarr4k, Prowlarr, Authentik server + worker, Forgejo, Synapse (Plex annotated, app currently disabled). Runbook: `docs/healthchecks.md`. |
+| 2026-10-17 | Healthchecks "Jobs" project | Second Healthchecks project declared in `bootstrap.py` (own API key and ping key, plus email and Matrix integrations). The heartbeat runner now watches CronJobs annotated `healthchecks.io/slug` and maps each to a cron-schedule check: Job start, completion and failure become `/start`, ping and `/fail` (with exit codes); restarts don't replay old runs. Opted in: all 14 `db-backup-*` CronJobs, `longhorn-backup-alert`, `cloudflare-dns-monitor` (20m grace), `recyclarr`, and Longhorn's generated `backup-daily`, `backup-weekly` and `snapshot-hourly` (via `HEARTBEAT_EXTRA_CRONJOBS`). |
+| 2026-10-18 | HA code-server lockdown | The Home Assistant code-server sidecar ran `--auth none` in the privileged, hostNetwork, root HA pod and was reachable without login from the LAN, both through its `hass-code.` envoy-internal route (no SecurityPolicy attached; the Authentik provider was never enforced) and directly on the node's port, bypassing the gateway. Effectively an unauthenticated root shell on the node. Now bound to loopback only, with its Service, HTTPRoute, commented external route and Authentik provider/application removed (`99-cleanup.yaml`); capabilities dropped. Access is only through an admin-only Home Assistant sidebar panel (hass_ingress custom integration, `work_mode: ingress`, which proxies through HA's authenticated session). |
+| 2026-10-19 | Removed tools code-server | Removed the general-purpose code-server in `tools` (`code.`, internal, `none`): an unauthenticated LAN editor with read-write access to the projects share, superseded by the HA-only editor. Its Longhorn volume is deleted with it; the Authentik launcher tile is removed via `99-cleanup.yaml`. |
+| 2026-10-19 | Removed inactive apps | Deleted manifests for apps that were commented out and not running: `plex` and `qbittorrent` (media), `syncthing` (tools), plus the dead `kms` and `homarr` entries whose directories were already gone, and the never-built Z-Wave JS UI external route. Dropped the qBittorrent Homepage tile (pointed at a hostname nothing serves). Plex itself still runs outside the cluster; the Homepage tile and Seerr's Plex integration are unchanged. |
+| 2026-10-19 | Z-Wave JS UI lockdown | The `hass-zwave.` envoy-internal route had no SecurityPolicy attached, so the UI was open to the LAN with no login despite a blueprinted Authentik provider. The Z-Wave JS server WebSocket was reachable from any pod. The UI can run arbitrary JavaScript in a privileged container and controls locks. Removed the route and the Authentik provider/application (`99-cleanup.yaml`); a CiliumNetworkPolicy now admits only Home Assistant on both ports. UI access is through an admin-only HA ingress panel, as for code-server. |
+| 2026-10-20 | HA history retention + archive | Recorder retention raised from the 10-day default to 30 (`purge_keep_days`). New `home/ha-archive` (two CronJobs, no HelmRelease): a nightly export of history + logbook via the HA API to the NAS as uncompressed daily JSONL kept 12 months, and a monthly DuckDB rollup to Parquet kept indefinitely, for agent queries. Runbook and schema: `docs/home-assistant-archive.md`. Also fixed a feedback loop in the HA infra-alert automation (PR #655's `system_log_event` trigger re-triggered on its own `RenderInfo already set` errors, about 2.5M times in two hours, adding 7.4 GB to the recorder DB): it now filters without template conditions, the recorder no longer stores `system_log_event`, and a `HomeAssistantLogFlood` Loki alert catches any future log flood. |
+| 2026-10-20 | Homepage v2 | Upgraded Homepage v1.13.2 → v2.6.0. v2 adds an optional built-in login gate (password or OIDC); left disabled, so Homepage stays `internal` / `none`. v2 also applies the `HOMEPAGE_ALLOWED_HOSTS` check to every route instead of only `/api/*`, so the probes now hit `/api/healthcheck` with an explicit `Host: localhost:3000` header (the pod-IP Host would get a 400). |
+| 2026-10-20 | Homarr at `home.`, Homepage to `home2.` | Deployed Homarr v2 (official homarr-labs OCI chart, tools namespace, `internal` / `native_oidc`). Third CNPG tenant (new role + database; Homarr's `node-postgres` driver), so no PVC. Authentik provider blueprinted with a new shared `groups` scope mapping in `00-foundation.yaml`; the application is bound to `tier1` and `tier2`, and Homarr maps those claims onto its own `tier1` (admin) and `tier2` (board view) groups. Local credentials kept for a break-glass admin. Homepage moved from `home.` to `home2.` in the same change (route, allowed hosts, Authentik tile, Glance link) so `home.` is never served by two apps. |
+| 2026-10-21 | Heartbeats for HA-only apps | Opted Baby Buddy, Z-Wave JS UI and the Home Assistant code-server sidecar into the Healthchecks heartbeat runner. Uptime Kuma can't watch them because they are reachable only through Home Assistant. They are readiness-only (no `healthchecks.io/url`), so their network policies stay closed to the runner, and kubelet probes are the deep check. Z-Wave JS UI gained a readiness probe on `/health/zwave` (driver up). code-server gained a loopback liveness probe on `/healthz`. The runner learned `healthchecks.io/containers` (`<container>=<slug>`), which gives a sidecar its own check (`ha-code-server`). |
+| 2026-10-21 | Removed unused apps | A usage audit (15 days of gateway access logs, excluding Uptime Kuma and probe traffic) showed almost no real use, so these were removed: `ollama`, `open-webui`, `librechat` (with its MongoDB) and `agentbox` (ai); `shlink` (API, web UI and Postgres; Zipline replaces it), `webtop`, `glance` and `bridge` (tools). Their Longhorn volumes are deleted with them, along with their NAS backups, the `db-backup-librechat` and `db-backup-shlink` CronJobs, their Healthchecks checks and Uptime Kuma monitors, their Homepage tiles and their Authentik launcher tiles (via `99-cleanup.yaml`). The Mongo migration tasks went too, since LibreChat was the only Mongo app. |
+| 2026-10-21 | Nextcloud setup + Authentik SSO | Nextcloud had never finished installing: the first auto-install failed because the NAS share only accepts writes from the Synology media UID, and the image never retries once `version.php` exists, so it sat at the setup wizard and the webcron CronJob failed. The pod now runs as that UID (unprivileged-port sysctl for Apache), a root init container re-owns the app volume, data lives in a subdirectory Nextcloud owns, and a before-starting hook installs the instance if needed and converges core settings (trusted domain, CLI cron, phone region, maintenance window, missing indices, repair) on every start. Background jobs moved from the HTTP CronJob to a CLI sidecar. Auth is `internal` / `native_oidc` via the user_oidc app, bound to `tier1` + `tier2`; the login page redirects straight to Authentik, local admin stays available as break-glass. |
+| 2026-10-21 | Removed SABnzbd, SearXNG, Qdrant, Homepage | Removed to free cluster resources: `sabnzbd` (media), `searxng` and `qdrant` (ai), `homepage` (tools). Their Longhorn volumes (SABnzbd config + 150Gi scratch, Qdrant data) go with them, as do the `longhorn-scratch` StorageClass and SABnzbd's static media PV (Retain; the NAS share itself is untouched). Also removed: the `db-backup-qdrant` CronJob, the Homepage and Qdrant Authentik launcher tiles (`state: absent` in `99-cleanup.yaml`), and the SABnzbd migration doc and scripts. Homarr is now the only dashboard. |
+| 2026-10-21 | Uptime Kuma → Gatus | Replaced Uptime Kuma with Gatus + gatus-sidecar. Every HTTPRoute on either gateway now gets a check automatically; defaults are annotations on the two Gateways, per-route tuning is an annotation on the route. All 31 Kuma monitors for apps still in the cluster carried over (the Healthchecks keyword monitor became a body check on `healthchecks-machine`; Qdrant and Kuma's self-check went with their apps), plus 10 routes Kuma never watched (Atuin, Artifacts, Hookshot, MAS compat, Synapse, Synapse well-known, the media relay, echo, Tesla pubkey, Healthchecks UI) and a public-DNS check. Alerts moved to Prometheus (`GatusEndpointDown`, `GatusCertificateExpiringSoon`, `GatusNoResults`) → Alertmanager → Matrix; the Kuma relay profile was removed. Also: display names on every route, outside-in checks for `envoy-external` routes (resolved through public DNS, so they go via Cloudflare and the tunnel; the HA and Authentik external twins re-enabled as `(external)` checks), a domain-registration expiry check + `GatusDomainExpiringSoon`, and a Grafana dashboard. Gatus is internal, auth `none` (read-only status page). |
+| 2026-10-22 | Removed Unpackerr and Mosquitto | A usage check showed neither was doing any work. Unpackerr only handles torrent downloads, but Sonarr, Radarr and Radarr-4K all use NZBGet (usenet), which extracts its own downloads; after 4 days it had extracted nothing. Mosquitto's only client was TeslaMate, and nothing subscribed to what TeslaMate published (Home Assistant has no MQTT integration). TeslaMate now runs with `DISABLE_MQTT`, its `mosquitto` dependency and MQTT credentials are gone, and the Mosquitto volume is deleted with the app. Re-add Mosquitto if TeslaMate → Home Assistant over MQTT is ever wanted. |
+| | | *Next: Continue with Phase 4 and remaining auth cleanup.* |

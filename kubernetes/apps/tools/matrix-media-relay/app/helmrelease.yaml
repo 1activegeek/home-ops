@@ -56,12 +56,6 @@ spec:
                     "displayname": "Requests",
                     "avatar": "avatar-requests.png"
                   },
-                  "uptimekuma": {
-                    "sender": "@_webhooks_uptimekuma:matrix.${SECRET_DOMAIN}",
-                    "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
-                    "displayname": "Uptime Kuma",
-                    "avatar": "avatar-uptimekuma.png"
-                  },
                   "longhorn": {
                     "sender": "@_webhooks_longhorn:matrix.${SECRET_DOMAIN}",
                     "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
@@ -73,6 +67,18 @@ spec:
                     "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
                     "displayname": "Cloudflare",
                     "avatar": "avatar-cloudflare.png"
+                  },
+                  "healthchecks": {
+                    "sender": "@_webhooks_healthchecks:matrix.${SECRET_DOMAIN}",
+                    "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
+                    "displayname": "Healthchecks",
+                    "avatar": "avatar-healthchecks.png"
+                  },
+                  "homeassistant": {
+                    "sender": "@_webhooks_homeassistant:matrix.${SECRET_DOMAIN}",
+                    "rooms": ["!xSEmyzzqJYzDgEAdrj:matrix.${SECRET_DOMAIN}"],
+                    "displayname": "Home Assistant",
+                    "avatar": "avatar-homeassistant.png"
                   }
                 }
             envFrom:
@@ -141,19 +147,30 @@ spec:
               - path: /app/avatars/avatar-requests.png
                 subPath: avatar-requests.png
                 readOnly: true
-              - path: /app/avatars/avatar-uptimekuma.png
-                subPath: avatar-uptimekuma.png
-                readOnly: true
               - path: /app/avatars/avatar-longhorn.png
                 subPath: avatar-longhorn.png
                 readOnly: true
               - path: /app/avatars/avatar-cloudflare.png
                 subPath: avatar-cloudflare.png
                 readOnly: true
+              - path: /app/avatars/avatar-healthchecks.png
+                subPath: avatar-healthchecks.png
+                readOnly: true
+              - path: /app/avatars/avatar-homeassistant.png
+                subPath: avatar-homeassistant.png
+                readOnly: true
 
     # Internal only. Tautulli reaches it in-cluster; the route is for testing.
     route:
       app:
+        annotations:
+          # `/` is a 404; /healthz is the relay's own health handler.
+          gatus.home-operations.com/endpoint: |
+            name: Matrix Media Relay
+            path: /healthz
+            conditions:
+              - "[STATUS] == 200"
+              - "[BODY].ok == true"
         hostnames: ["matrix-media-relay.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

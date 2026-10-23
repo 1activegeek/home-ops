@@ -1,7 +1,7 @@
 ---
 # Logical backup for the whole shared CNPG cluster: globals (roles, tablespaces)
 # plus a custom-format dump per database. Replaces the per-app pg_dump cronjobs
-# as each app migrates onto this cluster — see docs/postgres-consolidation.md.
+# as each app migrates onto this cluster
 #
 # This is the AUTHORITATIVE backup. CNPG's native barman backups need an S3
 # endpoint, and no object storage exists in this cluster (Longhorn's only
@@ -14,6 +14,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: db-backup-postgres
+  annotations:
+    # Heartbeat to the Healthchecks "Jobs" project (monitoring/healthchecks runner).
+    healthchecks.io/slug: db-backup-postgres
 spec:
   # Fits the existing 01:00-02:30 stagger, well ahead of Longhorn's 03:00
   # backup-daily job which then ships this PVC off-box.

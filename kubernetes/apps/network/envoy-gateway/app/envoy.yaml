@@ -30,7 +30,7 @@ spec:
 # Two GatewayClasses, one per exposure tier. They share the same EnvoyProxy
 # params but the distinct class names let k8s-gateway (internal split-DNS)
 # resolve ONLY internal-tier routes, so dual-homed hosts prefer the internal
-# gateway (.53) on-LAN. See docs/architecture/routing.md.
+# gateway (.53) on-LAN.
 #
 # class `envoy`          -> INTERNAL tier (LAN, no gateway auth). Resolved
 #                           on-LAN by k8s-gateway to 10.0.3.53.
@@ -67,6 +67,21 @@ metadata:
   name: envoy-external
   annotations:
     external-dns.kubernetes.io/target: external.${SECRET_DOMAIN}
+    # Gatus default for every route on this gateway (gatus-sidecar merges this
+    # under each HTTPRoute's own annotation; the route wins).
+    # Outside-in: names are resolved through public DNS, not split DNS, so even a
+    # hostname that also has an internal route goes out to Cloudflare and back
+    # through the tunnel to this gateway, the path an internet user takes.
+    gatus.home-operations.com/endpoint: |
+      group: external
+      interval: 1m
+      client:
+        timeout: 30s
+        dns-resolver: tcp://1.1.1.1:53
+      conditions:
+        - "[STATUS] == 200"
+      extra-labels:
+        severity: warning
 spec:
   # INTERNET boundary — distinct class so k8s-gateway split-DNS ignores it.
   gatewayClassName: envoy-external
@@ -98,6 +113,19 @@ metadata:
   name: envoy-internal
   annotations:
     external-dns.kubernetes.io/target: internal.${SECRET_DOMAIN}
+    # Gatus default for every route on this gateway (gatus-sidecar merges this
+    # under each HTTPRoute's own annotation; the route wins). Redirects are
+    # followed, so apps behind Authentik pass when the login page renders.
+    #
+    gatus.home-operations.com/endpoint: |
+      group: internal
+      interval: 1m
+      client:
+        timeout: 30s
+      conditions:
+        - "[STATUS] == 200"
+      extra-labels:
+        severity: warning
 spec:
   # INTERNAL tier — class `envoy` is the one k8s-gateway resolves on-LAN (.53).
   gatewayClassName: envoy

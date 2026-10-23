@@ -1,0 +1,30 @@
+---
+# Only Home Assistant may reach Baby Buddy.
+#
+# The HA ingress panel sends `Remote-User: admin` and Baby Buddy runs with
+# REVERSE_PROXY_AUTH, so anyone who can reach port 8000 can send that header
+# and log in as admin. Selecting the pod in a policy makes its ingress
+# default-deny for everything not listed here: no other pod, no gateway,
+# nothing on the LAN.
+#
+# HA runs with hostNetwork, so its traffic arrives from the `host` entity when
+# both pods share a node and from `remote-node` when they don't. Baby Buddy is
+# not pinned, so both are allowed. Kubelet probes also arrive as `host`.
+#   8000  nginx -> gunicorn, under /api/ingress/babybuddy
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: babybuddy-restrict-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: babybuddy
+      app.kubernetes.io/controller: main
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP

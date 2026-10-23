@@ -1,0 +1,102 @@
+---
+# Never runs on a schedule. It is the template for the one-off Job that Home
+# Assistant's "Shut down cluster" button creates during a power outage
+# (HA plan ha-17). By hand: kubectl -n cluster-shutdown create job --from=cronjob/cluster-shutdown cluster-shutdown-manual
+#
+# Two steps in one pod:
+#   1. quiesce (initContainer): scripts/cluster-shutdown.sh --yes --no-poweroff --arm-restore
+#   2. poweroff: talosctl shutdown on every node, with an os:operator talosconfig
+# After power returns, switch the nodes on: the cluster-restore CronJob (armed in
+# step 1) waits for a stable cluster and restores it by itself.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cluster-shutdown
+spec:
+  suspend: true
+  schedule: "0 0 31 2 *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cluster-shutdown
+        spec:
+          serviceAccountName: cluster-shutdown
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: quiesce
+              image: docker.io/alpine/k8s:1.34.1
+              command: ["bash", "/scripts/cluster-shutdown.sh", "--yes", "--no-poweroff", "--arm-restore"]
+              env:
+                - name: HOME
+                  value: /tmp
+                # The script skips these namespaces; this Job's own pod must
+                # survive until the nodes power off.
+                - name: KEEP_NAMESPACES
+                  value: kube-system kube-public kube-node-lease flux-system longhorn-system cluster-shutdown
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: poweroff
+              image: ghcr.io/siderolabs/talosctl:v1.11.3
+              args:
+                - --talosconfig=/talos/talosconfig
+                # Any healthy node can relay the request to the others.
+                - --endpoints=10.0.3.21,10.0.3.22,10.0.3.23
+                - --nodes=10.0.3.21,10.0.3.22,10.0.3.23
+                - shutdown
+                # Workloads are already stopped; draining three control-plane
+                # nodes at once only fights PodDisruptionBudgets.
+                - --force
+                - --wait=false
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              volumeMounts:
+                - name: talosconfig
+                  mountPath: /talos
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: cluster-shutdown-script
+            - name: tmp
+              emptyDir: {}
+            - name: talosconfig
+              secret:
+                secretName: cluster-shutdown-talosconfig

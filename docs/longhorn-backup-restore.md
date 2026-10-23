@@ -62,7 +62,7 @@ then create the matching PV/PVC.
 
 - NFS backups are **crash-consistent** (fine for SQLite/config; Postgres recovers via
   WAL replay). `freezeFilesystemForSnapshot: true` tightens this.
-- **Phase 2** adds logically consistent DB dumps (`pg_dump`/`mariadb-dump`/`mongodump`/
-  Qdrant-snapshot CronJobs) for stateful DB apps as defense-in-depth — see
+- **Phase 2** adds logically consistent DB dumps (`pg_dump`/`mariadb-dump`
+  CronJobs) for stateful DB apps as defense-in-depth — see
   `database-dumps-restore.md`.
 - Consider a periodic restore drill and off-site replication of the NFS folder (3-2-1).

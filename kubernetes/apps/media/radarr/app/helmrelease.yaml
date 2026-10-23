@@ -13,6 +13,9 @@ spec:
       radarr:
         annotations:
           reloader.stakater.com/auto: "true"
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          healthchecks.io/slug: radarr
+          healthchecks.io/url: http://radarr.media.svc.cluster.local:7878/ping
         strategy: Recreate
         containers:
           app:
@@ -78,6 +81,9 @@ spec:
           - path: /data/media
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Radarr
         hostnames: ["radarr.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

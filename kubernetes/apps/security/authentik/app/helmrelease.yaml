@@ -7,7 +7,7 @@ spec:
   chart:
     spec:
       chart: authentik
-      version: 2026.8.2
+      version: 2026.8.3
       sourceRef:
         kind: HelmRepository
         name: authentik
@@ -76,9 +76,19 @@ spec:
       replicas: 1
       annotations:
         reloader.stakater.com/auto: "true"
+      # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+      deploymentAnnotations:
+        healthchecks.io/slug: authentik-server
+        healthchecks.io/url: http://authentik-server.security.svc.cluster.local/-/health/ready/
       route:
         main:
           enabled: true
+          annotations:
+            # The IdP: every SSO and forward-auth app fails with it.
+            gatus.home-operations.com/endpoint: |
+              name: Authentik
+              extra-labels:
+                severity: critical
           hostnames:
             - auth.${SECRET_DOMAIN}
           parentRefs:
@@ -92,6 +102,9 @@ spec:
       replicas: 1
       annotations:
         reloader.stakater.com/auto: "true"
+      # Readiness only: the worker serves no HTTP API.
+      deploymentAnnotations:
+        healthchecks.io/slug: authentik-worker
 
     # PostgreSQL Database Configuration
     postgresql:

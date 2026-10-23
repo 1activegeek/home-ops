@@ -1,0 +1,43 @@
+---
+# Only Envoy (both routes and the plain-HTTP route arrive via envoy-internal),
+# Alertmanager (Watchdog dead-man's switch on the Service URL), the heartbeat
+# runner and the kubelet (probes) may reach the Healthchecks pod.
+#
+# Why: REMOTE_USER_HEADER makes Healthchecks log in whoever X-authentik-email
+# names. Envoy guarantees that header came from Authentik (ext_authz on the UI
+# route, stripped on the others), but a pod talking to the Service directly
+# bypasses Envoy and could forge it to get an admin session. Selecting the pod
+# in a policy makes its ingress default-deny for everything not listed here.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: healthchecks-restrict-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: healthchecks
+      app.kubernetes.io/controller: healthchecks
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: alertmanager
+        # The heartbeat runner (our own code; it already holds the API key).
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: healthchecks
+            app.kubernetes.io/controller: heartbeat
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    # Kubelet liveness/readiness/startup probes.
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP

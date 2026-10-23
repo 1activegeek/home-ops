@@ -31,6 +31,89 @@ entries:
     identifiers:
       name: esphome-proxy
 
+  # hass-code: code-server is no longer routed; it is reachable only through the Home Assistant UI
+  # (loopback bind + hass_ingress panel), so the forward-auth provider protects nothing.
+  - model: authentik_policies.policybinding
+    state: absent
+    identifiers:
+      target: !Find [authentik_core.application, [slug, code-server]]
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: code-server
+  - model: authentik_providers_proxy.proxyprovider
+    state: absent
+    identifiers:
+      name: code-server-proxy
+
+  # tools/code-server was removed; dropping its tile from 40-launcher-apps.yaml leaves the
+  # application in place.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: code-server-tools
+
+  # hass-zwave: Z-Wave JS UI is no longer routed; it is reachable only through the Home Assistant UI
+  # (hass_ingress panel, CiliumNetworkPolicy), so the forward-auth provider protects nothing.
+  - model: authentik_policies.policybinding
+    state: absent
+    identifiers:
+      target: !Find [authentik_core.application, [slug, zwave-js-ui]]
+      policy: !Find [authentik_policies.policy, [name, allow-authenticated-users]]
+      order: 0
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: zwave-js-ui
+  - model: authentik_providers_proxy.proxyprovider
+    state: absent
+    identifiers:
+      name: zwave-js-ui-proxy
+
+  # Baby Buddy is no longer routed; it is reachable only through the Home Assistant UI
+  # (hass_ingress panel, CiliumNetworkPolicy). Dropping its tile from 40-launcher-apps.yaml
+  # leaves the application in place, so remove it explicitly.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: babybuddy
+
+  # Removed 2026-10-21 for lack of use (Glance, LibreChat, Open WebUI, Shlink, Webtop). Dropping
+  # their tiles from 40-launcher-apps.yaml leaves the applications in place.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: glance
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: librechat
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: open-webui
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: shlink
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: webtop
+
+  # Removed 2026-10-21 to free cluster resources (Homepage, Qdrant). Dropping their tiles from
+  # 40-launcher-apps.yaml leaves the applications in place.
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: homepage
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: qdrant
+
   # Superseded by zipline-proxy; this OIDC provider has no application attached.
   - model: authentik_providers_oauth2.oauth2provider
     state: absent
@@ -70,3 +153,9 @@ entries:
     state: absent
     identifiers:
       name: login-reputation-check
+
+  # Uptime Kuma was replaced by Gatus (portal tile `gatus` in 40-launcher-apps.yaml).
+  - model: authentik_core.application
+    state: absent
+    identifiers:
+      slug: uptime-kuma

@@ -5,6 +5,7 @@ resources:
   - ./certificate.yaml
   - ./ciliumnetworkpolicy.yaml
   - ./envoy.yaml
+  - ./httproute-healthchecks-http.yaml
   - ./helmrelease.yaml
   - ./ocirepository.yaml
   - ./podmonitor.yaml

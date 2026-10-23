@@ -62,7 +62,7 @@ the field as `REPLACE_ME` and say plainly which fields are placeholders.
 **Postgres is the exception.** Per-app database credentials do *not* go in the app's own
 item — they live in the `cnpg-postgres` item and surface as a `cnpg-role-<app>`
 ExternalSecret in `kubernetes/apps/database/postgres/app/externalsecret.yaml`, alongside a
-`managed.roles[]` entry in `cluster.yaml`. See `docs/postgres-consolidation.md`.
+`managed.roles[]` entry in `cluster.yaml`.
 
 ## Step 2 — Create or update the item
 
@@ -114,7 +114,7 @@ spec:
 `dataFrom.extract` is the default and the only shape `task validate:secrets` inspects.
 `data: [{secretKey, remoteRef: {key, property}}]` (with `template.engineVersion: v2`) is
 also in use and perfectly valid — for pulling from two different items (`tools/mas`) or
-cherry-picking single fields (`home/mosquitto`, `ai/open-webui`). Choose on need; just know
+cherry-picking single fields (`home/mosquitto`). Choose on need; just know
 a `data:`-only manifest is skipped by the validator, so check it by hand.
 
 Then close the loop, or the value never reaches the container:
@@ -128,7 +128,7 @@ Then close the loop, or the value never reaches the container:
 
 If this is a brand-new app, the ExternalSecret is inert until the app is registered: it also
 needs `ks.yaml` (with `postBuild.substituteFrom: cluster-secrets`) and a `./<app>/ks.yaml`
-entry in the namespace `kustomization.yaml`. See `docs/architecture/deployment-standards.md`.
+entry in the namespace `kustomization.yaml`.
 
 ## Step 4 — Verify before you commit
 

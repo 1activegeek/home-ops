@@ -13,6 +13,9 @@ spec:
       prowlarr:
         annotations:
           reloader.stakater.com/auto: "true"
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          healthchecks.io/slug: prowlarr
+          healthchecks.io/url: http://prowlarr.media.svc.cluster.local:9696/ping
         strategy: Recreate
         containers:
           app:
@@ -72,6 +75,9 @@ spec:
           - path: /config
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Prowlarr
         hostnames: ["prowlarr.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

@@ -18,4 +18,5 @@ spec:
   targetNamespace: home
   wait: false
   dependsOn:
-    - name: mosquitto
+    - name: external-secrets
+      namespace: security

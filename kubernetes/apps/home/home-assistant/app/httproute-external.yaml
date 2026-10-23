@@ -5,6 +5,12 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: home-assistant-external
+  annotations:
+    # Outside-in twin of the internal `home-assistant` check: the envoy-external
+    # Gatus default resolves through public DNS, so this one goes via
+    # Cloudflare and the tunnel.
+    gatus.home-operations.com/endpoint: |
+      name: Home Assistant (external)
   namespace: home
 spec:
   hostnames:
@@ -17,23 +23,3 @@ spec:
     - backendRefs:
         - name: home-assistant-app
           port: 8123
----
-# External HTTPRoute for Code Server
-# Protected by gateway-level Authentik forward-auth (default)
-## Disabling for now
-# apiVersion: gateway.networking.k8s.io/v1
-# kind: HTTPRoute
-# metadata:
-#   name: code-server-external
-#   namespace: home
-# spec:
-#   hostnames:
-#     - hass-code.${SECRET_DOMAIN}
-#   parentRefs:
-#     - name: envoy-external
-#       namespace: network
-#       sectionName: https
-#   rules:
-#     - backendRefs:
-#         - name: home-assistant-code-server
-#           port: 8081

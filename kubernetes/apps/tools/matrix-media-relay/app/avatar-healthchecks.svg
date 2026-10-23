@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">
+<title>healthchecks</title>
+<!-- Upstream homarr-labs/dashboard-icons healthchecks.svg (424x506, white + green mark) inset to 68% on a
+     dark-navy square: the white half of the mark would vanish on Element's light theme without it. -->
+<rect width="512" height="512" fill="#1f2937"/>
+<image x="82" y="82" width="348" height="348" preserveAspectRatio="xMidYMid meet" xlink:href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbDpzcGFjZT0icHJlc2VydmUiIHZpZXdCb3g9IjQ2LjYgMi45NCA0MTguOCA1MDYuMiI+PHBhdGggZD0iTTMwOS4yIDg5OS44aC00NS4zbDQxLjQgMjQ2LjdoNDYuMWwyNC0xNDIuOGg3MC4xbDQuOS00Ni43SDMzNS45bC03LjUgNDQuNnoiIHN0eWxlPSJmaWxsLXJ1bGU6ZXZlbm9kZDtjbGlwLXJ1bGU6ZXZlbm9kZDtmaWxsOiMyMmJjNjY7c3Ryb2tlOiMyMmJjNjY7c3Ryb2tlLXdpZHRoOjMwIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgwIC02NTIuMzYyKSIvPjxwYXRoIGQ9Im0yMTguOSA2NzAuMy00Ny42IDI4My4xSDY4LjZsLTcgNDYuN2g3NC4zbDE0LjQgODUuOWg0Ni4xbDIwLjctMTE1LjggMjIuOC0xMzUuNCA1Mi43LS4xTDI2NSA2NzAuM3oiIHN0eWxlPSJmaWxsLXJ1bGU6ZXZlbm9kZDtjbGlwLXJ1bGU6ZXZlbm9kZDtmaWxsOiNmZmZmZmY7c3Ryb2tlOiNmZmZmZmY7c3Ryb2tlLXdpZHRoOjMwIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgwIC02NTIuMzYyKSIvPjwvc3ZnPg=="/>
+</svg>

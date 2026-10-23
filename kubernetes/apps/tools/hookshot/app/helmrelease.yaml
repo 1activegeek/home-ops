@@ -109,6 +109,14 @@ spec:
     # cluster-internal — Synapse reaches it directly via the Service.
     route:
       app:
+        annotations:
+          # `/` is a 404; /ready reports the bridge is connected.
+          gatus.home-operations.com/endpoint: |
+            name: Hookshot
+            path: /ready
+            conditions:
+              - "[STATUS] == 200"
+              - "[BODY].ready == true"
         hostnames: ["hookshot.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

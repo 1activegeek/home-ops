@@ -1,0 +1,114 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: homarr
+spec:
+  chartRef:
+    kind: OCIRepository
+    name: homarr
+  interval: 1h
+  values:
+    image:
+      repository: ghcr.io/homarr-labs/homarr
+      tag: v2.6.0
+
+    podAnnotations:
+      reloader.stakater.com/auto: "true"
+
+    # The image entrypoint starts as root, chowns its runtime dirs, then drops
+    # to PUID:PGID with su-exec — so runAsNonRoot would break startup. The
+    # process itself runs as 65534.
+    securityContext:
+      allowPrivilegeEscalation: false
+
+    env:
+      TZ: America/New_York
+      LOG_LEVEL: info
+      PUID: "65534"
+      PGID: "65534"
+      # Local credentials stay enabled for the break-glass admin; OIDC is a
+      # button, not an auto-redirect.
+      AUTH_PROVIDERS: "oidc,credentials"
+      AUTH_OIDC_ISSUER: "https://auth.${SECRET_DOMAIN}/application/o/homarr/"
+      AUTH_OIDC_CLIENT_NAME: Authentik
+      AUTH_OIDC_AUTO_LOGIN: "false"
+      # `groups` is served by the homeops-groups scope mapping (00-foundation).
+      # Homarr syncs the claim to its own groups by name on every login: the
+      # `tier1` Homarr group holds the admin permission, `tier2` gets board
+      # view. Homarr has no admin-group env var; the mapping lives in its DB.
+      AUTH_OIDC_SCOPE_OVERWRITE: "openid email profile groups"
+      AUTH_OIDC_GROUPS_ATTRIBUTE: groups
+      AUTH_LOGOUT_REDIRECT_URL: "https://auth.${SECRET_DOMAIN}/application/o/homarr/end-session/"
+      AUTH_SESSION_EXPIRY_TIME: 14d
+
+    # Shared CNPG cluster (node-postgres driver). No PVC: all state is in
+    # Postgres; /appdata only holds the in-container redis cache.
+    database:
+      type: postgresql
+      migrationEnabled: true
+
+    envSecrets:
+      authOidcCredentials:
+        existingSecret: homarr-secret
+        oidcClientId: oidc-client-id
+        oidcClientSecret: oidc-client-secret
+      dbCredentials:
+        existingSecret: homarr-secret
+        dbUrlKey: db-url
+      dbEncryption:
+        existingSecret: homarr-secret
+        key: db-encryption-key
+
+    # Startup runs migrations and warms caches; give it time before liveness
+    # starts counting.
+    livenessProbe:
+      httpGet:
+        path: /api/health/live
+        port: 7575
+      initialDelaySeconds: 30
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readinessProbe:
+      httpGet:
+        path: /api/health/ready
+        port: 7575
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 384Mi
+      limits:
+        memory: 1Gi
+
+    httproute:
+      enabled: true
+      hostnames:
+        - home.${SECRET_DOMAIN}
+      parentRefs:
+        - name: envoy-internal
+          namespace: network
+          sectionName: https
+      rules:
+        - backendRefs:
+            - name: homarr
+              port: 7575
+  # The chart's HTTPRoute template has no annotations field; this adds the Gatus
+  # display name (docs/gatus.md).
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: HTTPRoute
+              name: homarr
+            patch: |
+              - op: add
+                path: /metadata/annotations
+                value:
+                  gatus.home-operations.com/endpoint: |
+                    name: Homarr

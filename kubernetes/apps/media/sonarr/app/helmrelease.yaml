@@ -13,6 +13,9 @@ spec:
       sonarr:
         annotations:
           reloader.stakater.com/auto: "true"
+          # Heartbeat to Healthchecks (monitoring/healthchecks heartbeat runner).
+          healthchecks.io/slug: sonarr
+          healthchecks.io/url: http://sonarr.media.svc.cluster.local:8989/ping
         strategy: Recreate
         containers:
           app:
@@ -78,6 +81,9 @@ spec:
           - path: /data/media
     route:
       app:
+        annotations:
+          gatus.home-operations.com/endpoint: |
+            name: Sonarr
         hostnames: ["sonarr.${SECRET_DOMAIN}"]
         parentRefs:
           - name: envoy-internal

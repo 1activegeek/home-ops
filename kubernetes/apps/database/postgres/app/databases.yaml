@@ -13,3 +13,27 @@ spec:
   owner: forgejo
   encoding: UTF8
   databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: healthchecks
+spec:
+  cluster:
+    name: postgres
+  name: healthchecks
+  owner: healthchecks
+  encoding: UTF8
+  databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: homarr
+spec:
+  cluster:
+    name: postgres
+  name: homarr
+  owner: homarr
+  encoding: UTF8
+  databaseReclaimPolicy: retain

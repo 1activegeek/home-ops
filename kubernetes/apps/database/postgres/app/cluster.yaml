@@ -1,7 +1,7 @@
 ---
 # Shared PostgreSQL cluster. Replaces the per-app `postgres:18-alpine` sidecar
 # pattern documented in docs/deployment-plan.md. Apps migrate onto it one at a
-# time — see docs/postgres-consolidation.md for the runbook and ordering.
+# time for the runbook and ordering.
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -66,3 +66,15 @@ spec:
         passwordSecret:
           name: cnpg-role-forgejo-secret
         comment: "Forgejo (tools namespace)"
+      - name: healthchecks
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-role-healthchecks-secret
+        comment: "Healthchecks (monitoring namespace)"
+      - name: homarr
+        ensure: present
+        login: true
+        passwordSecret:
+          name: cnpg-role-homarr-secret
+        comment: "Homarr (tools namespace)"

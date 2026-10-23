@@ -99,19 +99,21 @@ front of it - for an internal-only route that is a deliberate choice, not an omi
 | Grafana | internal | `native_oidc` | Blueprinted. Generic OAuth against Authentik |
 | Forgejo | internal | `native_oidc` | Blueprinted. The auth source also lives in Forgejo's own database |
 | Hermes | internal | `native_oidc` | Blueprinted. Dashboard refuses to bind without a provider |
+| Homarr | internal | `native_oidc` | Blueprinted. Application bound to `tier1` + `tier2` only (tier3 and ungrouped users are denied at Authentik). Homarr syncs the `groups` claim onto same-named Homarr groups: `tier1` holds the admin permission, `tier2` gets board view. Local credentials stay enabled for one break-glass admin; no auto-login |
+| Nextcloud | internal | `native_oidc` | Blueprinted. user_oidc app configured by the app's setup hook. Application bound to `tier1` + `tier2`. Single user backend, so `/login` auto-redirects to Authentik (an existing Authentik session signs straight in). Local admin is break-glass via the direct-login URL. Accounts keyed on the Authentik username; no group sync, so Nextcloud admin rights are granted inside Nextcloud |
 | Matrix (MAS) | internal | `native_oidc` | Blueprinted. Redirect URI embeds a pinned upstream-provider ID |
 | Synapse | internal | `native_oidc` | Auth fully delegated to MAS. Federation disabled; no local passwords |
 | Element | internal | `native_oidc` | Static client; flows through Synapse -> MAS -> Authentik |
-| Z-Wave JS UI | external | `forward_auth` | Blueprinted proxy provider. The only external route actually gated |
+| Z-Wave JS UI | cluster_internal | `none` (HA session) | No route. A CiliumNetworkPolicy admits only Home Assistant (`host` entity) on the UI and Z-Wave JS server ports. The UI is reached only through an admin-only Home Assistant ingress panel (hass_ingress), so HA login is the gate. Never route it: it can run code in a privileged container and controls locks |
 | Home Assistant | external | `public_exception` | Opted out via the `public-access` component; uses its own auth |
 | Zipline | internal | `forward_auth` | Blueprinted proxy provider |
-| HA Code Server | internal | `forward_auth` | Blueprinted proxy provider; its route is currently disabled |
+| HA Code Server | cluster_internal | `none` (HA session) | No Service or route; bound to loopback in the HA pod. Reached only via an admin-only Home Assistant ingress panel (hass_ingress), so HA login is the gate. Never route it: it is a root shell in a privileged pod |
 | Seerr | external | `external_identity_exception` | User flow is intentionally based on Plex auth |
-| Shlink | external | `public_exception` | Redirect service is intended to serve public links |
-| Plex | internal | `external_identity_exception` | Uses Plex.tv identity model |
 | Authentik | external | `public_exception` | It is the IdP. Admin console is 404'd at the public edge |
 | Echo, Flux webhook, Tesla pubkey | external | `public_exception` | Webhook and probe endpoints |
 | Grimmory | internal | `none` | OIDC explicitly disabled in its config |
+| Healthchecks | internal | `forward_auth` | First **enforced** internal forward-auth (`internal-forward-auth` component) on the UI route, gated to `tier1`; app trusts `X-authentik-email` (`REMOTE_USER_HEADER`). `/ping/`, `/api/`, `/badge/` on a separate unauthenticated route (also plain HTTP for ping/api) that strips `X-authentik-*`; CiliumNetworkPolicy blocks direct pod access |
+| Gatus | internal | `none` | Read-only status page; no write actions or secrets in the UI. Replaced Uptime Kuma (which had its own login) |
 | All other internal apps | internal | `none` | Internal-only; no gateway auth and no OIDC configured |
 
 Apps in the last row include the *arr stack, media tooling, monitoring UIs, and the AI services. They
