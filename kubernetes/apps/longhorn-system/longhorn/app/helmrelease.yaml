@@ -29,6 +29,11 @@ spec:
       restoreConcurrentLimit: 2
       # Freeze the filesystem during snapshot for a more consistent point-in-time copy.
       freezeFilesystemForSnapshot: true
+      # Live-upgrade every volume's engine to the default engine image, one engine
+      # per node at a time, so old engine images drain and can be garbage-collected.
+      # 0 disables automatic engine upgrades.
+      # https://longhorn.io/docs/1.12.1/references/settings/#concurrent-automatic-engine-upgrade-per-node-limit
+      concurrentAutomaticEngineUpgradePerNodeLimit: 1
 
     # Off-cluster backup target: Synology NFS (NFSv4). No credentials needed for NFS.
     # In Longhorn v1.11 the backup target is the `defaultBackupStore` chart block
