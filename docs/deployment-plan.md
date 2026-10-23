@@ -270,8 +270,8 @@ Well within a 3-node cluster capacity, though the AI stack (Ollama) will be the 
 
 This section is the **source of truth** for tracking progress across sessions. Update it after each deployment action.
 
-**Last updated:** 2026-03-07
-**Current focus:** Auth governance, tracker reconciliation, and deployment policy cleanup
+**Last updated:** 2026-10-23
+**Current focus:** Security remediation (platform upgrade done; app hardening waves next)
 
 ### Status Legend
 
@@ -291,6 +291,17 @@ This section is the **source of truth** for tracking progress across sessions. U
 | Namespaces (media, ai, tools, monitoring) | `deployed` | `main` | Present in cluster and managed by Flux |
 | Shared NFS PV/PVC for media | `not started` | -- | Deferred to Phase 3 |
 | Tailscale Operator + Gateway | `deployed` | `main` | Flux Kustomizations and pods are healthy |
+
+### Platform
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Talos Linux | `verified` | 2026-10-23: 1.11.3 → 1.12 → 1.13 → 1.14.4, one minor at a time. `talenv.yaml` pins the 1.13 config contract because talhelper can't render 1.14 |
+| Kubernetes | `verified` | 2026-10-23: 1.34.1 → 1.35.9 → 1.36.5. Held below 1.37 until Cilium and Longhorn support it |
+| Cilium | `verified` | 2026-10-23: 1.18.6 → 1.20.4, chart now from upstream |
+| Longhorn | `verified` | All volume engines on 1.12.1; old engine images removed; drain policy allows upgrades past single-replica CNPG volumes |
+| PodSecurity admission | `deployed` | Restored cluster-wide with enforce `privileged`, warn/audit `baseline`; per-namespace enforcement is a later step |
+| talhelper replacement | `not started` | talhelper is archived; a migration to multi-document Talos config is needed before the next Talos minor. The re-rendered config (which also moves node networking to the new format) has not been applied; the PodSecurity and etcd-backup settings went on as a targeted patch |
 
 ### Phase 1: Simple Independent Apps
 
