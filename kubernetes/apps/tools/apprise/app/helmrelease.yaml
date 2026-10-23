@@ -48,6 +48,17 @@ spec:
         globalMounts:
           - path: /config
 
+    # Two routes for one host; the longest path match wins, and ext_authz
+    # attaches per route:
+    #   app    -> apprise-app: web UI and every config/key endpoint (/, /cfg,
+    #             /add, /get, /del, /json/urls, /details, /metrics, static).
+    #             Behind Authentik forward-auth (internal-forward-auth
+    #             component, see kustomization.yaml). /get and /json/urls
+    #             return the stored notification URLs, i.e. the credentials.
+    #   notify -> apprise-notify: only the send endpoints (POST /notify and
+    #             /notify/<key>) and the plain "OK" health check, so senders
+    #             keep working without an Authentik session. Apprise never
+    #             reads X-authentik-* headers, so nothing to strip here.
     route:
       app:
         annotations:
@@ -60,5 +71,28 @@ spec:
             sectionName: https
         rules:
           - backendRefs:
+              - name: apprise
+                port: 8000
+      notify:
+        annotations:
+          # Apprise's own health check: plain-text "OK" when the config and
+          # attachment stores are usable (the UI route only proves the
+          # Authentik redirect).
+          gatus.home-operations.com/endpoint: |
+            name: Apprise API
+            path: /status
+            conditions:
+              - "[STATUS] == 200"
+              - "[BODY] == OK"
+        hostnames: ["apprise.${SECRET_DOMAIN}"]
+        parentRefs:
+          - name: envoy-internal
+            namespace: network
+            sectionName: https
+        rules:
+          - matches:
+              - path: { type: PathPrefix, value: /notify }
+              - path: { type: Exact, value: /status }
+            backendRefs:
               - name: apprise
                 port: 8000

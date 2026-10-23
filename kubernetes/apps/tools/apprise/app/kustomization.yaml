@@ -4,3 +4,21 @@ kind: Kustomization
 resources:
   - ./ocirepository.yaml
   - ./helmrelease.yaml
+
+# UI and config route (apprise-app) behind Authentik forward-auth. The notify
+# route (/notify, /notify/<key>, /status) is deliberately left unauthenticated
+# so senders keep working; see the route comment in helmrelease.yaml.
+components:
+  - ../../../../components/internal-forward-auth
+
+patches:
+  - target:
+      kind: SecurityPolicy
+      name: internal-forward-auth
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: apprise-app-forward-auth
+      - op: replace
+        path: /spec/targetRefs/0/name
+        value: apprise-app

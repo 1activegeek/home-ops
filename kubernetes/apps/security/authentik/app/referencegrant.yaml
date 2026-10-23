@@ -25,6 +25,9 @@ spec:
     - group: gateway.envoyproxy.io
       kind: SecurityPolicy
       namespace: longhorn-system  # internal-forward-auth component (longhorn UI)
+    - group: gateway.envoyproxy.io
+      kind: SecurityPolicy
+      namespace: tools  # internal-forward-auth component (apprise)
   to:
     - group: ""
       kind: Service
