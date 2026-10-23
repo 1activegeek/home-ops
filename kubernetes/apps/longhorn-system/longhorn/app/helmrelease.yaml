@@ -34,6 +34,11 @@ spec:
       # 0 disables automatic engine upgrades.
       # https://longhorn.io/docs/1.12.1/references/settings/#concurrent-automatic-engine-upgrade-per-node-limit
       concurrentAutomaticEngineUpgradePerNodeLimit: 1
+      # The CNPG volumes (longhorn-cnpg) keep a single replica because Postgres
+      # replicates itself. The default policy blocks a node drain on any last
+      # replica, so Talos upgrades would stall; allow the drain once it is stopped.
+      # https://longhorn.io/docs/1.12.1/maintenance/maintenance/
+      nodeDrainPolicy: allow-if-replica-is-stopped
 
     # Off-cluster backup target: Synology NFS (NFSv4). No credentials needed for NFS.
     # In Longhorn v1.11 the backup target is the `defaultBackupStore` chart block
