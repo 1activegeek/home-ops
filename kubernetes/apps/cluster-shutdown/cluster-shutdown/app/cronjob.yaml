@@ -37,7 +37,7 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: quiesce
-              image: docker.io/alpine/k8s:1.34.1
+              image: docker.io/alpine/k8s:1.36.5
               command: ["bash", "/scripts/cluster-shutdown.sh", "--yes", "--no-poweroff", "--arm-restore"]
               env:
                 - name: HOME
@@ -65,7 +65,7 @@ spec:
                   mountPath: /tmp
           containers:
             - name: poweroff
-              image: ghcr.io/siderolabs/talosctl:v1.11.3
+              image: ghcr.io/siderolabs/talosctl:v1.14.4
               args:
                 - --talosconfig=/talos/talosconfig
                 # Any healthy node can relay the request to the others.
