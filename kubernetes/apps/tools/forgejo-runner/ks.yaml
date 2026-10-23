@@ -5,7 +5,8 @@ metadata:
   name: forgejo-runner
 spec:
   dependsOn:
-    # The register init container talks to the Forgejo API and fails without it.
+    # The runner connects to Forgejo through server.connections (user-scoped
+    # credential from 1Password); there is no register init container any more.
     - name: forgejo
     - name: external-secrets
       namespace: security

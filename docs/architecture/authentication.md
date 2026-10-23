@@ -88,6 +88,17 @@ Rules:
 
 Adding a new integration is covered by the `/setup-authentik-oidc` command.
 
+### Applying blueprint changes
+
+Merging a blueprint change is not always enough. Authentik's worker has been seen not to re-import a
+changed blueprint on its own (the discovery task did not run), so a new provider never appeared. After
+the ConfigMap updates, check that the object exists; if it does not, run
+`ak apply_blueprint /blueprints/mounted/cm-authentik-blueprints/<file>` in the worker pod. The
+embedded outpost then takes a few minutes to start serving a new host, and returns 404 until it does.
+
+Define each application slug in exactly one blueprint file. Two files that both declare the same
+application fight over its provider, and whichever applies last wins.
+
 ## App Classification Matrix
 
 Audited against the live cluster and the manifests. `none` means the app has no authentication in
@@ -97,22 +108,28 @@ front of it - for an internal-only route that is a deliberate choice, not an omi
 |-----|----------|-----------|-----------|
 | Headlamp | internal | `native_oidc` | Blueprinted. Shares its client ID with the kube-apiserver OIDC config |
 | Grafana | internal | `native_oidc` | Blueprinted. Generic OAuth against Authentik |
-| Forgejo | internal | `native_oidc` | Blueprinted. The auth source also lives in Forgejo's own database |
+| Forgejo | internal | `native_oidc` | Blueprinted. The auth source also lives in Forgejo's own database. Self-service registration is disabled, including through the Authentik source (no auto-registration), so accounts are created by an admin. The Actions runner is user-scoped to the owner's account, not instance-wide, and is scheduled away from Home Assistant's node |
 | Hermes | internal | `native_oidc` | Blueprinted. Dashboard refuses to bind without a provider |
 | Homarr | internal | `native_oidc` | Blueprinted. Application bound to `tier1` + `tier2` only (tier3 and ungrouped users are denied at Authentik). Homarr syncs the `groups` claim onto same-named Homarr groups: `tier1` holds the admin permission, `tier2` gets board view. Local credentials stay enabled for one break-glass admin; no auto-login |
 | Nextcloud | internal | `native_oidc` | Blueprinted. user_oidc app configured by the app's setup hook. Application bound to `tier1` + `tier2`. Single user backend, so `/login` auto-redirects to Authentik (an existing Authentik session signs straight in). Local admin is break-glass via the direct-login URL. Accounts keyed on the Authentik username; no group sync, so Nextcloud admin rights are granted inside Nextcloud |
 | Matrix (MAS) | internal | `native_oidc` | Blueprinted. Redirect URI embeds a pinned upstream-provider ID |
 | Synapse | internal | `native_oidc` | Auth fully delegated to MAS. Federation disabled; no local passwords |
 | Element | internal | `native_oidc` | Static client; flows through Synapse -> MAS -> Authentik |
-| Z-Wave JS UI | cluster_internal | `none` (HA session) | No route. A CiliumNetworkPolicy admits only Home Assistant (`host` entity) on the UI and Z-Wave JS server ports. The UI is reached only through an admin-only Home Assistant ingress panel (hass_ingress), so HA login is the gate. Never route it: it can run code in a privileged container and controls locks |
+| Z-Wave JS UI | cluster_internal | `none` (HA session) | No route; reachable only from Home Assistant's node. A CiliumNetworkPolicy admits only Home Assistant (`host` entity) on the UI and Z-Wave JS server ports. The UI is reached only through an admin-only Home Assistant ingress panel (hass_ingress), so HA login is the gate. Never route it: it can run code in a privileged container and controls locks |
 | Home Assistant | external | `public_exception` | Opted out via the `public-access` component; uses its own auth |
-| Zipline | internal | `forward_auth` | Blueprinted proxy provider |
+| Zipline | internal | `none` (native app login) | Zipline's own login. A proxy provider exists in the blueprint, but no SecurityPolicy attaches it to the route, so it enforces nothing |
 | HA Code Server | cluster_internal | `none` (HA session) | No Service or route; bound to loopback in the HA pod. Reached only via an admin-only Home Assistant ingress panel (hass_ingress), so HA login is the gate. Never route it: it is a root shell in a privileged pod |
-| Seerr | external | `external_identity_exception` | User flow is intentionally based on Plex auth |
+| Seerr | external | `external_identity_exception` | Stays on Plex sign-in by decision: Plex links household users to their Plex accounts, which is the intended experience |
 | Authentik | external | `public_exception` | It is the IdP. Admin console is 404'd at the public edge |
-| Echo, Flux webhook, Tesla pubkey | external | `public_exception` | Webhook and probe endpoints |
+| Echo, Flux webhook, Tesla pubkey | external | `public_exception` | Webhook and probe endpoints. Echo stays public by decision: it is the external health check |
 | Grimmory | internal | `none` | OIDC explicitly disabled in its config |
 | Healthchecks | internal | `forward_auth` | First **enforced** internal forward-auth (`internal-forward-auth` component) on the UI route, gated to `tier1`; app trusts `X-authentik-email` (`REMOTE_USER_HEADER`). `/ping/`, `/api/`, `/badge/` on a separate unauthenticated route (also plain HTTP for ping/api) that strips `X-authentik-*`; CiliumNetworkPolicy blocks direct pod access |
+| Longhorn UI | internal | `forward_auth` | `internal-forward-auth` component (Authentik proxy provider), gated to `tier1` |
+| Prometheus + Alertmanager | internal | `forward_auth` | One SecurityPolicy (`kps-forward-auth`) targets both routes; gated to `tier1`. The Prometheus admin API is disabled |
+| TeslaMate | internal | `forward_auth` | `internal-forward-auth` component, gated to `tier1` |
+| MeTube | internal | `forward_auth` | `internal-forward-auth` component on the whole app, gated to `tier1`. No unauthenticated exception (not even `/add`) |
+| Bambuddy | internal | `forward_auth` + native login | `internal-forward-auth` component, gated to `tier1`, and Bambuddy's own login is also enabled, so users sign in twice. Its Home Assistant integration uses a non-admin HA user's token |
+| Apprise | internal | `forward_auth` (UI) / `none` (API) | Split routes. The UI and config paths (`apprise-app` route) sit behind the `internal-forward-auth` component, gated to `tier1`. `/notify*` and the exact `/status` path stay open on a separate `apprise-notify` route so in-cluster senders and health checks keep working |
 | Gatus | internal | `none` | Read-only status page; no write actions or secrets in the UI. Replaced Uptime Kuma (which had its own login) |
 | All other internal apps | internal | `none` | Internal-only; no gateway auth and no OIDC configured |
 

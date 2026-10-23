@@ -155,7 +155,7 @@ Depends on Phase 3 (Plex) and Phase 4 (*arr apps).
 
 | App | Namespace | Exposure | Auth | Notes |
 |-----|-----------|----------|------|-------|
-| Bambuddy | home | internal | none | Self-hosted Bambu Lab printer UI; SQLite on Longhorn PVC; bridge networking (manual printer IPs). Revisit forward_auth if access widens. |
+| Bambuddy | home | internal | forward_auth + native login | Self-hosted Bambu Lab printer UI; SQLite on Longhorn PVC; bridge networking (manual printer IPs). 2026-10-23: behind forward-auth (`tier1`) with its own login also enabled. |
 
 ### Phase 7: Teslamate Stack
 
@@ -271,7 +271,7 @@ Well within a 3-node cluster capacity, though the AI stack (Ollama) will be the 
 This section is the **source of truth** for tracking progress across sessions. Update it after each deployment action.
 
 **Last updated:** 2026-10-23
-**Current focus:** Security remediation (platform upgrade done; app hardening waves next)
+**Current focus:** Security remediation (platform upgrade and Wave 1 login walls done; later hardening waves next)
 
 ### Status Legend
 
@@ -338,7 +338,7 @@ This section is the **source of truth** for tracking progress across sessions. U
 | Tailscale ACL policy | **Needs manual setup** | Tags + autoApprovers |
 | Auth policy alignment | **In progress** | See `docs/architecture/authentication.md` for the new standard |
 | Authentik OIDC providers | **In progress** | Deployed apps still need to be reviewed against the new auth policy |
-| Authentik forward-auth | **In progress** | External exposure must follow the documented default policy |
+| Authentik forward-auth | **In progress** | External exposure must follow the documented default policy. 2026-10-23 (Wave 1): internal forward-auth now on Longhorn, Prometheus/Alertmanager, TeslaMate, MeTube, Bambuddy and the Apprise UI |
 
 ### Session Log
 
@@ -372,4 +372,14 @@ This section is the **source of truth** for tracking progress across sessions. U
 | 2026-10-21 | Removed SABnzbd, SearXNG, Qdrant, Homepage | Removed to free cluster resources: `sabnzbd` (media), `searxng` and `qdrant` (ai), `homepage` (tools). Their Longhorn volumes (SABnzbd config + 150Gi scratch, Qdrant data) go with them, as do the `longhorn-scratch` StorageClass and SABnzbd's static media PV (Retain; the NAS share itself is untouched). Also removed: the `db-backup-qdrant` CronJob, the Homepage and Qdrant Authentik launcher tiles (`state: absent` in `99-cleanup.yaml`), and the SABnzbd migration doc and scripts. Homarr is now the only dashboard. |
 | 2026-10-21 | Uptime Kuma → Gatus | Replaced Uptime Kuma with Gatus + gatus-sidecar. Every HTTPRoute on either gateway now gets a check automatically; defaults are annotations on the two Gateways, per-route tuning is an annotation on the route. All 31 Kuma monitors for apps still in the cluster carried over (the Healthchecks keyword monitor became a body check on `healthchecks-machine`; Qdrant and Kuma's self-check went with their apps), plus 10 routes Kuma never watched (Atuin, Artifacts, Hookshot, MAS compat, Synapse, Synapse well-known, the media relay, echo, Tesla pubkey, Healthchecks UI) and a public-DNS check. Alerts moved to Prometheus (`GatusEndpointDown`, `GatusCertificateExpiringSoon`, `GatusNoResults`) → Alertmanager → Matrix; the Kuma relay profile was removed. Also: display names on every route, outside-in checks for `envoy-external` routes (resolved through public DNS, so they go via Cloudflare and the tunnel; the HA and Authentik external twins re-enabled as `(external)` checks), a domain-registration expiry check + `GatusDomainExpiringSoon`, and a Grafana dashboard. Gatus is internal, auth `none` (read-only status page). |
 | 2026-10-22 | Removed Unpackerr and Mosquitto | A usage check showed neither was doing any work. Unpackerr only handles torrent downloads, but Sonarr, Radarr and Radarr-4K all use NZBGet (usenet), which extracts its own downloads; after 4 days it had extracted nothing. Mosquitto's only client was TeslaMate, and nothing subscribed to what TeslaMate published (Home Assistant has no MQTT integration). TeslaMate now runs with `DISABLE_MQTT`, its `mosquitto` dependency and MQTT credentials are gone, and the Mosquitto volume is deleted with the app. Re-add Mosquitto if TeslaMate → Home Assistant over MQTT is ever wanted. |
+| 2026-10-23 | Wave 1: Longhorn UI login wall (#747) | Longhorn UI behind the `internal-forward-auth` component (Authentik proxy provider), gated to `tier1`. `internal` / `forward_auth`. |
+| 2026-10-23 | Wave 1: Forgejo sign-up closed (#748) | Self-service registration disabled, including auto-registration through the Authentik source. New accounts are created by an admin. |
+| 2026-10-23 | Wave 1: Prometheus + Alertmanager login wall (#749) | One SecurityPolicy (`kps-forward-auth`) puts both routes behind forward-auth, gated to `tier1`. Prometheus admin API disabled. |
+| 2026-10-23 | Wave 1: TeslaMate login wall (#750) | TeslaMate behind forward-auth, gated to `tier1`. |
+| 2026-10-23 | Wave 1: MeTube login wall (#751) | Whole app behind forward-auth, gated to `tier1`; no unauthenticated `/add` exception. |
+| 2026-10-23 | Wave 1: Bambuddy login wall (#752) | Bambuddy behind forward-auth, gated to `tier1`, with its own login also enabled (two sign-ins). Its Home Assistant integration now uses a non-admin HA user's token. |
+| 2026-10-23 | Wave 1: Forgejo runner re-scoped (#753) | The Actions runner is now registered to the owner's account (user scope via `server.connections`) instead of instance-wide, and is scheduled away from Home Assistant's node. The old instance-wide runner was deleted. |
+| 2026-10-23 | Wave 1: Apprise split routes (#754) | UI and config on the `apprise-app` route behind forward-auth (`tier1`); `/notify*` and the exact `/status` path stay open on a separate `apprise-notify` route for senders and health checks. |
+| 2026-10-23 | Wave 1: launcher tile cleanup (#755) | Removed duplicate Alertmanager and Apprise tiles from `40-launcher-apps.yaml`; those apps are now owned by their proxy blueprints. Lesson: define each application slug in one blueprint file only. |
+| 2026-10-23 | Wave 1: decisions and lessons | Seerr stays on Plex sign-in (Plex links household users to their accounts); Echo stays public as the external health check; Z-Wave JS UI has no route and is reachable only from Home Assistant's node. Authentik's worker did not auto-import a changed blueprint; running `ak apply_blueprint` in the worker pod fixed it, and the embedded outpost served the new host a few minutes later (see `docs/architecture/authentication.md`). |
 | | | *Next: Continue with Phase 4 and remaining auth cleanup.* |
