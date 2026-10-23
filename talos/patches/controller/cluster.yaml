@@ -1,8 +1,25 @@
 cluster:
   allowSchedulingOnControlPlanes: true
   apiServer:
+    # PodSecurity admission restored (previously deleted). enforce is
+    # "privileged" so nothing is rejected; warn/audit at "baseline" surface
+    # non-compliant workloads in kubectl warnings and the audit log so
+    # namespaces can be labelled and enforce tightened later.
     admissionControl:
-      $$patch: delete
+      - name: PodSecurity
+        configuration:
+          apiVersion: pod-security.admission.config.k8s.io/v1
+          kind: PodSecurityConfiguration
+          defaults:
+            enforce: privileged
+            enforce-version: latest
+            warn: baseline
+            warn-version: latest
+            audit: baseline
+            audit-version: latest
+          # exemptions: not set here — this entry merges (by name) with the
+          # Talos default PodSecurity config, which already exempts kube-system;
+          # listing it again would duplicate the entry.
     extraArgs:
       # https://kubernetes.io/docs/tasks/extend-kubernetes/configure-aggregation-layer/
       enable-aggregator-routing: true
@@ -31,3 +48,16 @@ cluster:
   scheduler:
     extraArgs:
       bind-address: 0.0.0.0
+machine:
+  features:
+    # Lets pods in the tools namespace (db-backup jobs) obtain a Talos API client cert
+    # (via a talos.dev/v1alpha1 ServiceAccount) limited to etcd snapshots.
+    # NOTE: deprecated in Talos 1.14 in favour of the KubeTalosAPIAccessConfig
+    # document, but still supported; migrate together with the rest of the
+    # v1alpha1 config.
+    kubernetesTalosAPIAccess:
+      enabled: true
+      allowedRoles:
+        - os:etcd:backup
+      allowedKubernetesNamespaces:
+        - tools
