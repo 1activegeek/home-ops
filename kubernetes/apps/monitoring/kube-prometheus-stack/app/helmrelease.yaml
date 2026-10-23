@@ -57,7 +57,8 @@ spec:
         probeSelectorNilUsesHelmValues: false
         ruleSelectorNilUsesHelmValues: false
         scrapeConfigSelectorNilUsesHelmValues: false
-        enableAdminAPI: true
+        # TSDB admin endpoints (delete series, snapshot, clean tombstones) off.
+        enableAdminAPI: false
         walCompression: true
         retention: 14d
         retentionSize: 25GB
