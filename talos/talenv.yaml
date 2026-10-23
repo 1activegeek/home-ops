@@ -1,10 +1,22 @@
+# talosVersion is the machine-config contract talhelper renders, not
+# necessarily the Talos release running on the nodes. The nodes run Talos
+# 1.14.x (upgraded with an explicit factory installer --image), but talhelper
+# 3.1.17 — the final release; the project is archived — cannot render a 1.14
+# contract from this repo's v1alpha1 patches (Talos 1.14 emits the new
+# KubeAPIServerConfig/KubeProxyConfig/... documents, which conflict with the
+# .cluster.apiServer etc. fields we set). A 1.13 contract config is fully
+# supported on 1.14 nodes. Move to a 1.14 contract only together with a
+# migration off talhelper / to the multi-document config format.
+# ghcr.io/siderolabs/installer is no longer published from 1.14 on, so
+# Renovate will only propose 1.13.x patches here.
 # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
-talosVersion: v1.13.11
-# Talos 1.13.x does not support Kubernetes 1.37 — talhelper rejects the pair
-# with "version of Kubernetes 1.37.0 is too new to be used with Talos 1.13.10",
-# which breaks `talhelper genconfig` and therefore `task talos:apply-node`.
-# Renovate bumped this to v1.37.0 in b2423aa with no Talos-compatibility
-# constraint; see the matching allowedVersions rule in .renovaterc.json5.
-# Raise this only once talosVersion moves to a release that supports 1.37.
+talosVersion: v1.13.12
+# Kubernetes is capped at 1.36.x even though Talos 1.14 supports up to 1.37:
+# no stable Cilium release supports 1.37 yet (1.20 is tested on 1.33-1.36) and
+# Longhorn 1.12/1.13 is tested only up to 1.36. talhelper also rejects any pair
+# outside the Talos support range (1.13: up to 1.36), which would break
+# `talhelper genconfig` and `task talos:apply-node`. The matching
+# allowedVersions rule in .renovaterc.json5 keeps Renovate below 1.37; raise
+# both only once Cilium and Longhorn support the newer minor.
 # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
 kubernetesVersion: v1.36.5
