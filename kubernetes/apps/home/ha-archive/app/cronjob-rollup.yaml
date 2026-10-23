@@ -1,7 +1,7 @@
 ---
 # Monthly: roll last month's daily JSONL into history.parquet + logbook.parquet
 # beside the day dirs, for fast DuckDB queries. Parquet is kept indefinitely.
-# See rollup.py and docs/home-assistant-archive.md.
+# See rollup.py.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

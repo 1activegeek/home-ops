@@ -32,7 +32,7 @@ spec:
   # spec without rollingUpdate, which is what finally clears it. The pod
   # restarts; Recreate already tears the old one down first, so no extra
   # downtime. The alternative is a manual `kubectl delete deploy`, which
-  # AGENTS.md rules out ("GitOps-Only Changes").
+  # GitOps-only rules rule this out.
   #
   # Do not leave these on: client-side apply gives up SSA's field-manager
   # tracking, and force turns an immutable-field error into a silent

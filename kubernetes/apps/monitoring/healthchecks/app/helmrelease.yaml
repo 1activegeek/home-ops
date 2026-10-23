@@ -165,7 +165,7 @@ spec:
       # Heartbeat runner: Kubernetes readiness (+ an optional HTTP check) ->
       # Healthchecks pings, for every Deployment/StatefulSet/DaemonSet annotated
       # healthchecks.io/slug; and CronJob runs -> cron checks in the "Jobs"
-      # project. See resources/heartbeat.sh and docs/healthchecks.md.
+      # project. See resources/heartbeat.sh.
       heartbeat:
         annotations:
           reloader.stakater.com/auto: "true"
