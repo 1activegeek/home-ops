@@ -145,16 +145,13 @@ spec:
               # needed because there is no TCP listener to protect.
               DOCKER_HOST: unix:///var/run/docker/docker.sock
               TZ: America/Denver
+            # No liveness probe: the old one tested for the legacy .runner file,
+            # which no longer exists now that registration is declared in
+            # configmap.yaml. The daemon exits on fatal errors, so the kubelet
+            # restarts it anyway, and the dind sidecar has its own probes.
             probes:
               liveness:
-                enabled: true
-                custom: true
-                spec:
-                  exec:
-                    command: ["/bin/sh", "-c", "test -f /data/.runner"]
-                  initialDelaySeconds: 30
-                  periodSeconds: 60
-                  failureThreshold: 3
+                enabled: false
               readiness:
                 enabled: false
             securityContext:
