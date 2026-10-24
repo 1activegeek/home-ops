@@ -10,8 +10,17 @@ spec:
     kind: OCIRepository
     name: loki
   values:
-    deploymentMode: SingleBinary
+    # Monolithic is the community chart's name for the old SingleBinary mode;
+    # it renders the same `loki` StatefulSet (selector and volumeClaimTemplates
+    # unchanged).
+    deploymentMode: Monolithic
     loki:
+      # Pinned explicitly so Renovate tracks the image. Pulled through
+      # mirror.gcr.io: anonymous Docker Hub pulls hit 429 rate limits.
+      image:
+        registry: mirror.gcr.io
+        repository: grafana/loki
+        tag: "3.7.9"
       auth_enabled: false
       commonConfig:
         replication_factor: 1
@@ -49,6 +58,11 @@ spec:
         rule_path: /var/loki/rules-temp
         alertmanager_url: http://kps-alertmanager.monitoring.svc.cluster.local:9093
         enable_api: true
+    sidecar:
+      image:
+        registry: quay.io
+        repository: kiwigrid/k8s-sidecar
+        tag: "2.14.1"
     singleBinary:
       replicas: 1
       persistence:
@@ -73,6 +87,8 @@ spec:
       enabled: false
     resultsCache:
       enabled: false
+    memcached:
+      enabled: false
     lokiCanary:
       enabled: false
     test:
@@ -80,7 +96,3 @@ spec:
     monitoring:
       serviceMonitor:
         enabled: true
-      selfMonitoring:
-        enabled: false
-        grafanaAgent:
-          installOperator: false
