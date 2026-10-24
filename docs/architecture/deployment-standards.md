@@ -102,7 +102,9 @@ Rules:
 - liveness/readiness probes
 - `securityContext` — default `runAsUser/fsGroup: 65534` unless the image requires otherwise (`task validate:security-ctx` flags mismatches)
 - `reloader.stakater.com/auto: "true"` annotation on **any** app consuming an ExternalSecret or ConfigMap
-- Image tags: pinned semver only. Never `latest`, `main`, or channel tags. No digests currently — semver is the standard.
+- Image tags: pinned exact versions only (`18.3-alpine`, not `18-alpine` or `18`). Never `latest`, `main`, or channel tags. `task validate:tags` enforces this locally and in CI; justified exceptions go in `.taskfiles/validate/scripts/tags-allowlist.txt`.
+- Images behind public (`envoy-external`) routes also carry a digest (`tag@sha256:…`); Renovate's `pinDigests` rule keeps those current. Other images use the tag alone.
+- Docker Hub official images (`postgres`, `redis`, `mariadb`, `nginx`, `busybox`, …) come through `mirror.gcr.io/library/<image>`. Anonymous Docker Hub pulls hit its rate limit (HTTP 429) whenever several new tags roll out at once, which leaves pods in ImagePullBackOff and makes Helm roll back.
 - Dashboard tiles live in Homarr's database (managed in its UI), not in Git.
 
 ## 8a. Monitoring standard (observability stack, 2026-07)
@@ -133,6 +135,7 @@ Prometheus retains 14d/25GB, Loki 14d — both on `longhorn-nobackup` (rebuildab
 
 1. Branch per change; **never commit to main** — Flux deploys main near-instantly via webhook.
 2. `task validate:preflight` before building, `task validate` (or `task validate:all`) before PR.
-3. CI only runs `flux-local` — the secrets/images/routes/substitutions/security checks are local-only. Running them is mandatory, not optional.
+3. CI runs `flux-local` (test and diff) and `validate:tags`; both feed the required `Flux Local Success` check. The secrets/images/routes/substitutions/security checks are local-only. Running them is mandatory, not optional.
 4. Route/auth changes additionally require the security posture check (`task validate:security`).
-5. Renovate config lives in `.renovaterc.json5` (real config: 3-day burn-in gate, weekend schedule, custom managers) plus `renovate.json` (single onepassword-connect pin). Don't add a third.
+5. Renovate config lives in `.renovaterc.json5` only: a 3-day burn-in gate, a Wednesday-evening schedule, custom managers, abandoned-source flagging, and security updates that open at any time with a `security` label and never automerge. Don't add another config file.
+6. `version-drift` (monitoring) checks daily that the nodes run the Talos and Kubernetes versions in Git: Kubernetes from `talos/talenv.yaml`, Talos from `kubernetes/apps/monitoring/version-drift/app/resources/desired-versions.yaml`. The Talos version has its own file because `talenv.yaml` pins the older talhelper config contract. Drift that lasts more than 7 days fails the job, which alerts through Healthchecks.
