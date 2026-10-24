@@ -5,6 +5,11 @@ on:
   pull_request:
     branches: ["main"]
 
+env:
+  # The Actions allow-list only governs `uses:` references, so the image runs via `docker run`.
+  # renovate: datasource=docker depName=ghcr.io/allenporter/flux-local
+  FLUX_LOCAL_VERSION: v8.4.0
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
   cancel-in-progress: true
@@ -23,7 +28,9 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
-          files: kubernetes/**
+          files: |
+            kubernetes/**
+            .github/workflows/flux-local.yaml
 
   test:
     name: Flux Local Test
@@ -35,9 +42,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run flux-local test
-        uses: docker://ghcr.io/allenporter/flux-local:v8.4.0
-        with:
-          args: test --enable-helm --all-namespaces --path /github/workspace/kubernetes/flux/cluster -v
+        run: >-
+          docker run --rm -e HOME=/tmp -v "$GITHUB_WORKSPACE:/github/workspace" -w /github/workspace
+          "ghcr.io/allenporter/flux-local:$FLUX_LOCAL_VERSION"
+          test --enable-helm --all-namespaces --path /github/workspace/kubernetes/flux/cluster -v
 
   diff:
     name: Flux Local Diff
@@ -65,18 +73,18 @@ jobs:
           path: default
 
       - name: Run flux-local diff
-        uses: docker://ghcr.io/allenporter/flux-local:v8.4.0
-        with:
-          args: >-
-            diff ${{ matrix.resources }}
-            --unified 6
-            --path /github/workspace/pull/kubernetes/flux/cluster
-            --path-orig /github/workspace/default/kubernetes/flux/cluster
-            --strip-attrs "helm.sh/chart,checksum/config,app.kubernetes.io/version,chart"
-            --limit-bytes 10000
-            --all-namespaces
-            --sources "flux-system"
-            --output-file diff.patch
+        run: >-
+          docker run --rm -e HOME=/tmp -v "$GITHUB_WORKSPACE:/github/workspace" -w /github/workspace
+          "ghcr.io/allenporter/flux-local:$FLUX_LOCAL_VERSION"
+          diff ${{ matrix.resources }}
+          --unified 6
+          --path /github/workspace/pull/kubernetes/flux/cluster
+          --path-orig /github/workspace/default/kubernetes/flux/cluster
+          --strip-attrs "helm.sh/chart,checksum/config,app.kubernetes.io/version,chart"
+          --limit-bytes 10000
+          --all-namespaces
+          --sources "flux-system"
+          --output-file diff.patch
 
       - name: Generate Diff
         id: diff
