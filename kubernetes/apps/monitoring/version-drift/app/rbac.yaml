@@ -1,0 +1,53 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: version-drift
+---
+# Read-only: node objects carry the running Talos release (osImage) and
+# kubelet version.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: version-drift
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: version-drift
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: version-drift
+subjects:
+  - kind: ServiceAccount
+    name: version-drift
+    namespace: monitoring
+---
+# The only write: its own state ConfigMap, by name.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: version-drift-state
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["version-drift-state"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: version-drift-state
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: version-drift-state
+subjects:
+  - kind: ServiceAccount
+    name: version-drift
+    namespace: monitoring

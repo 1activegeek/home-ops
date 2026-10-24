@@ -27,6 +27,23 @@
   // time instead -- see MIN_PR_AGE_DAYS in scripts/renovate-triage/triage.py.
   minimumReleaseAge: "3 days",
   internalChecksFilter: "none",
+  // Security updates bypass the Wednesday schedule and the burn-in gate: a PR
+  // fixing a known vulnerability is raised as soon as Renovate sees the
+  // advisory (GitHub Dependabot alerts, plus OSV for ecosystems it covers).
+  // Never automerged -- a human reads every security PR. The Renovate app needs
+  // the "Dependabot alerts: read" permission for the GitHub source.
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: ["security"],
+    schedule: ["at any time"],
+    minimumReleaseAge: null,
+    automerge: false,
+  },
+  osvVulnerabilityAlerts: true,
+  // Flag dependencies whose upstream has published nothing for a year, so a
+  // frozen or archived source (talhelper was one) shows up on the Dependency
+  // Dashboard instead of silently never updating.
+  abandonmentThreshold: "1 year",
   ignorePaths: ["**/*.sops.*"],
   flux: {
     managerFilePatterns: ["/(^|/)kubernetes/.+\\.ya?ml(?:\\.j2)?$/"],
@@ -73,22 +90,38 @@
       },
       minimumGroupSize: 3,
     },
+    // Automerge goes through a PR so the required "Flux Local Success" check
+    // gates it (GitHub native automerge). CI only runs on pull_request, so the
+    // old branch automerge had no checks to wait for and relied on ignoreTests,
+    // i.e. it pushed untested commits straight to main via the ruleset bypass.
     {
       description: "Auto-merge GitHub Actions",
       matchManagers: ["github-actions"],
       automerge: true,
-      automergeType: "branch",
+      automergeType: "pr",
       matchUpdateTypes: ["minor", "patch", "digest"],
       minimumReleaseAge: "3 days",
-      ignoreTests: true,
     },
     {
       description: "Auto-merge Mise Tools",
       matchManagers: ["mise"],
       automerge: true,
-      automergeType: "branch",
+      automergeType: "pr",
       matchUpdateTypes: ["minor", "patch"],
-      ignoreTests: true,
+    },
+    {
+      description: "Digest-pin images that serve internet-facing routes (envoy-external backends and the Cloudflare tunnel), so a re-pushed tag cannot change what runs on the public edge without a reviewed PR. Scoped to these packages on purpose -- the rest of the repo stays on plain semver tags. Images set only by an upstream chart's defaults (authentik, envoy proxy, Flux) are not in the repo and cannot be pinned here.",
+      matchDatasources: ["docker"],
+      matchPackageNames: [
+        "ghcr.io/mendhak/http-https-echo",
+        "ghcr.io/home-assistant/home-assistant",
+        "ghcr.io/seerr-team/seerr",
+        "docker.io/cloudflare/cloudflared",
+        "cloudflare/cloudflared",
+        "nginx",
+        "docker.io/library/nginx",
+      ],
+      pinDigests: true,
     },
     {
       matchUpdateTypes: ["major"],

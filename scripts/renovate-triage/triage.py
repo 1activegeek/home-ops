@@ -2,7 +2,19 @@
 """Renovate PR triage engine for 1activegeek/home-ops.
 
 Classifies open Renovate PRs by type label + CI status and outputs triage.json.
-Optionally approves and squash-merges the safe bucket.
+Optionally squash-merges the safe bucket.
+
+Only PRs authored by the Renovate GitHub App's bot user are considered. Labels
+are NOT trusted for this: anyone who can open a PR can add a `renovate/*` or
+`type/patch` label, and the safe bucket gets merged without human review. Each
+PR is re-checked against the REST API (login, account type and user id) right
+before it is merged.
+
+No approvals. main requires a PR plus the "Flux Local Success" check with zero
+required approvals, so an approval adds nothing -- and an approval issued from
+the operator's gh login would be recorded as the human owner reviewing code
+nobody reviewed. Merges run as whatever identity gh is authenticated as; use an
+agent/bot token (GH_TOKEN) rather than a personal one.
 
 Release-age burn-in is enforced HERE, at merge time, via MIN_PR_AGE_DAYS.
 Renovate's own `minimumReleaseAge` (.renovaterc.json5) cannot carry the gate on
@@ -14,7 +26,7 @@ until the PR itself is MIN_PR_AGE_DAYS old before it lands in the safe bucket.
 Usage:
   triage.py                        # report mode, JSON to stdout
   triage.py --out triage.json      # write to file
-  triage.py --merge-safe           # approve+merge safe PRs, then verify cluster health
+  triage.py --merge-safe           # merge safe PRs, then verify cluster health
   triage.py --merge-safe --dry-run # print gh commands, don't run (no health check)
   triage.py --merge-safe --skip-health-check  # merge but don't wait for the cluster
   triage.py --verify-health        # just run the cluster health check (no triage/merge)
@@ -36,6 +48,14 @@ import time
 from datetime import datetime, timezone
 
 REPO = "1activegeek/home-ops"
+
+# The hosted Mend Renovate app (GitHub App id 2740) acts as this bot user.
+# `gh pr list` reports it as login "app/renovate" with is_bot=true; the REST API
+# as login "renovate[bot]", type "Bot", id 29139614. "[bot]" logins can't be
+# registered by people, and the id pins it to this specific app.
+RENOVATE_GH_LIST_LOGIN = "app/renovate"
+RENOVATE_BOT_LOGIN = "renovate[bot]"
+RENOVATE_BOT_USER_ID = 29139614
 
 # Flux git source to nudge after a merge so we don't wait out the poll interval.
 FLUX_GIT_SOURCE = "flux-system"
@@ -84,9 +104,19 @@ def fetch_prs(repo):
 
 
 def is_renovate(pr):
-    if pr["author"]["login"] in ("app/renovate", "renovate[bot]", "renovate"):
-        return True
-    return any(l["name"].startswith("renovate/") for l in pr["labels"])
+    """True only if the PR author is the Renovate app's bot user (never by label)."""
+    author = pr.get("author") or {}
+    return bool(author.get("is_bot")) and author.get("login") == RENOVATE_GH_LIST_LOGIN
+
+
+def verify_renovate_author(pr_number, repo):
+    """Re-check authorship against the REST API immediately before merging."""
+    raw = gh("api", f"repos/{repo}/pulls/{pr_number}", "--jq",
+             "{login: .user.login, type: .user.type, id: .user.id}")
+    user = json.loads(raw)
+    return (user.get("login") == RENOVATE_BOT_LOGIN
+            and user.get("type") == "Bot"
+            and user.get("id") == RENOVATE_BOT_USER_ID)
 
 
 def extract_type(labels):
@@ -174,21 +204,19 @@ def bucket_pr(pr):
 
 
 def run_gh_merge(pr_number, repo, dry_run):
-    approve_cmd = ["gh", "pr", "review", str(pr_number), "--approve", "-R", repo]
+    # No `gh pr review --approve`: see the module docstring.
     merge_cmd = ["gh", "pr", "merge", str(pr_number), "-R", repo, "--squash", "--delete-branch"]
+    if not verify_renovate_author(pr_number, repo):
+        print(f"  REFUSING to merge #{pr_number}: author is not the Renovate bot",
+              file=sys.stderr)
+        return False
     if dry_run:
-        print(f"  [dry-run] {' '.join(approve_cmd)}")
         print(f"  [dry-run] {' '.join(merge_cmd)}")
         return True
-    print(f"  Approving PR #{pr_number}...")
-    r1 = subprocess.run(approve_cmd, capture_output=True, text=True)
-    if r1.returncode != 0:
-        print(f"  Approve failed: {r1.stderr.strip()}", file=sys.stderr)
-        return False
     print(f"  Merging PR #{pr_number}...")
-    r2 = subprocess.run(merge_cmd, capture_output=True, text=True)
-    if r2.returncode != 0:
-        print(f"  Merge failed: {r2.stderr.strip()}", file=sys.stderr)
+    r = subprocess.run(merge_cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"  Merge failed: {r.stderr.strip()}", file=sys.stderr)
         return False
     return True
 

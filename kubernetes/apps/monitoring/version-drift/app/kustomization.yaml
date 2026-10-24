@@ -1,0 +1,22 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./rbac.yaml
+  - ./state.yaml
+  - ./cronjob.yaml
+configMapGenerator:
+  # Desired versions, straight from the files on main that Flux is applying:
+  # Kubernetes from talos/talenv.yaml (the same value talhelper renders), and
+  # the Talos release the nodes should RUN from desired-versions.yaml. Mounted
+  # rather than fetched from GitHub so the check has no internet dependency and
+  # always compares against exactly the commit Flux reconciled.
+  - name: version-drift-desired
+    files:
+      - talenv.yaml=../../../../../talos/talenv.yaml
+      - desired-versions.yaml=./resources/desired-versions.yaml
+  - name: version-drift-script
+    files:
+      - ./resources/check.sh
+generatorOptions:
+  disableNameSuffixHash: true
