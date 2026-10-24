@@ -17,7 +17,7 @@ spec:
           app:
             image:
               repository: docker.n8n.io/n8nio/n8n
-              tag: 2.40.3
+              tag: 2.44.6
             env:
               DB_TYPE: postgresdb
               DB_POSTGRESDB_HOST: n8n-postgres
@@ -63,7 +63,7 @@ spec:
           postgres:
             image:
               repository: postgres
-              tag: 18-alpine
+              tag: 18.6-alpine
             env:
               POSTGRES_DB: n8n
               POSTGRES_USER: n8n
