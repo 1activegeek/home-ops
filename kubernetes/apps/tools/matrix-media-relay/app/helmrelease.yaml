@@ -17,7 +17,7 @@ spec:
         containers:
           app:
             image:
-              repository: python
+              repository: mirror.gcr.io/library/python
               tag: 3.14.7-slim
             command: ["python", "-u", "/app/relay.py"]
             env:

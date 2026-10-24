@@ -61,7 +61,7 @@ spec:
         containers:
           mariadb:
             image:
-              repository: mariadb
+              repository: mirror.gcr.io/library/mariadb
               tag: "12.2.2"
             env:
               MYSQL_ROOT_PASSWORD:

@@ -48,7 +48,7 @@ spec:
         containers:
           app:
             image:
-              repository: docker.io/library/caddy
+              repository: mirror.gcr.io/library/caddy
               tag: 2.11.4-alpine
             args: ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
             env:
