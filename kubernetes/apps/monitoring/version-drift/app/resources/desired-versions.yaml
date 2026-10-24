@@ -1,0 +1,14 @@
+# Desired runtime versions for the version-drift check (not applied to the
+# cluster; mounted into the check's ConfigMap).
+#
+# talosRuntimeVersion is the Talos release the nodes should be RUNNING. It is
+# deliberately separate from talosVersion in talos/talenv.yaml, which is the
+# talhelper machine-config contract and stays on 1.13.x (talhelper cannot
+# render a 1.14 contract; see the comment there). Comparing the nodes against
+# that contract would alarm forever.
+#
+# Renovate bumps this key when Siderolabs publishes a release. Merging the bump
+# declares intent; upgrade the nodes (factory installer image, see AGENTS.md)
+# within 7 days or the version-drift CronJob fails and Healthchecks alerts.
+# renovate: datasource=github-releases depName=siderolabs/talos
+talosRuntimeVersion: v1.14.4

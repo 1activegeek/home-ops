@@ -15,3 +15,4 @@ resources:
   - ./alloy/ks.yaml
   - ./gatus/ks.yaml
   - ./healthchecks/ks.yaml
+  - ./version-drift/ks.yaml

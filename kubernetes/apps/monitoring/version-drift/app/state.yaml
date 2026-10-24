@@ -1,0 +1,13 @@
+---
+# Durable "drift first seen" timestamp, written by the version-drift CronJob.
+# Flux creates it once (ssa: IfNotPresent) and then leaves the job's writes
+# alone, so a reconcile never resets the 7-day clock.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: version-drift-state
+  annotations:
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
+data:
+  driftSince: ""
+  detail: ""
