@@ -30,7 +30,7 @@ spec:
           init-perms:
             image: &image
               repository: nextcloud
-              tag: 34.0.4
+              tag: 34.0.5
             command:
               - sh
               - -c
