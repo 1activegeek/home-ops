@@ -29,7 +29,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: dump
-              image: docker.io/alpine/k8s:1.37.1
+              image: docker.io/alpine/k8s:1.36.5
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false

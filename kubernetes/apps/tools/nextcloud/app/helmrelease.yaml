@@ -148,7 +148,7 @@ spec:
           postgres:
             image:
               repository: postgres
-              tag: 18-alpine
+              tag: 18.3-alpine
             env:
               POSTGRES_DB: nextcloud
               POSTGRES_USER: nextcloud
@@ -175,7 +175,7 @@ spec:
           redis:
             image:
               repository: redis
-              tag: 8-alpine
+              tag: 8.6.3-alpine
             args:
               - redis-server
               - --save

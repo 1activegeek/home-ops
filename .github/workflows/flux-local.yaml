@@ -114,9 +114,20 @@ jobs:
             ${{ steps.diff.outputs.diff }}
             ```
 
+  tags:
+    name: Image Tag Pins
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # yq (mikefarah v4) ships with the ubuntu-latest runner image.
+      - name: Fail on floating image tags
+        run: bash .taskfiles/validate/scripts/validate-tags.sh
+
   flux-local-status:
     name: Flux Local Success
-    needs: ["test", "diff"]
+    needs: ["test", "diff", "tags"]
     runs-on: ubuntu-latest
     if: ${{ always() }}
     steps:

@@ -17,7 +17,7 @@ spec:
           init-db:
             image:
               repository: ghcr.io/home-operations/postgres-init
-              tag: "18"
+              tag: "18.3.0"
             env:
               INIT_POSTGRES_HOST: zipline-postgresql #remediate
               INIT_POSTGRES_SUPER_USER: postgres #remediate
@@ -36,7 +36,7 @@ spec:
           init-schema:
             image:
               repository: postgres
-              tag: "18-alpine"
+              tag: "18.3-alpine"
             env:
               PGHOST: zipline-postgresql #remediate
               PGUSER: postgres #remediate
@@ -85,7 +85,7 @@ spec:
           postgres:
             image:
               repository: postgres
-              tag: "18-alpine"
+              tag: "18.3-alpine"
             env:
               POSTGRES_USER: postgres #remediate
               POSTGRES_DB: zipline #remediate

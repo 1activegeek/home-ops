@@ -1,0 +1,5 @@
+# Exceptions for validate-tags.sh: one `repository:tag` per line, exactly as
+# written in the manifest, with a `# reason`. Keep this list short — every
+# entry is an image Renovate or a reader could mistake for a floating tag.
+
+ghcr.io/mendhak/http-https-echo:40  # upstream releases are plain integers (39, 40, 41); "40" is an immutable release, not a major line
