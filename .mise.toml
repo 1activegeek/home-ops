@@ -9,7 +9,7 @@ SOPS_AGE_KEY_FILE = "{{env.HOME}}/.config/sops/age/home-ops.key"
 TALOSCONFIG = "{{config_root}}/talos/clusterconfig/talosconfig"
 
 [tools]
-python = "3.14.7"
+python = "3.15.1"
 yamllint = "1.38.0"
 "pipx:makejinja" = "2.9.1"
 "pipx:flux-local" = "8.4.0"
