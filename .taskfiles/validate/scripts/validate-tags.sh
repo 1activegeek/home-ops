@@ -20,6 +20,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 ALLOWLIST="$(dirname "${BASH_SOURCE[0]}")/tags-allowlist.txt"
 SCAN_DIRS=("${REPO_ROOT}/kubernetes" "${REPO_ROOT}/bootstrap")
 
+command -v yq >/dev/null || { echo "yq (mikefarah v4) is required" >&2; exit 1; }
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -130,6 +132,13 @@ done < <(find "${SCAN_DIRS[@]}" -type f \( -name '*.yaml' -o -name '*.yml' \) \
 
 echo ""
 echo "Checked ${CHECKED} image reference(s), ${ALLOWED} allowlisted"
+
+# yq errors are swallowed per file above, so a broken yq would otherwise pass
+# with nothing checked.
+if [[ $CHECKED -eq 0 ]]; then
+  echo -e "${RED}❌ No image references found — is mikefarah yq v4 installed?${NC}"
+  exit 1
+fi
 
 if [[ $ERRORS -gt 0 ]]; then
   echo -e "${RED}❌ ${ERRORS} floating image tag(s). Pin an exact version (see AGENTS.md 'Never Use latest Image Tags').${NC}"
