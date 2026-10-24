@@ -141,7 +141,7 @@ spec:
           app:
             image:
               repository: docker.io/curlimages/curl
-              tag: 8.22.0
+              tag: 8.23.0
             command: ["/bin/sh", "/scripts/self-check.sh"]
             env:
               HC_BASE_URL: https://hc.${SECRET_DOMAIN}
