@@ -37,7 +37,7 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: quiesce
-              image: docker.io/alpine/k8s:1.36.5
+              image: docker.io/alpine/k8s:1.37.1
               command: ["bash", "/scripts/cluster-shutdown.sh", "--yes", "--no-poweroff", "--arm-restore"]
               env:
                 - name: HOME
