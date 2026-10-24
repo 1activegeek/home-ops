@@ -11,8 +11,10 @@ spec:
   values:
     replicas: 1
     # Pinned explicitly (registry/repository/tag) so Renovate tracks each image.
+    # Docker Hub images come through mirror.gcr.io: anonymous Docker Hub pulls
+    # hit 429 rate limits from the cluster.
     image:
-      registry: docker.io
+      registry: mirror.gcr.io
       repository: grafana/grafana
       tag: "13.2.4-distroless"
     deploymentStrategy:
@@ -51,7 +53,7 @@ spec:
 
     initChownData:
       image:
-        registry: docker.io
+        registry: mirror.gcr.io
         repository: library/busybox
         tag: "1.38.0"
 
