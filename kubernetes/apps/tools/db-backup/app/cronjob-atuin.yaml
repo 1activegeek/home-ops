@@ -28,7 +28,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: dump
-              image: postgres:18.3-alpine
+              image: mirror.gcr.io/library/postgres:18.3-alpine
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false

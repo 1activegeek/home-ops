@@ -147,7 +147,7 @@ spec:
         containers:
           postgres:
             image:
-              repository: postgres
+              repository: mirror.gcr.io/library/postgres
               tag: 18.3-alpine
             env:
               POSTGRES_DB: nextcloud
@@ -174,7 +174,7 @@ spec:
         containers:
           redis:
             image:
-              repository: redis
+              repository: mirror.gcr.io/library/redis
               tag: 8.6.3-alpine
             args:
               - redis-server
