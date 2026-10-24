@@ -10,6 +10,11 @@ spec:
   interval: 1h
   values:
     replicas: 1
+    # Pinned explicitly (registry/repository/tag) so Renovate tracks each image.
+    image:
+      registry: docker.io
+      repository: grafana/grafana
+      tag: "13.2.4-distroless"
     deploymentStrategy:
       type: Recreate
 
@@ -44,6 +49,12 @@ spec:
         role_attribute_path: contains(groups[*], 'tier1') && 'Admin' || contains(groups[*], 'tier2') && 'Editor' || 'Viewer'
         role_attribute_strict: false
 
+    initChownData:
+      image:
+        registry: docker.io
+        repository: library/busybox
+        tag: "1.38.0"
+
     persistence:
       enabled: true
       type: pvc
@@ -53,6 +64,10 @@ spec:
       size: 1Gi
 
     sidecar:
+      image:
+        registry: quay.io
+        repository: kiwigrid/k8s-sidecar
+        tag: "2.14.1"
       dashboards:
         enabled: true
         searchNamespace: ALL
