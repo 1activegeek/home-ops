@@ -73,6 +73,7 @@ task validate:preflight
 # Run individual checks
 task validate:secrets       # 1Password fields match ExternalSecret template refs
 task validate:secret-keys   # existingSecret key references exist in the secret
+task validate:tags          # no floating image tags (latest, main, bare majors)
 task validate:images        # image tags exist in their registries
 task validate:nfs           # NFS exports are accessible
 task validate:routes        # HTTPRoute backendRefs match actual service names
@@ -88,6 +89,7 @@ task validate:security-ctx  # UID/security context compatibility warnings
 |---|---|
 | `validate:secrets` | 1Password field missing or misnamed (ExternalSecret never syncs) |
 | `validate:secret-keys` | Chart `existingSecret` references a key the secret doesn't have |
+| `validate:tags` | Floating tag (`latest`, `18-alpine`) silently changes the image and hides it from Renovate |
 | `validate:images` | Non-existent image tag causes ImagePullBackOff |
 | `validate:nfs` | NFS path not exported → pod stuck pending |
 | `validate:routes` | HTTPRoute backendRef wrong service name → 502 from gateway |

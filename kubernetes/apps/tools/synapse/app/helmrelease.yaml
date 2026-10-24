@@ -86,7 +86,7 @@ spec:
           postgres:
             image:
               repository: postgres
-              tag: 18-alpine
+              tag: 18.3-alpine
             env:
               POSTGRES_DB: synapse
               POSTGRES_USER: synapse

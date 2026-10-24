@@ -16,6 +16,7 @@ tasks:
     desc: Run all validation checks (static + rendered + integration)
     cmds:
       - task: static
+      - task: tags
       - task: flux
       - task: rendered
       - task: routes
@@ -27,10 +28,11 @@ tasks:
       - task: security-ctx
 
   preflight:
-    desc: Run integration pre-flight checks (secrets, secret-keys, images, nfs, substitutions)
+    desc: Run integration pre-flight checks (secrets, secret-keys, tags, images, nfs, substitutions)
     cmds:
       - task: secrets
       - task: secret-keys
+      - task: tags
       - task: images
       - task: nfs
       - task: substitutions
@@ -99,6 +101,12 @@ tasks:
     cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-secret-keys.sh"
     preconditions:
       - which flux-local
+      - which yq
+
+  tags:
+    desc: Fail on floating image tags (latest, main, stable, bare majors like "18-alpine")
+    cmd: bash "{{.VALIDATE_SCRIPTS}}/validate-tags.sh"
+    preconditions:
       - which yq
 
   images:

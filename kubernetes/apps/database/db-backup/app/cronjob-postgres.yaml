@@ -43,7 +43,7 @@ spec:
             - name: dump
               # Matches the server major version (18). Consistent with the eight
               # existing db-backup CronJobs; pg_dump is compatible across minors.
-              image: postgres:18-alpine
+              image: postgres:18.3-alpine
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false
