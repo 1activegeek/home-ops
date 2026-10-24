@@ -43,7 +43,7 @@ jobs:
 
       - name: Run flux-local test
         run: >-
-          docker run --rm -v "$GITHUB_WORKSPACE:/github/workspace" -w /github/workspace
+          docker run --rm -e HOME=/tmp -v "$GITHUB_WORKSPACE:/github/workspace" -w /github/workspace
           "ghcr.io/allenporter/flux-local:$FLUX_LOCAL_VERSION"
           test --enable-helm --all-namespaces --path /github/workspace/kubernetes/flux/cluster -v
 
@@ -74,7 +74,7 @@ jobs:
 
       - name: Run flux-local diff
         run: >-
-          docker run --rm -v "$GITHUB_WORKSPACE:/github/workspace" -w /github/workspace
+          docker run --rm -e HOME=/tmp -v "$GITHUB_WORKSPACE:/github/workspace" -w /github/workspace
           "ghcr.io/allenporter/flux-local:$FLUX_LOCAL_VERSION"
           diff ${{ matrix.resources }}
           --unified 6
